@@ -24,6 +24,8 @@ namespace Epixx.Models.Entities
         public string Status { get; set; }
         public string? Destination { get; set; }
         public string? Location { get; set; }
+        public DateTime? StorageDate { get; set; }
+        public DateTime? TransferDate { get; set; }
         public int? StoreId { get; set; }
         [ForeignKey("StoreId")]
         public int? DriverId { get; set; }

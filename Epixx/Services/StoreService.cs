@@ -14,12 +14,38 @@ namespace Epixx.Services
             _db = db;
             _driverservice = driverService;
         }
-
+        public int GenerateRandomLoadingDockId()
+        {
+            var loadingDockIds = _db.LoadingDocks.Select(ld => ld.Id).ToList();
+            if (loadingDockIds.Count == 0)
+            {
+                throw new InvalidOperationException("No loading docks available.");
+            }
+            int randomIndex = _rnd.Next(loadingDockIds.Count);
+            return loadingDockIds[randomIndex];
+        }
+        public int GenerateUniqueStoreCode()
+        {
+            int code;
+            do
+            {
+                code = _rnd.Next(101, 1000);
+            } while (_db.Stores.Any(s => s.Code == code));
+            return code;
+        }
+        public List<Store> GetAllStores()
+        {
+            return _db.Stores
+                .ToList();
+        }
         public int GetStoreCount()
         {
             return _db.Stores.Count();
         }
-
+        public bool CheckIfStoreExists(string name)
+        {
+            return _db.Stores.Any(s => s.Name == name);
+        }
         public int GetStoreIdByPalletId(int palletId)
         {
             var storeId = _db.Pallets
@@ -68,7 +94,6 @@ namespace Epixx.Services
                     FROM Pallets p
                     INNER JOIN TopPallets tp ON p.Id = tp.Id;
                 ", _driverservice.GetDriverId())
-                .AsNoTracking()
                 .ToList();
             return pallets;
         }

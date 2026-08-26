@@ -1,15 +1,26 @@
 ﻿@{
     Layout = "_AdminLayout";
 }
-<form method="post" asp-action="CreateUser" asp-controller="Admin" class="admin-form">
+<form method="post"
+      asp-action="CreateUser"
+      asp-controller="Admin"
+      class="admin-form">
+
+    <div class="form-header">
+        <h2>Skapa användare</h2>
+        <p>Fyll i uppgifterna för den nya användaren.</p>
+    </div>
+
     <div>
         <label>Användarnamn (email)</label>
         <input name="username" type="text" />
     </div>
+
     <div>
         <label>Lösenord</label>
         <input name="password" type="password" />
     </div>
+
     <div>
         <label>Roll</label>
         <select name="role">
@@ -19,10 +30,17 @@
             }
         </select>
     </div>
+
     @if (!ViewData.ModelState.IsValid)
     {
-        <div class="error-message">@ViewData.ModelState.Values.FirstOrDefault()?.Errors.FirstOrDefault()?.ErrorMessage</div>
+        <div class="error-message">
+            @ViewData.ModelState.Values
+            .FirstOrDefault()?
+            .Errors
+            .FirstOrDefault()?
+            .ErrorMessage
+        </div>
     }
+
     <button type="submit">Skapa användare</button>
 </form>
-

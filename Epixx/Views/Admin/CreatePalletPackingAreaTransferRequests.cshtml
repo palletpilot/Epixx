@@ -2,9 +2,17 @@
 @{
     Layout = "_AdminLayout";
 }
-@model List<PalletCountDTO>
-<div class="double-table-container" data-type="Awaiting PalletTransfer">    
+@model PalletCountAndStoreListDTO
+<div class="double-table-container" data-type="Awaiting PackingAreaTransfer">
     <div class="table-container">
+        <h2>Välj butik:</h2>
+
+        <select id="store-picker" class="form-control">
+            @foreach (var store in Model.Stores)
+            {
+                <option value="@store.Id">@store.Name</option>
+            }
+        </select>
         <h2>Välj datum:</h2>
         <input id="date-picker-for-transfer" type="date" class="form-control" />
         <h3>Redan existerande ordrar:</h3>
@@ -16,12 +24,11 @@
                 </tr>
             </thead>
             <tbody id="tbody-for-day">
-                   
             </tbody>
         </table>
     </div>
     <div class="table-container">
-        <h2>Flytta pall till plock</h2>
+    <h2>Flytta pall till plock</h2>
         <table class="admin-table">
             <thead>
                 <tr>
@@ -31,21 +38,20 @@
                 </tr>
             </thead>
             <tbody id="available-pallets-body">
-                @for (int i = 0; i < Model.Count; i++)
+                @foreach(var pallet in Model.PalletCount)
                 {
                     <tr class="transfer-field">
-                        <td class="transfer-description">@Model[i].Description</td>
-                        <td>@Model[i].Count</td>
+                        <td class="transfer-description">@pallet.Description</td>
+                        <td>@pallet.Count</td>
                         <td>
                             <input type="number"
-                                    name="Transfers[@i].Count"
                                     min="0"
-                                    max="@Model[i].Count"
+                                    max="@pallet.Count"
                                     value="0"
-                                    data-max="@Model[i].Count"
+                                    data-max="@pallet.Count"
                                     class="qty-input" />
                         </td>
-                            
+
                     </tr>
                 }
 
@@ -53,8 +59,7 @@
         </table>
 
         <button type="button" id="submitBtn" disabled>
-            Skapa transfer
+            Skapa order
         </button>
     </div>
 </div>
-

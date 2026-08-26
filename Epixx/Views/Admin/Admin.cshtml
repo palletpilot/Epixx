@@ -9,6 +9,7 @@
                 <th>Roll</th>
             </tr>
         </thead>
+
         <tbody>
             @foreach (var user in Model)
             {
@@ -20,8 +21,15 @@
         </tbody>
     </table>
 
-    <div>
-        <a asp-action="CreateUser" class="admin-btn">Skapa ny användare</a>
-        <a asp-action="Index" asp-controller="Home" class="admin-btn">Tillbaka till meny</a>
+    <div class="table-actions">
+        <a asp-action="CreateUser" class="admin-btn">
+            Skapa ny användare
+        </a>
+
+        <a asp-action="Index"
+           asp-controller="Home"
+           class="admin-btn secondary">
+            Tillbaka till meny
+        </a>
     </div>
 </div>

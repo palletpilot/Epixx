@@ -14,8 +14,27 @@
     <div class="admin-content">
         @RenderBody()
     </div>
-    <script src="~/js/Admin.js" asp-append-version="true"></script>
+    <div id="admin-notification"
+         class="admin-notification notification-info hidden">
 
+        <span id="notification-message"></span>
+
+    </div>
+    @await Html.PartialAsync("_ConfirmWindow");
+    <script src="~/js/Admin.js" asp-append-version="true"></script>
+    <script src="~/js/AdminPalletTransfer.js" asp-append-version="true"></script>
+    <script src="~/js/SendOutPallets.js" asp-append-version="true"></script>
+    @if (TempData["Notification"] != null)
+    {
+        <script>
+            document.addEventListener("DOMContentLoaded", () => {
+            showNotification(
+            @Json.Serialize(TempData["Notification"]),
+            @Json.Serialize(TempData["NotificationType"] ?? "info")
+            );
+            });
+        </script>
+    }
     @RenderSection("Scripts", required: false)
 </body>
 </html>

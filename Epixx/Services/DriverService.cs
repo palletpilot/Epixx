@@ -83,8 +83,15 @@ namespace Epixx.Services
             var p = driver.pallets.FirstOrDefault(x => x.Id == pallet.Id);
             if (p == null) return;
             var dbPallet = _db.Pallets.FirstOrDefault(x => x.Id == pallet.Id);
+            var palletSpot =  _db.PalletSpots.FirstOrDefault(x => x.CurrentPalletId == pallet.Id);
             dbPallet.DriverId = null;
+            if (palletSpot != null)
+            {
+                palletSpot.ReservedByDriverId = null;
+                palletSpot.ReservedUntil = null;
+            }
             driver.pallets.Remove(p);
+
             _db.SaveChanges();
         }
         public int GetDriverId()

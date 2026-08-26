@@ -1,0 +1,51 @@
+﻿@{
+    Layout = "_AdminLayout";
+}
+
+<div class="mission-admin">
+    <div class="mission-header">
+        <h1>Hantera uppdrag</h1>
+        <p>Välj vilken typ av uppdrag du vill hantera och för vilket datum.</p>
+    </div>
+
+    <div class="mission-filters">
+        <div class="filter-group">
+            <label for="selected-type-mission">Uppdragstyp</label>
+            <select id="selected-type-mission">
+                <option value="Awaiting PalletTransfer" selected>Flytta till plock</option>
+                <option value="Awaiting PackingAreaTransfer">Flytta till packyta</option>
+                <option disabled value="Handpicked">Skicka ut plockuppdrag</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="selected-date">Datum</label>
+            <input id="selected-date" type="date" />
+        </div>
+
+        <button type="button" class="dispatch-btn">
+            Skicka ut uppdrag
+        </button>
+    </div>
+
+    <div class="mission-content">
+        <div class="table-header">
+            <h2>Uppdrag för valt datum</h2>
+            <span id="mission-count"></span>
+        </div>
+
+        <div class="table-wrapper">
+            <table class="admin-table">
+                <thead>
+                    <tr id="table-header-1">
+                        <th>Artikel</th>
+                        <th>Berör antal</th>
+                        <th id="store-th" class="hidden">Butik</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-for-day">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

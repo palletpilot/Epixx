@@ -1,0 +1,100 @@
+﻿@using Epixx.Models.DTO
+
+@{
+    Layout = "_AdminLayout";
+}
+@model LoadingdockAndStoreDTO
+<div class="double-table-container">
+    <!-- Loading docks -->
+    <div class="table-container">
+
+        <h2>Skapa lastkaj</h2>
+
+        <form asp-controller="Admin"
+              asp-action="CreateLoadingDock"
+              method="post"
+              class="admin-form">
+
+            <div>
+                <label for="loadingDockName">Namn</label>
+
+                <input id="loadingDockName"
+                       name="name"
+                       type="text"
+                       required />
+            </div>
+
+            <button type="submit">
+                Skapa loading dock
+            </button>
+
+        </form>
+
+        <h2>Loading docks</h2>
+
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Namn</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @foreach (var dock in Model.LoadingDocks)
+                {
+                    <tr>
+                        <td>@dock.Name</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+    </div>
+
+    <!-- Butiker -->
+    <div class="table-container">
+
+        <h2>Skapa butik</h2>
+
+        <form asp-controller="Admin"
+              asp-action="CreateStore"
+              method="post"
+              class="admin-form">
+
+            <div>
+                <label for="storeName">Butiksnamn</label>
+                <input id="storeName"
+                       name="name"
+                       type="text"
+                       required />
+            </div>
+
+            <button type="submit">
+                Skapa butik
+            </button>
+        </form>
+
+        <h2>Butiker</h2>
+
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Namn</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @foreach (var store in Model.Stores)
+                {
+                    <tr>
+                        <td>@store.Name</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+    </div>
+
+
+
+</div>

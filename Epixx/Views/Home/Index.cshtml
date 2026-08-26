@@ -13,7 +13,9 @@
         <a href="/Admin" class="menu-btn">
             Lager och Pallhantering
         </a>
-        <a class="menu-btn disabled-btn">Test</a>
+        <a href="/Picking/AutomaticPickingMission" class="menu-btn">
+            Automatiskt Plockuppdrag
+        </a>
         <form method="post" asp-action="Logout" asp-controller="Home">
             <button type="submit" class="menu-btn">Logga ut</button>
             @Html.AntiForgeryToken()

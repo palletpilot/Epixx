@@ -1,13 +1,24 @@
 ﻿@*Admin Top Menu*@
+@{
+    var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
+}
 <nav id="top-menu">
     <ul>
-        <li><a asp-controller="Home" asp-action="Index">Tillbaka</a></li>
-        <li><a asp-controller="Admin" asp-action="Index">Hem</a></li>
-        <li><a asp-controller="Admin" asp-action="PalletTypeCreation">Skapa palltyp</a></li>
-        <li><a asp-controller="Admin" asp-action="PalletsAwaitingStorage">Checka in anlända pallar</a></li>
-        @if (User.IsInRole("Admin")){
-            <li><a asp-controller="Admin" asp-action="CreatePalletTransferRequests">Flytta pall</a></li>
-            <li><a asp-controller="Admin" asp-action="Admin">Hantera användare</a></li>
+        <li>
+            <a asp-controller="Home" asp-action="Index" class="@(currentAction == "Index" ? "active" : "")">
+                Tillbaka
+            </a>
+        </li>
+        <li><a asp-controller="Admin" asp-action="Index" class="@(currentAction == "Index" ? "active" : "")">Hem</a></li>
+        @if (User.IsInRole("Admin"))
+        {
+            <li><a asp-controller="Admin" asp-action="PalletTypeCreation" class="@(currentAction == "PalletTypeCreation" ? "active" : "")">Skapa palltyp</a></li>
+            <li><a asp-controller="Admin" asp-action="PalletsAwaitingStorage" class="@(currentAction == "PalletsAwaitingStorage" ? "active" : "")">Checka in anlända pallar</a></li>
+            <li><a asp-controller="Admin" asp-action="CreatePalletTransferRequests" class="@(currentAction == "CreatePalletTransferRequests" ? "active" : "")">Flytta pall till plock</a></li>
+            <li><a asp-controller="Admin" asp-action="CreatePalletPackingAreaTransferRequests" class="@(currentAction == "CreatePalletPackingAreaTransferRequests" ? "active" : "")">Flytta pall till packyta</a></li>
+            <li><a asp-controller="Admin" asp-action="SendOutboundTransferRequests" class="@(currentAction == "SendOutboundTransferRequests" ? "active" : "")">Skicka ut nya uppdrag</a></li>
+            <li><a asp-controller="Admin" asp-action="CreateStoreAndLoadingDock" class="@(currentAction == "CreateStoreAndLoadingDock" ? "active" : "")">Lägg till ny butik</a></li>
+            <li><a asp-controller="Admin" asp-action="Admin" class="@(currentAction == "Admin" ? "active" : "")">Hantera användare</a></li>
         }
         
     </ul>

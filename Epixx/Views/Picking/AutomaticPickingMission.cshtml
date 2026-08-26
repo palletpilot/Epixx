@@ -1,0 +1,134 @@
+﻿<div class="picking-container">
+
+    <div class="picking-header">
+        <h2>Automatiskt plockuppdrag</h2>
+        <p class="picking-subtitle">
+            Skanna eller skriv in checksiffran för aktuell plockplats.
+        </p>
+    </div>
+
+    <div class="current-pick-location">
+        <span class="current-pick-label">
+            Nuvarande plockplats
+        </span>
+
+        <strong class="current-pick-value"
+                id="current-pick-location">
+            RA 185:1
+        </strong>
+
+        <span class="current-pick-details"
+              id="current-pick-details">
+            Artikel 123456 · Plocka 20 st
+        </span>
+    </div>
+
+    <div class="picking-card">
+
+        <div class="user-input-picking">
+
+            <div class="picking-input-group">
+                <label for="pallet-spot-check-number">
+                    Checksiffra
+                </label>
+
+                <input type="text"
+                       id="pallet-spot-check-number"
+                       class="picking-input"
+                       placeholder="Checksiffra" />
+            </div>
+
+            <div class="picking-input-group">
+                <label for="picked-quantity">
+                    Antal plockade
+                </label>
+
+                <input type="number"
+                       id="picked-quantity"
+                       class="picking-input"
+                       placeholder="20"
+                       disabled />
+            </div>
+
+        </div>
+
+        <div class="picking-actions">
+
+            <button type="button"
+                    id="shortage-btn"
+                    class="picking-btn picking-btn-shortage">
+                Brist
+            </button>
+
+            <button type="button"
+                    id="confirm-pick-btn"
+                    class="picking-btn picking-btn-confirm">
+                Konfirmera plockrad
+            </button>
+
+        </div>
+
+        <div class="picking-secondary-actions">
+
+            <button type="button"
+                    id="menu-btn"
+                    class="picking-btn picking-btn-menu">
+                Meny
+            </button>
+
+            <button type="button"
+                    id="leave-pallet-btn"
+                    class="picking-btn picking-btn-leave">
+                Lämna pall
+            </button>
+
+        </div>
+
+    </div>
+
+    <div class="picking-table-section">
+
+        <div class="picking-table-header">
+
+            <h3>Plockrader</h3>
+
+            <span class="remaining-lines">
+                Antal rader kvar:
+                <strong id="remaining-pick-lines">
+                    36
+                </strong>
+            </span>
+
+        </div>
+
+        <div class="table-wrapper-for-picking">
+
+            <table class="picking-table">
+
+                <thead>
+                    <tr>
+                        <th>Artikel</th>
+                        <th>Plats</th>
+                        <th>Antal</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+
+                <tbody id="picking-table-body">
+
+                    <tr class="current-pick">
+                        <td>Artikel 123456</td>
+                        <td>RA 185:1</td>
+                        <td>20</td>
+                        <td>Aktuell</td>
+                    </tr>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>

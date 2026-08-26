@@ -2,6 +2,7 @@
 using Epixx.Models.DTO;
 using Epixx.Models.Entities;
 using Microsoft.EntityFrameworkCore;
+using System.Net.NetworkInformation;
 
 namespace Epixx.Services
 {
@@ -110,7 +111,7 @@ namespace Epixx.Services
             newSpot.CurrentPallet = pallet;
             p.Location = pallet.Destination;
             p.Destination = null;
-            p.Status = "Stored";
+            p.Status = "Pickable";
             _db.SaveChanges();
         }
         public void PlacePalletInWarehouse(int palletId, string location, string status)
@@ -129,6 +130,7 @@ namespace Epixx.Services
             pallet.Status = status;
             pallet.Location = location;
             pallet.Destination = null;
+            pallet.StorageDate = DateTime.UtcNow;
             _db.SaveChanges();
          
 
@@ -184,7 +186,7 @@ namespace Epixx.Services
                         break;
                     candidateSpot.ReservedByDriverId = driverId;
                     candidateSpot.ReservedUntil = now.AddMinutes(300);
-
+                    pallet.Destination = candidateSpot.Location;
                     try
                     {
                         using var transaction = _db.Database.BeginTransaction();
@@ -204,7 +206,7 @@ namespace Epixx.Services
                     continue;
 
 
-                pallet.Destination = candidateSpot.Location;
+                
 
                 dtoList.Add(new PalletTransferDTO
                 {
@@ -233,7 +235,7 @@ namespace Epixx.Services
         {
             _db.Pallets.Add(pallet);
             _db.SaveChanges();
-        }
+        } 
         public PalletType GetPalletTypeByDescription(string description)
         {
             var palletType = _db.PalletTypes.FirstOrDefault(pt => pt.Description == description);

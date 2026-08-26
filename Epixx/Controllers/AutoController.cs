@@ -155,88 +155,123 @@ namespace Epixx.Controllers
 
             return View(palletDTOs);
         }
+        private IActionResult? GetActiveMissionRedirect(List<string> statuses)
+        {
+            if (statuses.Contains("PackingAreaConfirmation"))
+            {
+                return RedirectToAction("PackingAreaConfirmation", "Auto");
+            }
+
+            if (statuses.Contains("ConfirmTransfer"))
+            {
+                return RedirectToAction("PalletTransferConfirmation", "Auto");
+            }
+
+            if (statuses.Contains("PackingAreaTransfer"))
+            {
+                return RedirectToAction("PackingAreaTransfer", "Auto");
+            }
+
+            if (statuses.Contains("PalletTransfer"))
+            {
+                return RedirectToAction("PalletTransfer", "Auto");
+            }
+
+            return null;
+        }
+        private IActionResult FindNewMission()
+        {
+            bool choosePalletTransfer = _rnd.Next(2) == 0;
+
+            bool hasPalletTransfers =
+                _palletservice.GetPalletCountByStatus("PalletTransfer") > 0;
+
+            bool hasPackingAreaTransfers =
+                _palletservice.GetPalletCountByStatus("PackingAreaTransfer") > 0;
+
+            if (choosePalletTransfer && hasPalletTransfers)
+            {
+                return RedirectToAction("PalletTransfer", "Auto");
+            }
+
+            if (!choosePalletTransfer && hasPackingAreaTransfers)
+            {
+                return RedirectToAction("PackingAreaTransfer", "Auto");
+            }
+
+            // Fallback om den slumpade typen saknas
+            if (hasPalletTransfers)
+            {
+                return RedirectToAction("PalletTransfer", "Auto");
+            }
+
+            if (hasPackingAreaTransfers)
+            {
+                return RedirectToAction("PackingAreaTransfer", "Auto");
+            }
+
+            return RedirectToAction("Index", "Home");
+        }
         [HttpGet]
         public IActionResult FindAutoMission()
         {
-            // Random choice between 0 or 1
-            bool choosePalletTransfer = _rnd.Next(2) == 0;
-            var driverPalletS = _driverservice.GetAllPalletsFromDriver();
-            List<string> ?palletStatus = _db.Pallets.Where(p => p.DriverId == _driverservice.GetDriverId()).Select(p => p.Status).ToList();
-            if (driverPalletS.Count > 0)
-            {
-                if (palletStatus.Contains("PackingAreaConfirmation"))
-                {
-                    return RedirectToAction("PackingAreaConfirmation", "Auto");
-                }
-                if (palletStatus.Contains("ConfirmTransfer"))
-                {
-                    return RedirectToAction("PalletTransferConfirmation", "Auto");
-                }
-                if (palletStatus.Contains("PackingAreaTransfer"))
-                {
-                    return RedirectToAction("PackingAreaTransfer", "Auto");
-                }
-                if(palletStatus.Contains("PalletTransfer"))
-                {
-                    return RedirectToAction("PalletTransfer", "Auto");
-                }
-                
-            }
-            else
-            {
-               
-                if(_palletservice.GetPalletCountByStatus("PalletTransfer") > 0 && _palletservice.GetPalletCountByStatus("PackingAreaTransfer") > 0)
-                {
-                    if (choosePalletTransfer)
-                        return RedirectToAction("PalletTransfer", "Auto");
-                    else
-                        return RedirectToAction("PackingAreaTransfer", "Auto");
-                }
-                else if(_palletservice.GetPalletCountByStatus("PalletTransfer") > 0)
-                {
-                    return RedirectToAction("PalletTransfer", "Auto");
-                }
-                else
-                {
-                    return RedirectToAction("PackingAreaTransfer", "Auto");
+            var driverId = _driverservice.GetDriverId();
 
-                }
+            var statuses = _db.Pallets
+                .Where(p => p.DriverId == driverId)
+                .Select(p => p.Status)
+                .ToList();
+
+            var activeMission = GetActiveMissionRedirect(statuses);
+
+            if (activeMission != null)
+            {
+                return activeMission;
             }
-            return RedirectToAction("Index", "Home");
-        
+
+            return FindNewMission();
         }
-
         [HttpGet]
-        public IActionResult PackingAreaTransfer()       
+        public IActionResult PackingAreaTransfer()
         {
             _driverservice.SetDriverTask(DriverTask.Auto);
-            var pallets = new List<Pallet>();
-            int id = 0;
-            List<PalletAndStoreDTO> palletDTOs = new List<PalletAndStoreDTO>();
-            if(_driverservice.FetchAllPalletsFromDriverByStatus("PackingAreaTransfer").Count != 0)
-            {
-                pallets = _driverservice.FetchAllPalletsFromDriverByStatus("PackingAreaTransfer");
-                id = _storeservice.GetStoreIdByPalletId(pallets[0].Id);
-            }
-            else
+
+            var pallets = _driverservice
+                .FetchAllPalletsFromDriverByStatus("PackingAreaTransfer");
+
+            if (pallets.Count == 0)
             {
                 pallets = _storeservice.GetPalletsByStoreId();
-            }           
-            var store = _storeservice.GetStoreByStoreId(id);
-            var packingareaname = _storeservice.GetPackingAreaNameByStoreId(id);
-            foreach (var pallet in pallets)
-            {
-                palletDTOs.Add(new PalletAndStoreDTO
-                {
-                    Barcode = pallet.Barcode,
-                    Description = pallet.Description,
-                    Location = pallet.Location,
-                    Height = pallet.Height,
-                    Weight = pallet.Weight,
-                    StoreName = store.Name,
-                    PackingAreaName = packingareaname
-                });
             }
+
+            if (pallets.Count == 0)
+            {
+                return RedirectToAction("Index", "Home");
+            }
+
+            var storeId = _storeservice.GetStoreIdByPalletId(pallets[0].Id);
+
+            var store = _storeservice.GetStoreByStoreId(storeId);
+
+            if (store == null)
+            {
+                return RedirectToAction("Index", "Home");
+            }
+
+            var packingAreaName =
+                _storeservice.GetPackingAreaNameByStoreId(storeId);
+
+            var palletDTOs = pallets.Select(pallet => new PalletAndStoreDTO
+            {
+                Barcode = pallet.Barcode,
+                Description = pallet.Description,
+                Location = pallet.Location,
+                Height = pallet.Height,
+                Weight = pallet.Weight,
+                StoreName = store.Name,
+                PackingAreaName = packingAreaName
+            }).ToList();
+
             return View(palletDTOs);
         }
     }
