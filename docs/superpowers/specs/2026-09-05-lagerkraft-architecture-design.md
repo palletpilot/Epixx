@@ -989,7 +989,7 @@ Method: for each component, what happens when it dies or misbehaves in the middl
 ### Design changes adopted from this analysis
 
 1. Idempotency is enforced in wms-core inside the command transaction (`processed_commands`), and the sync-gateway keeps no database; the device registry lives in the platform DB.
-2. Command outcomes on the wire are `applied`, `rejected`, or `unknown`; devices retry `unknown`.
+2. Command outcomes on the wire are `applied`, `rejected`, `held` or `unknown`; devices retry `unknown` with backoff and `held` on a state change.
 3. One in-flight batch per device, enforced on the device (Web Locks), at the gateway (`409`), and in wms-core (advisory lock per device).
 4. Change_log inserts take a per-tenant advisory lock so seq order equals commit order.
 5. SSE connect performs catch-up-then-live with buffering; 15-second heartbeats; `resync` on NATS reconnect; polling fallback.
