@@ -158,3 +158,8 @@ body {
     opacity: 0.4;
     cursor: not-allowed;
 }
+.epixx-logo-big {
+    margin: auto;
+    width: 200px;
+    height: 200px;
+}

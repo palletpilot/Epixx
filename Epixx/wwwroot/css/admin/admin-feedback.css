@@ -1,0 +1,109 @@
+/* Epixx Admin - notifications and confirmation modal */
+
+.admin-notification {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    min-width: 280px;
+    max-width: 400px;
+    padding: 15px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    font-family: var(--admin-font);
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 9999;
+    animation: notification-slide-in 0.25s ease-out;
+}
+
+.notification-success {
+    background-color: #e8f5e9;
+    border-left: 5px solid #2e7d32;
+    color: #2e7d32;
+}
+
+.notification-error {
+    background-color: #fdecea;
+    border-left: 5px solid #d93025;
+    color: #b42318;
+}
+
+.notification-warning {
+    background-color: #fff8e1;
+    border-left: 5px solid #f9a825;
+    color: #8a6d1d;
+}
+
+.notification-info {
+    background-color: #e8f3fc;
+    border-left: 5px solid var(--admin-primary);
+    color: #2475a8;
+}
+
+#close-notification {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+#close-notification:hover {
+    opacity: 1;
+}
+
+@keyframes notification-slide-in {
+    from {
+        opacity: 0;
+        transform: translateX(-30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.confirm-modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.35);
+    z-index: 10000;
+}
+
+.confirm-modal.hidden {
+    display: none;
+}
+
+.confirm-modal-content {
+    width: min(420px, 90vw);
+    padding: 25px;
+    background-color: #fff;
+    border-radius: var(--admin-radius);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+}
+
+.confirm-modal-content h3 {
+    margin: 0 0 10px;
+    color: var(--admin-text);
+}
+
+.confirm-modal-content p {
+    margin: 0 0 25px;
+    color: var(--admin-muted);
+}
+
+.confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}

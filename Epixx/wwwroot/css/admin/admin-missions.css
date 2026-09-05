@@ -1,0 +1,147 @@
+/* Epixx Admin - mission dispatch page */
+
+.mission-admin {
+    width: min(900px, 90vw);
+    margin: 40px auto;
+    font-family: var(--admin-font);
+    color: var(--admin-text);
+}
+
+.mission-header {
+    margin-bottom: 30px;
+}
+
+.mission-header h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+}
+
+.mission-header p {
+    margin: 0;
+    color: var(--admin-muted);
+    font-size: 15px;
+}
+
+.mission-filters {
+    display: flex;
+    align-items: flex-end;
+    gap: 20px;
+    padding: 25px;
+    background: var(--admin-surface);
+    border-radius: var(--admin-radius);
+    box-shadow: var(--admin-shadow);
+    margin-bottom: 30px;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.filter-group label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--admin-text);
+}
+
+.filter-group select,
+.filter-group input {
+    height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--admin-input-border);
+    border-radius: var(--admin-control-radius);
+    background-color: #fff;
+    font-size: 14px;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.filter-group select {
+    min-width: 220px;
+}
+
+.filter-group input {
+    min-width: 160px;
+}
+
+.filter-group select:focus,
+.filter-group input:focus {
+    outline: none;
+    border-color: var(--admin-primary);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.12);
+}
+
+.dispatch-btn {
+    height: 40px;
+    padding: 0 18px;
+    border: none;
+    border-radius: var(--admin-control-radius);
+    background-color: var(--admin-primary);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.dispatch-btn:hover {
+    background-color: var(--admin-primary-hover);
+    transform: translateY(-1px);
+}
+
+.dispatch-btn:active {
+    transform: translateY(0);
+}
+
+.dispatch-btn:disabled {
+    background-color: var(--admin-disabled);
+    cursor: not-allowed;
+    transform: none;
+}
+
+.mission-content {
+    background: var(--admin-surface);
+    border-radius: var(--admin-radius);
+    padding: 25px;
+    box-shadow: var(--admin-shadow);
+}
+
+.table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 15px;
+}
+
+.table-header h2 {
+    margin: 0;
+    font-size: 20px;
+}
+
+#mission-count {
+    color: var(--admin-muted);
+    font-size: 14px;
+}
+
+@media (max-width: 700px) {
+    .mission-admin {
+        width: 94vw;
+        margin: 20px auto;
+    }
+
+    .mission-filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-group select,
+    .filter-group input,
+    .dispatch-btn {
+        width: 100%;
+    }
+
+    .mission-content {
+        padding: 15px;
+    }
+}

@@ -4,8 +4,13 @@
     <meta charset="utf-8" />
     <title>@ViewData["Title"] - Admin</title>
     <link rel="stylesheet" href="~/css/site.css" />
-    <link rel="stylesheet" href="~/css/Admin.css" asp-append-version="true" />
-
+    <link rel="stylesheet" href="~/css/admin/admin-base.css" />
+    <link rel="stylesheet" href="~/css/admin/admin-navigation.css" />
+    <link rel="stylesheet" href="~/css/admin/admin-tables.css" />
+    <link rel="stylesheet" href="~/css/admin/admin-forms.css" />
+    <link rel="stylesheet" href="~/css/admin/admin-missions.css" />
+    <link rel="stylesheet" href="~/css/admin/admin-transfers.css" />
+    <link rel="stylesheet" href="~/css/admin/admin-feedback.css" />
 </head>
 <body>
     @* Include the admin menu *@
@@ -20,7 +25,7 @@
         <span id="notification-message"></span>
 
     </div>
-    @await Html.PartialAsync("_ConfirmWindow");
+    @await Html.PartialAsync("_ConfirmWindow")
     <script src="~/js/Admin.js" asp-append-version="true"></script>
     <script src="~/js/AdminPalletTransfer.js" asp-append-version="true"></script>
     <script src="~/js/SendOutPallets.js" asp-append-version="true"></script>

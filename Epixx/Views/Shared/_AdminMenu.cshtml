@@ -3,6 +3,9 @@
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
 }
 <nav id="top-menu">
+    <img src="~/images/EpixxLogo.png"
+         alt="Epixx"
+         class="epixx-logo-small" />
     <ul>
         <li>
             <a asp-controller="Home" asp-action="Index" class="@(currentAction == "Index" ? "active" : "")">

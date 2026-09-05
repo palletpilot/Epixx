@@ -1,0 +1,105 @@
+/* Epixx Admin - forms */
+
+.admin-form {
+    width: min(500px, 90vw);
+    margin: 50px auto;
+    padding: 30px;
+    background-color: var(--admin-surface);
+    border-radius: var(--admin-radius);
+    box-shadow: var(--admin-shadow);
+    font-family: var(--admin-font);
+    box-sizing: border-box;
+}
+
+.admin-form > div {
+    margin-bottom: 20px;
+}
+
+.admin-form label {
+    display: block;
+    margin-bottom: 7px;
+    color: var(--admin-text);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.admin-form input,
+.admin-form select {
+    width: 100%;
+    height: 42px;
+    padding: 9px 12px;
+    border: 1px solid var(--admin-input-border);
+    border-radius: var(--admin-control-radius);
+    background-color: #fff;
+    color: #343a40;
+    font-size: 14px;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-form input:focus,
+.admin-form select:focus {
+    outline: none;
+    border-color: var(--admin-primary);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.12);
+}
+
+.admin-form input[type="password"] {
+    letter-spacing: 1px;
+}
+
+.admin-form .error-message {
+    margin-bottom: 20px;
+    padding: 10px 12px;
+    background-color: #fdecea;
+    border-left: 4px solid #d93025;
+    border-radius: var(--admin-control-radius);
+    color: #b42318;
+    font-size: 13px;
+}
+
+.admin-form button {
+    width: 100%;
+    height: 42px;
+    padding: 0 20px;
+    border: none;
+    border-radius: var(--admin-control-radius);
+    background-color: var(--admin-primary);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.admin-form button:hover {
+    background-color: var(--admin-primary-hover);
+    transform: translateY(-1px);
+}
+
+.admin-form button:active {
+    transform: translateY(0);
+}
+
+.form-header {
+    margin-bottom: 30px;
+}
+
+.form-header h2 {
+    margin: 0 0 6px;
+    color: var(--admin-text);
+    font-size: 23px;
+}
+
+.form-header p {
+    margin: 0;
+    color: var(--admin-muted);
+    font-size: 14px;
+}
+
+@media (max-width: 500px) {
+    .admin-form {
+        margin: 25px auto;
+        padding: 20px;
+    }
+}

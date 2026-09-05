@@ -1,0 +1,72 @@
+/* Epixx Admin - shared base/components */
+
+:root {
+    --admin-text: #2c3e50;
+    --admin-muted: #6c757d;
+    --admin-primary: #3498db;
+    --admin-primary-hover: #2980b9;
+    --admin-surface: #f9f9f9;
+    --admin-border: #e5e5e5;
+    --admin-input-border: #ccc;
+    --admin-disabled: #bdc3c7;
+    --admin-radius: 12px;
+    --admin-control-radius: 6px;
+    --admin-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    --admin-font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.admin-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 18px;
+    border: none;
+    border-radius: var(--admin-control-radius);
+    background-color: var(--admin-primary);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: var(--admin-font);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.admin-btn:hover {
+    background-color: var(--admin-primary-hover);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.admin-btn:active {
+    transform: translateY(0);
+}
+
+.admin-btn.secondary {
+    background-color: #95a5a6;
+}
+
+.admin-btn.secondary:hover {
+    background-color: #7f8c8d;
+}
+
+.table-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+@media (max-width: 600px) {
+    .table-actions {
+        flex-direction: column;
+    }
+
+    .admin-btn {
+        width: 100%;
+    }
+}

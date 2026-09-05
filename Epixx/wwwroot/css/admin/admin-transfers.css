@@ -1,0 +1,117 @@
+/* Epixx Admin - pallet transfer pages */
+
+.double-table-container {
+    width: min(1200px, 94vw);
+    margin: 40px auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 25px;
+    font-family: var(--admin-font);
+}
+
+/* Prevent the shared table-card width/margin from fighting the two-column grid. */
+.double-table-container > .table-container {
+    width: auto;
+    margin: 0;
+}
+
+#date-picker-for-transfer {
+    width: 180px;
+    height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--admin-input-border);
+    border-radius: var(--admin-control-radius);
+    background-color: #fff;
+    font-size: 14px;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#date-picker-for-transfer:focus {
+    outline: none;
+    border-color: var(--admin-primary);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.12);
+}
+
+#store-picker {
+    width: 100%;
+    max-width: 350px;
+    padding: 10px 12px;
+    border: 1px solid var(--admin-input-border);
+    border-radius: var(--admin-control-radius);
+    background-color: #fff;
+    color: var(--admin-text);
+    font-family: var(--admin-font);
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    margin-bottom: 15px;
+}
+
+#store-picker:hover {
+    border-color: var(--admin-primary);
+}
+
+#store-picker:focus {
+    outline: none;
+    border-color: var(--admin-primary);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+}
+
+.qty-input {
+    width: 90px;
+    height: 36px;
+    padding: 6px 10px;
+    border: 1px solid var(--admin-input-border);
+    border-radius: var(--admin-control-radius);
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.qty-input:focus {
+    outline: none;
+    border-color: var(--admin-primary);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.12);
+}
+
+#submitBtn {
+    margin-top: 20px;
+    padding: 11px 20px;
+    border: none;
+    border-radius: var(--admin-control-radius);
+    background-color: var(--admin-primary);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+#submitBtn:hover:not(:disabled) {
+    background-color: var(--admin-primary-hover);
+    transform: translateY(-1px);
+}
+
+#submitBtn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+#submitBtn:disabled {
+    background-color: var(--admin-disabled);
+    color: #fff;
+    cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+    .double-table-container {
+        grid-template-columns: 1fr;
+        width: 94vw;
+        margin: 25px auto;
+    }
+}
+
+@media (max-width: 500px) {
+    .qty-input {
+        width: 70px;
+    }
+}
