@@ -1,0 +1,34 @@
+---
+description: Rules for EF Core migrations, which run across every tenant database during a live shift
+globs: backend/**/Migrations/**/*.cs
+alwaysApply: false
+---
+
+# Migrations
+
+A migration runs against N tenant databases while warehouses are working. Treat every one as production surgery.
+
+- **Expand/contract.** The new schema must work with the previous release's code. Allowed now: new table, new nullable column, column with a constant default, new index `CONCURRENTLY`. Allowed only in the release after code stopped referencing the thing: drop, rename, tighten `NOT NULL`, type change.
+- **DDL only.** No `UPDATE`/`INSERT` of data in a migration. Backfills are chunked background jobs (`Backfill` framework, 5,000 rows per batch), never migration SQL.
+- Every migration sets `lock_timeout = '5s'` and `statement_timeout = '60s'` (the migrator does this; do not override).
+- Indexes on tables that exist in prod are created with `.HasAnnotation("Npgsql:CreatedConcurrently", true)` and the migration is marked non-transactional for that step.
+- Destructive migrations carry `[RequiresSnapshot]` so the migrator dumps each tenant DB first.
+- Never edit a migration that has shipped. Add a new one.
+- Ledger tables (`stock_movement`, `stock_balance`, `change_log`, `outbox`, `processed_commands`) get no attribute columns and no rewrites, ever.
+
+Before committing a migration:
+
+```powershell
+dotnet ef migrations has-pending-model-changes --project backend/src/WmsCore/Api
+dotnet ef migrations script <prev> <new> --idempotent --project backend/src/WmsCore/Api | squawk
+```
+
+Both must be clean. squawk findings are fixed, not suppressed.
+
+```csharp
+// Wrong: rewrite plus lock
+migrationBuilder.AlterColumn<string>("code", "location", nullable: false);
+
+// Right: two releases. Release N adds nullable + backfill job; release N+1 tightens.
+migrationBuilder.AddColumn<string>("code_v2", "location", nullable: true);
+```

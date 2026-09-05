@@ -1,0 +1,16 @@
+---
+description: How specs, plans, runbooks and spike notes are written and kept current
+globs: docs/**/*.md
+alwaysApply: false
+---
+
+# Documentation
+
+- The spec (`docs/superpowers/specs/`) is the design truth. Change it deliberately: edit the section, then add a dated line to its `## Changelog`. Never leave two sections disagreeing; grep for the terms you changed (`held`, `feed_epoch`, `occurred_at`, `session_version`, state names) and fix every occurrence.
+- Plans (`docs/superpowers/plans/`) are work lists. Mark a task done by appending `(done <date>, <sha>)` to its heading. Add tasks at the end of the phase they belong to; do not renumber.
+- Spike notes (`docs/superpowers/spikes/<date>-<topic>.md`): question, what was tried, result, decision, what changes in the spec because of it. One page.
+- Runbooks (`docs/runbooks/<alert>.md`) follow the spec's shape exactly: what the alert means, how to confirm, the two or three likely causes with the command or dashboard that distinguishes them, the fix, how to verify it is fixed.
+- Drill reports (`docs/runbooks/drills/<date>.md`): what was done, timings against RTO, what broke, what changed.
+- Prose: plain, direct, present tense, no emojis, no marketing adjectives, no "simply". Use lists only where items are parallel. Code, paths and identifiers in backticks. Mermaid for flows and state machines, no styling directives.
+- No absolute machine paths (`F:\...`, `C:\Users\...`) in any doc; paths are repo-relative.
+- Swedish domain terms appear once with the English term beside them (`inventering (stock count)`), then English is used.

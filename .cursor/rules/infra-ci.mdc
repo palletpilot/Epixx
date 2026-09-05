@@ -1,0 +1,25 @@
+---
+description: Rules for CI workflows, Terraform and Kubernetes manifests; EU-only, digest-pinned, server-first
+globs: .github/**, infra/**, compose.yaml, **/Dockerfile
+alwaysApply: false
+---
+
+# Infrastructure and CI
+
+- **EU only.** Every provider, region and sub-processor is EU-owned and EU-located (UpCloud se-sto1, Scaleway for off-provider backups, Mailjet/Brevo for email, Better Stack Prague). Adding a US-controlled service anywhere in the data path needs a spec change first.
+- Images are referenced **by digest**, never by tag, in anything that deploys. Tags are for humans.
+- Release manifests in `releases/<date>-<n>.yaml` are the unit of deploy; staging and prod deploy the same digests.
+- **Server-first is a pipeline gate**: the frontend bundle publish step `needs:` completed rollouts and health checks of wms-core and sync-gateway. Do not reorder.
+- Migration Job runs before the rollout, `maxUnavailable: 0`, PodDisruptionBudgets on every Deployment, readiness gates on `/health/ready`.
+- Secrets are Kubernetes secrets (SOPS-encrypted in git) or GitHub Environment secrets. Nothing secret in `appsettings.json`, Terraform variables files or workflow YAML.
+- PR workflow is path-filtered; `backend/src/Shared/**` and `contracts/**` trigger everything. Required checks: build, unit, integration, architecture, contracts, migration check (`has-pending-model-changes` + squawk), frontend lint/typecheck/test, generated files current.
+- Terraform state lives in the UpCloud Object Storage backend, locked. Never `terraform apply` from a laptop against prod; the workflow does it.
+- Dockerfiles: multi-stage, `mcr.microsoft.com/dotnet/aspnet:10.0` runtime, non-root user, `HEALTHCHECK` omitted (Kubernetes probes own it).
+- Any manual step a founder must do is written into the runbook in the same PR, not left in a chat.
+
+```yaml
+# Wrong
+image: ghcr.io/palletpilot/wms-core:latest
+# Right
+image: ghcr.io/palletpilot/wms-core@sha256:3f1a...
+```

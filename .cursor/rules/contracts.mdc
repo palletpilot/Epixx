@@ -1,0 +1,23 @@
+---
+description: Rules for the shared contracts (commands, events, OpenAPI, label fixtures) that both backend and frontend generate from
+globs: contracts/**
+alwaysApply: false
+---
+
+# Contracts
+
+`contracts/` is the boundary between services and clients. Generated code on both sides comes from here; CI fails if generated output is stale.
+
+- `contracts/commands/<type>/v<N>.json`: JSON Schema draft 2020-12 for each command version, plus `fixtures/v<N>.json` (a valid instance) and `fixtures/v<N>-upcast.json` (what the current version must equal after upcasting). Never delete a version inside the 90-day support window.
+- `contracts/events/<module>.<event>.json`: CloudEvents 1.0 envelope with the `data` schema. Subject is `lagerkraft.{tenant}.{module}.{event}`.
+- `contracts/openapi/<service>.json`: written by the service at build; never hand-edited. Regenerate the client with `pnpm -C frontend gen:api`.
+- `contracts/labels/`: golden ZPL fixtures, byte-exact.
+- Additive changes only: new optional property, new event type, new enum value the server can default. A breaking change is a new version file, never an edit.
+- Property names are `snake_case`. Quantities are `{"type":"string","pattern":"^-?\\d+(\\.\\d{1,6})?$"}`. Ids are `{"type":"string","format":"uuid"}`. Timestamps are `date-time`.
+- Every schema has `additionalProperties: true` at the top level (unknown fields are ignored, by design) and `required` listing only what the handler truly needs.
+
+```powershell
+# After any change here
+dotnet test backend/tests/Lagerkraft.Contracts.Tests
+pnpm -C frontend gen && git diff --exit-code frontend/packages/domain/src/generated
+```

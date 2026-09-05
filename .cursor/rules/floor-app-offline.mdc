@@ -1,0 +1,42 @@
+---
+description: Offline-first rules for the floor PWA; the outbox is the customer's unsynced work and must never be lost
+globs: frontend/apps/floor/**
+alwaysApply: false
+---
+
+# Floor app: offline first
+
+The device may be offline for two weeks. Every screen works offline by default; online is the optimisation.
+
+## Outbox (Dexie)
+
+- The outbox insert and the optimistic local update are **one Dexie transaction**. The UI reacts to `liveQuery`, never to the button press.
+- Feed entries and the cursor update are **one transaction**. Entries are full-state upserts.
+- Outbox states: `pending -> sent -> acked -> confirmed`. `sent` older than 60 s is re-sent. `confirmed` rows are kept 7 days.
+- **Logout, user switch, revoke and update never clear the outbox.** Only a successful flush removes rows. Anything that would delete unsynced commands is a bug, not a feature.
+- Flush runs under `navigator.locks.request('sync')`, batch of 50, sends the device's `now` for skew.
+- Result handling: `applied` → confirm on feed entry; `rejected` → mark stale, show in sync issues (the deviation comes from the feed); `held` → stay pending, retry on `tenant.state_changed`; `unknown` → backoff 5 s to 5 min with jitter; `426` → hold everything from that index and show "update required"; `410` on changes → snapshot resync; `feed_epoch` change → resync and re-send unconfirmed.
+- The outbox row is opaque `{id, type, v, payload}`. Never migrate or rewrite queued payloads on the device, except the id rewrite after an idempotent `CreateLocationBatch`.
+
+## Identity on a shared scanner
+
+- Unlock is pick-name-then-PIN. PIN is compared against a local hash offline (5 attempts, 15 min lockout, full login after 10) and against the server online. **The PIN is never an encryption key**; cached tokens are encrypted with the device's non-extractable `CryptoKey`.
+- Every command carries the current user's `sub`. Sync issues are shown to whoever holds the device.
+
+## Updates
+
+- `registerType: 'prompt'`, full precache. `applyUpdate()` only when `isAtRest()`: home screen, no task open, no dirty form, no print in flight, and outbox flushed **or sync blocked by 426** or offline. No forced reload timers.
+
+## UX
+
+- One action per screen. Touch targets 48 px minimum. Scanner input via keyboard wedge works on every input that accepts a barcode.
+- Unsynced badge always visible; loud warning after 4 h offline with pending commands.
+- iOS: refuse enrollment unless `display-mode: standalone`.
+
+```ts
+// Right: one transaction for outbox + optimistic state
+await db.transaction('rw', db.outbox, db.tasks, async () => {
+  await db.outbox.add(cmd)
+  await db.tasks.update(taskId, { status: 'claimed', assigneeUserId: me })
+})
+```

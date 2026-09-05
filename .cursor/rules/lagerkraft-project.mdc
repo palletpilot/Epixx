@@ -1,0 +1,35 @@
+---
+description: What this repository is, where the truth lives, and the five principles every change must respect
+alwaysApply: true
+---
+
+# Lagerkraft project rules
+
+This repo hosts Lagerkraft, a multi-tenant warehouse SaaS (database per tenant, offline-first floor PWA, four .NET 10 services on Postgres + NATS, Vue 3 frontends). `Epixx/` is the original POC: frozen, reference only, never edited.
+
+## Where the truth lives
+
+- Design: `docs/superpowers/specs/2026-09-05-lagerkraft-architecture-design.md`. If code and spec disagree, the spec wins until the spec is changed (see the `spec-change` skill). Do not invent a mechanism the spec already has one for; grep the spec first.
+- Work list: `docs/superpowers/plans/<date>-<sub-project>.md`. Implement one task at a time (see the `implement-plan-task` skill).
+- Branches: `master` is the POC. Work happens on `lagerkraft/<sub-project>` branches, e.g. `lagerkraft/sp0-foundation`.
+- Commits: `sp<N>: <task id> - <what>`, e.g. `sp0: C2 - command pipeline with idempotency, locks, upcasters`.
+
+## Five principles (from the use-case review; violating one is a bug)
+
+1. **The floor is the truth.** A command reporting a physical action is accepted when its entities exist and stock is where it says. Rule breaches become `Deviation(kind=policy_override)`, never rejections. Rejections are for impossible states only.
+2. **Client-generated ids.** Every entity a device creates gets its UUIDv7 on the device; the server accepts it. Never mint ids server-side for device-created things.
+3. **Authorization at `occurred_at`.** Offline commands are authorized against the worker's role assignments as they were when the action happened, not at sync time.
+4. **State denials are holds, not rejections.** Lifecycle state, maintenance flag and hard cap produce `held` / `402` / `423` / `503`; valid work must never turn into deviations because of tenant state.
+5. **One tenant prefix.** Every tenant object in Object Storage lives under `tenants/<tenant_id>/...`; every tenant row carries `tenant_id`; every NATS subject starts `lagerkraft.<tenant>.`.
+
+## Ownership (do not cross)
+
+- `platform` owns the platform DB (tenants, users, memberships, devices, billing).
+- `wms-core` owns every tenant DB and is the only writer to them. Other services call its `/internal/*` HTTP endpoints.
+- `sync-gateway` is stateless. No database, ever.
+- `integrations` consumes NATS and delivers webhooks; it never writes catalog or stock tables directly.
+
+## Style
+
+- No emojis in code, commits, docs or UI copy. Swedish UI strings live in resource files, never inline.
+- Prose in docs is plain and direct. No marketing adjectives.

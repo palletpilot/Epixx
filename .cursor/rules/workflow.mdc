@@ -1,0 +1,39 @@
+---
+description: How a unit of work goes from plan task to commit, and what "done" means
+alwaysApply: true
+---
+
+# Workflow
+
+## Before writing code
+
+1. Open the plan task. Read the spec section(s) it names. Trace the real flow the task touches (grep callers, read the existing slice) before choosing an approach.
+2. If the task is ambiguous or the spec is silent, stop and say so. Do not fill gaps with invention; propose a spec change instead.
+3. List the files you will create or touch. If the list is longer than the task's own file list, justify it.
+
+## While writing
+
+- Write the test that fails if the logic breaks **first** (see `tests-dotnet.mdc`, `frontend-vue.mdc`). One good test beats five shallow ones.
+- Keep the diff to the task. Cleanup you notice goes in a note at the end, not in the diff.
+- Never edit anything under `Epixx/`, `Epixx.slnx` or the root `WarehouseController.cs`.
+- Never commit secrets. Dev secrets live in `appsettings.Development.json` with obviously fake values; real ones are Kubernetes secrets.
+
+## Before committing
+
+Run, and paste the tail of the output in your summary:
+
+```powershell
+dotnet build backend/Lagerkraft.sln -warnaserror
+dotnet test backend/Lagerkraft.sln --filter "Category!=Load"
+pnpm -C frontend lint && pnpm -C frontend typecheck && pnpm -C frontend test
+```
+
+Skip the parts whose tree the task did not touch.
+
+## Definition of done for a task
+
+- Test exists and fails when the logic is broken (verify by breaking it once).
+- Build is warning-free; lint and typecheck pass.
+- The plan file has the task marked done (append `(done <date>, <sha>)` to its heading).
+- One commit, message `sp<N>: <task id> - <what>`.
+- Summary states what was deliberately left out and any `ponytail:` ceilings introduced.

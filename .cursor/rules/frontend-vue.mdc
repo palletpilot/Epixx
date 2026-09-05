@@ -1,0 +1,30 @@
+---
+description: Vue 3 + TypeScript conventions for the back office and the shared frontend packages
+globs: frontend/**/*.ts, frontend/**/*.vue
+alwaysApply: false
+---
+
+# Frontend conventions
+
+- Vue 3 `<script setup lang="ts">`, Composition API only. TypeScript `strict`; `any` is a lint error, use `unknown` and narrow.
+- Server state: TanStack Query through `packages/api-client` (generated from `contracts/openapi`). Never hand-write `fetch` against our API; if an endpoint is missing from the client, regenerate it.
+- Client state: Pinia, one store per concern (`auth`, `tenant`, `realtime`). No global event buses.
+- Realtime: `useRealtime()` from `packages/realtime`. It batches entries per 100 ms tick; components never subscribe to `EventSource` directly.
+- Quantities are the `Quantity` type from `packages/domain` (decimal.js). Never `Number()` a quantity. Format with the user's locale (`sv-SE` uses decimal comma).
+- Permissions: `can("inventory.move", warehouseId)` from `packages/domain`, generated from the backend map. Never compare role names.
+- Styling: Tailwind + shadcn-vue components from `packages/ui`. No component libraries beyond that, no inline style attributes.
+- Strings: all user-visible text goes through `t("key")`; Swedish is the default locale, English second. No hardcoded copy in templates.
+- Accessibility: every interactive element has a label; focus order follows reading order; colour is never the only signal (banners carry an icon and text).
+- Tests: Vitest + Vue Test Utils for stores and composables; Playwright for flows. A composable with logic gets a unit test; a page does not, its flow test covers it.
+- Files: `PascalCase.vue` for components, `camelCase.ts` for composables (`useX.ts`), one component per file, colocate `Component.test.ts`.
+
+```vue
+<!-- Right -->
+<script setup lang="ts">
+const { data: tasks } = useTasks(warehouseId)
+useRealtime({ warehouseId, onEntries: applyToQueryCache })
+</script>
+<template>
+  <TaskList :tasks="tasks ?? []" :aria-label="t('tasks.list')" />
+</template>
+```

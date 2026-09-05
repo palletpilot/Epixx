@@ -1,0 +1,33 @@
+---
+description: .NET 10 conventions for the Lagerkraft services (platform, wms-core, sync-gateway, integrations)
+globs: backend/**/*.cs
+alwaysApply: false
+---
+
+# .NET backend conventions
+
+- Minimal APIs, **vertical slices**: one folder per feature with `Endpoint.cs`, `Handler.cs`, `Validator.cs` (FluentValidation). No controllers, no MediatR, no generic repositories.
+- Domain failures return `Result<T>` with an `Error(code, message)`; exceptions are for bugs and infrastructure. Endpoints map `Result` to `ProblemDetails` via the shared `ToHttp()` extension.
+- Time comes from `IClock`, never `DateTime.Now` / `UtcNow`. Columns are `timestamptz`.
+- Ids are UUIDv7: `Guid.CreateVersion7()`. Accept client-supplied ids for device-created entities.
+- Quantities are `decimal` in C#, `NUMERIC(18,6)` in Postgres, **decimal strings** on the wire (`"12.500"`). Never `double`, never JSON numbers for quantities. Money is `long` öre.
+- EF Core + Npgsql, snake_case names via `UseSnakeCaseNamingConvention()`, one `DbContext` per owning service; `TenantDbContext` gets its connection per request from `ITenantConnectionCache`.
+- wms-core modules (`Lagerkraft.WmsCore.<Module>`) expose only their `Contracts` namespace; cross-module references to anything else fail the architecture tests.
+- Internal service-to-service endpoints live under `/internal/*`, require the `Lagerkraft-Internal-Token` header, and are never exposed through the load balancer.
+- Authorization is `RequirePermission("<resource>.<action>", warehouseId)` from `Lagerkraft.Shared.Permissions`; never check role names in handlers.
+- Logging is Serilog structured: `_log.Information("Task {TaskId} claimed by {UserId}", id, userId)`. No string interpolation in log calls, no logging of tokens or connection strings.
+- Background work is a `PeriodicJob` subclass; idempotent `RunOnceAsync`, because two replicas may run it.
+- Concurrency guards: `pg_advisory_xact_lock` for per-device and per-tenant serialization, `FOR UPDATE SKIP LOCKED` for claim-work. No in-memory locks for correctness.
+
+```csharp
+// Slice shape
+public static class ClaimTask
+{
+    public sealed record Command(Guid TaskId) : ICommand;                 // Commands/ClaimTask/Command.cs
+    public sealed class Validator : AbstractValidator<Command> { ... }     // Validator.cs
+    public sealed class Handler(TenantDbContext db, IClock clock) : ICommandHandler<Command>
+    {
+        public async Task<Result<TaskDto>> Handle(Command c, CommandContext ctx, CancellationToken ct) { ... }
+    }
+}
+```

@@ -1,0 +1,31 @@
+---
+description: How backend tests are written so they catch real breakage and stay fast
+globs: backend/tests/**/*.cs
+alwaysApply: false
+---
+
+# Backend tests
+
+- xUnit + Shouldly. Integration tests use the project's shared `PostgresFixture` / `NatsFixture` (Testcontainers, one container per test project via collection fixture) and `WebApplicationFactory<Program>`. These fixtures already exist; reuse them, do not spin containers per test. (This is the codebase's existing pattern, so it satisfies ponytail's "no fixtures" rule.)
+- Names: `Method_State_Expected`, e.g. `ClaimTask_AlreadyClaimedByOther_Rejected`.
+- Time is `FakeClock`. No `Task.Delay`, no `Thread.Sleep`, no wall-clock assertions.
+- Concurrency tests run the real thing: 20 parallel `ClaimTask` through the dispatcher against Postgres, assert exactly one `applied`. Mocks do not prove locks.
+- Every command handler has at least: happy path, the impossible-state rejection, the `occurred_at` authorization boundary, idempotent retry.
+- Transaction tests kill the transaction after the domain write and assert that neither the domain row nor the `change_log` / `deviation` row exists.
+- Golden tests read fixtures from `contracts/`; never inline a copy of a schema or fixture in a test.
+- Property-based tests (`FsCheck`) for invariants only: ledger sum equals balance, breakdown rule totals equal the request, slug normalization is idempotent.
+- Architecture tests live in `Lagerkraft.Architecture.Tests`; a new module or service adds its rule there in the same commit.
+- Load tests are k6, tagged `Category=Load`, excluded from the default `dotnet test` filter.
+- One assertion group per test. No `try/catch` in tests. No `[Fact(Skip=...)]` without a linked plan task.
+
+```csharp
+[Fact]
+public async Task ClaimTask_TwentyConcurrent_ExactlyOneApplied()
+{
+    var task = await Seed.OpenTask(db);
+    var results = await Task.WhenAll(Enumerable.Range(0, 20)
+        .Select(i => dispatcher.Apply(Batch.For(device: i, new ClaimTask.Command(task.Id)))));
+    results.Count(r => r.Outcome == Outcome.Applied).ShouldBe(1);
+    results.Count(r => r.Outcome == Outcome.Rejected && r.Code == "already_claimed").ShouldBe(19);
+}
+```

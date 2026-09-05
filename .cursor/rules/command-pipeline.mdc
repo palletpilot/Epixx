@@ -1,0 +1,44 @@
+---
+description: Rules for wms-core commands, the change feed and the outbox; the floor app depends on these being exact
+globs: backend/src/WmsCore/**/*.cs, backend/src/SyncGateway/**/*.cs, contracts/commands/**
+alwaysApply: false
+---
+
+# Command pipeline
+
+Every command applies in **one transaction** that writes, in order: the domain change, the `change_log` row (under `pg_advisory_xact_lock(hash(tenant_id))` so `seq` order equals commit order), the `outbox` rows, the `processed_commands` row. A retry hits `processed_commands` and returns the stored result. Nothing about this order is negotiable.
+
+## Results
+
+`applied | rejected | held | unknown`
+
+- `rejected` is definitive and only for impossible states (unknown/inactive location, handling unit already moved, insufficient balance, duplicate). It **also inserts `Deviation(kind=rejected)` in the same transaction** with the payload in `detail`.
+- `held` is for tenant state, maintenance and hard cap. The device keeps the command pending. Never turn state into `rejected`.
+- `unknown` is "retry later" (transient). Never return it for a validation failure.
+- Unknown command version: `426` for that command and everything after it in the batch.
+
+## Payloads
+
+- JSON, unknown fields ignored on both sides. Adding an optional field does not bump `v`.
+- `v` bumps only when a field becomes required, changes meaning or type, or is removed. Then: new schema `contracts/commands/<type>/v<N>.json`, a pure upcaster `v<N-1> -> v<N>` (no I/O), and a fixture pair that the golden test replays.
+- The server is the only translator. Never migrate queued commands on the client.
+- Quantities are decimal strings. Timestamps are ISO 8601 with offset. Ids are UUIDv7 strings.
+
+## Feed
+
+- `change_log` payloads are **full current state** of the entity, never diffs. Additive-only shape; a breaking read-model change bumps `snapshot_schema`.
+- Outbox rows publish with `Nats-Msg-Id` = event id; consumers dedupe with `processed_events`, never a high-water mark.
+- `feed_epoch` changes only in the restore runbook. Never touch it in code paths.
+
+## Authorization
+
+- Per command, against membership history at `occurred_at`. Skew-corrected `occurred_at` when the batch's clock skew exceeds 5 minutes; store `clock_skew_ms`.
+- The flush is authorized by the device plus any active member; the command by its own `sub`.
+
+```csharp
+// Wrong: stock rule as rejection
+if (!bin.Fits(hu)) return Result.Reject("does_not_fit");
+
+// Right: floor is the truth
+if (!bin.Fits(hu)) deviations.Add(Deviation.PolicyOverride(cmd, "does_not_fit"));
+```
