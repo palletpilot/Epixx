@@ -1,4 +1,20 @@
 
+# Lagerkraft
+
+This repository started as the Epixx proof of concept (below) and now hosts Lagerkraft: a lightweight, modular warehouse system built as multi-tenant SaaS with a database per tenant, an offline-first floor PWA, and a small set of .NET services on Postgres and NATS.
+
+**Start here:** [docs/superpowers/specs/2026-09-05-lagerkraft-architecture-design.md](docs/superpowers/specs/2026-09-05-lagerkraft-architecture-design.md) holds the architecture and every design decision. Read "Decisions locked" and the scope decomposition first.
+
+Layout:
+
+- `Epixx/` - the original POC. Frozen; it is the domain reference, not the product. Do not extend it. Run it with `dotnet run --project Epixx/Epixx.csproj` (needs .NET 10 SDK and SQL Server LocalDB), open https://localhost:7132, log in as `admin@test.com` / `Admin123!`.
+- `docs/superpowers/specs/` - design specs; implementation plans per sub-project are added alongside.
+- `backend/`, `frontend/`, `contracts/` - appear with sub-project 0 (foundation); see the repository layout section of the spec.
+
+Branches: `master` is the POC as it was; Lagerkraft work happens on `lagerkraft/*` branches, starting with `lagerkraft/sp0-foundation`.
+
+---
+
 # 📦 Pallet Warehouse Management System (Epixx)
 Jag ville bygga en applikation som simulerar att lager likt det jag arbetar på just nu. 
 

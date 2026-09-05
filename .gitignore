@@ -361,3 +361,12 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# Lagerkraft: Node, local env
+dist/
+.pnpm-store/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+appsettings.*.local.json
+
