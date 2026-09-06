@@ -66,7 +66,7 @@ Tests (`Lagerkraft.Shared.Tests`): slug rules (padding, reserved words, length),
 
 Commit: `sp0: A2 - shared kernel`.
 
-### Task A3. Architecture tests
+### Task A3. Architecture tests (done 2026-09-06, 96ff1b8)
 
 Files: `backend/tests/Lagerkraft.Architecture.Tests/` using `NetArchTest.Rules`.
 
