@@ -58,7 +58,7 @@ Verify: `dotnet build backend/Lagerkraft.sln` is warning-free; `dotnet run --pro
 
 Commit: `sp0: A1 - solution, service template, AppHost`.
 
-### Task A2. Shared kernel
+### Task A2. Shared kernel (done 2026-09-06, 0aae352)
 
 Files under `backend/src/Shared/`: `Result.cs` (`Result<T>` with `Error(code, message, details)` and `ToHttp()` mapping to `ProblemDetails`), `Ids.cs` (UUIDv7 helper, `Slug` value object with the spec's rules and reserved list), `Clock.cs` (`IClock` with `SystemClock` and `FakeClock`), `Permissions.cs` (the spec's permission constants and the static role-to-permission map, one dictionary), `Tenancy/TenantContext.cs` (`TenantId`, `Slug`, `SchemaVersion`, `LifecycleState`, `Maintenance` flag), `Tenancy/TenantResolutionMiddleware.cs` (reads `tid` from the JWT first; also accepts the slug from the host for the back office and is unit-tested, but local Aspire does not require wildcard DNS), `Auth/LagerkraftClaims.cs` (claim names `sub tid amr own ra pv sv dev act`; `act` is reserved for later impersonation, unused in sub-project 0), `Auth/RoleAssignment.cs`, `Auth/PermissionPolicyProvider.cs` (`RequirePermission("x.y", warehouseId)` as an ASP.NET Core authorization policy that expands `ra` through the map), `Events/CloudEvent.cs`, `Events/EventEnvelope.cs`, `Outbox/OutboxMessage.cs`, `Outbox/IOutbox.cs`, `ChangeLog/ChangeLogEntry.cs`, `Jobs/PeriodicJob.cs` (a `BackgroundService` base that runs `RunOnceAsync` every N seconds with jitter, logs and records the last run as a metric; this is where Epixx's `ReservationCleanupService` pattern lands as a reusable base).
 
