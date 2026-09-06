@@ -24,10 +24,9 @@ This repo hosts Lagerkraft, a multi-tenant warehouse SaaS (database per tenant, 
 
 ## Ownership (do not cross)
 
-- `platform` owns the platform DB (tenants, users, memberships, devices, billing).
+- `platform` owns the platform DB schema (tenants, users, memberships, devices, billing, webhook/import tables). `integrations` may write `WebhookEndpoint`, `WebhookDelivery`, `ImportJob` and `processed_events` rows with `consumer = integrations`; it never writes catalog or stock.
 - `wms-core` owns every tenant DB and is the only writer to them. Other services call its `/internal/*` HTTP endpoints.
 - `sync-gateway` is stateless. No database, ever.
-- `integrations` consumes NATS and delivers webhooks; it never writes catalog or stock tables directly.
 
 ## Style
 

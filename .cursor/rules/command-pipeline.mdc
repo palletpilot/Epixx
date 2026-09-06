@@ -32,7 +32,7 @@ Every command applies in **one transaction** that writes, in order: the domain c
 
 ## Authorization
 
-- Per command, against membership history at `occurred_at`. Skew-corrected `occurred_at` when the batch's clock skew exceeds 5 minutes; store `clock_skew_ms`.
+- Per command, against membership history at `occurred_at` (platform `GET /internal/memberships/{tenantId}/history`, cached per batch). Skew-corrected `occurred_at` when the batch's clock skew exceeds 5 minutes; store `clock_skew_ms`. An `occurred_at` in the future or before device enrollment takes the stale-command hook.
 - The flush is authorized by the device plus any active member; the command by its own `sub`.
 
 ```csharp
