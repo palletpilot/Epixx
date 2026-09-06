@@ -5,6 +5,16 @@ This repository started as the Epixx proof of concept (below) and now hosts Lage
 
 **Start here:** [docs/superpowers/specs/2026-09-05-lagerkraft-architecture-design.md](docs/superpowers/specs/2026-09-05-lagerkraft-architecture-design.md) holds the architecture and every design decision. Read "Decisions locked" and the scope decomposition first.
 
+## Local development
+
+Prerequisites: .NET 10 SDK 10.0.400, Docker, Node 24 (`corepack enable pnpm`).
+
+```powershell
+dotnet run --project backend/src/AppHost
+```
+
+That starts Postgres (`platform` and `tenant_migrate`), NATS with JetStream, Mailpit, and the four services. The Aspire dashboard lists them. Without Aspire, `docker compose up -d` starts the same infrastructure; run each service with `dotnet run` against the fake connection strings in `appsettings.Development.json`.
+
 Layout:
 
 - `Epixx/` - the original POC. Frozen; it is the domain reference, not the product. Do not extend it. Run it with `dotnet run --project Epixx/Epixx.csproj` (needs .NET 10 SDK and SQL Server LocalDB), open https://localhost:7132, log in as `admin@test.com` / `Admin123!`.

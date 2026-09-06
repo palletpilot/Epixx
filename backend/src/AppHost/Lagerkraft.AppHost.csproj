@@ -1,0 +1,21 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.5.3">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AspireUseCliBundle>true</AspireUseCliBundle>
+    <UserSecretsId>8a37343e-554a-4cb4-96e5-faaa281b11c2</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Nats" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Platform\Lagerkraft.Platform.csproj" />
+    <ProjectReference Include="..\WmsCore\Api\Lagerkraft.WmsCore.Api.csproj" />
+    <ProjectReference Include="..\SyncGateway\Lagerkraft.SyncGateway.csproj" />
+    <ProjectReference Include="..\Integrations\Lagerkraft.Integrations.csproj" />
+  </ItemGroup>
+
+</Project>

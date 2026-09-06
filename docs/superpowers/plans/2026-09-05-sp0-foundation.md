@@ -43,7 +43,7 @@ Out: everything with a location, article or stock in it; label printing; the onb
 
 ## Phase A: skeleton that runs
 
-### Task A1. Solution, template project, Aspire AppHost
+### Task A1. Solution, template project, Aspire AppHost (done 2026-09-06, 36a1f56)
 
 Files: `backend/Lagerkraft.sln`, `backend/Directory.Build.props`, `backend/Directory.Packages.props`, `backend/.editorconfig`, `backend/global.json` (SDK 10.0.400 roll-forward latestFeature), `backend/src/Shared/Lagerkraft.Shared.csproj`, `backend/src/Platform/Lagerkraft.Platform.csproj`, `backend/src/WmsCore/Api/Lagerkraft.WmsCore.Api.csproj`, `backend/src/SyncGateway/Lagerkraft.SyncGateway.csproj`, `backend/src/Integrations/Lagerkraft.Integrations.csproj`, `backend/src/AppHost/Lagerkraft.AppHost.csproj`, `backend/src/ServiceDefaults/Lagerkraft.ServiceDefaults.csproj`, `backend/tests/*/` (one test project per service plus `Lagerkraft.Architecture.Tests`, `Lagerkraft.Contracts.Tests`), `compose.yaml` at the repo root (Postgres 17, NATS 2.11 with JetStream, Mailpit), empty `contracts/commands/`, `contracts/events/`, `contracts/openapi/` with a one-line README each so F1's "files exist before services" is true. Dockerfiles wait for G1.
 
