@@ -78,7 +78,7 @@ Commit: `sp0: A3 - architecture tests`.
 
 ## Phase B: platform service
 
-### Task B1. Platform DB and tenant catalog
+### Task B1. Platform DB and tenant catalog (done 2026-09-06, 2caa826)
 
 Files under `backend/src/Platform/`: `Data/PlatformDbContext.cs` (Identity tables plus `Tenant`, `Membership`, `RoleAssignment`, `Role`, `Device`, `DeviceSession` (which users have cached a refresh token on which device; B5 revocation bumps those memberships), `EnrollmentCode`, `IdentityProvider`, `SignupRequest`, `Invitation`, `RefreshToken` (opaque hash, `session_version`, `expires_at`, `device_id` nullable), `BillingAccount`, `Plan`, `Subscription`, `LocationCounter`, `ProcessedEvent` (`event_id`, `consumer`, `at`; platform-wide, also used by E1), `TenantTombstone`, `AuditLog`, plus `WebhookEndpoint`, `WebhookDelivery`, `ImportJob` as empty tables for E1 so integrations does not get its own database), `Data/Migrations/` (EF), `Tenancy/TenantCatalog.cs` (read side: connection string decrypt with the platform DEK, `schema_version`, `migration_status`, lifecycle state, maintenance flag), `Tenancy/ConnectionStringProtector.cs` (AES-GCM with a key from configuration, per-tenant DEK wrapped by the KEK as the spec describes; the KEK is a dev constant in `appsettings.Development.json` and a Kubernetes secret in prod).
 
