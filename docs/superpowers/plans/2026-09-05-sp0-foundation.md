@@ -93,7 +93,7 @@ Tests: unit: EF model snapshot has no pending changes (`dotnet ef migrations has
 
 Commit: `sp0: B1 - platform DB, catalog, internal API`.
 
-### Task B2. Local accounts, JWT, refresh, session version
+### Task B2. Local accounts, JWT, refresh, session version (done 2026-09-07, 93e1002)
 
 Files: `Auth/Login/` (email + password, optional TOTP step), `Auth/Totp/Enroll/` (`POST /auth/totp/enroll` starts, confirm with a code; required before login can demand TOTP and before B4 can set `enforced`), `Auth/Refresh/`, `Auth/Logout/`, `Auth/SwitchTenant/`, `Auth/PinUnlock/` (server-side PIN check for devices: `POST /auth/pin-unlock` with device id, user id and PIN; PIN hash stored on `Membership` as `pin_hash`, PBKDF2 from `Microsoft.AspNetCore.Cryptography.KeyDerivation`), `Auth/Tokens/JwtIssuer.cs` (claims exactly as the spec: `sub tid amr own ra pv sv dev`, 15-minute access, refresh tokens as opaque random values hashed in `RefreshToken` with `session_version`, 12-hour default lifetime read from `Tenant.refresh_token_hours`), `Auth/Tokens/SessionVersionBump.cs` (increments `Membership.session_version` and publishes `tenant.membership_changed` directly to NATS), tenant chooser: `POST /auth/login` returns either a token (one membership) or `{ memberships: [...] , chooser_token }` and `POST /auth/choose-tenant` exchanges it. This is the first public API: write `contracts/openapi/platform.json` at build.
 

@@ -83,6 +83,8 @@ public sealed class PlatformDbContext : IdentityUserContext<AppUser, Guid>
             e.HasIndex(m => new { m.UserId, m.TenantId }).IsUnique();
             e.HasOne(m => m.Tenant).WithMany().HasForeignKey(m => m.TenantId);
             e.HasOne(m => m.User).WithMany().HasForeignKey(m => m.UserId);
+            e.Property(m => m.PinFailedAttempts).HasDefaultValue(0);
+            e.Property(m => m.PinFullLoginRequired).HasDefaultValue(false);
         });
 
         builder.Entity<Role>(e =>

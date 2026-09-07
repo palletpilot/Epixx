@@ -63,6 +63,9 @@ public sealed class Membership
     public bool IsOwner { get; set; }
     public int SessionVersion { get; set; }
     public string? PinHash { get; set; }
+    public int PinFailedAttempts { get; set; }
+    public DateTimeOffset? PinLockedUntil { get; set; }
+    public bool PinFullLoginRequired { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public Tenant Tenant { get; set; } = null!;

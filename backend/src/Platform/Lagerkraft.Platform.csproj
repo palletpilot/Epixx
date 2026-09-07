@@ -1,14 +1,33 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <OpenApiDocumentsDirectory>$(MSBuildThisFileDirectory)..\..\..\contracts\openapi\</OpenApiDocumentsDirectory>
+    <OpenApiGenerateDocumentsOnBuild>true</OpenApiGenerateDocumentsOnBuild>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\ServiceDefaults\Lagerkraft.ServiceDefaults.csproj" />
     <ProjectReference Include="..\Shared\Lagerkraft.Shared.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="EFCore.NamingConventions" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="NATS.Net" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>
+  <Target Name="CopyOpenApiToContractName" AfterTargets="GenerateOpenApiDocuments">
+    <PropertyGroup>
+      <_GeneratedOpenApi>$(OpenApiDocumentsDirectory)Lagerkraft.Platform_platform.json</_GeneratedOpenApi>
+      <_ContractOpenApi>$(OpenApiDocumentsDirectory)platform.json</_ContractOpenApi>
+    </PropertyGroup>
+    <Copy SourceFiles="$(_GeneratedOpenApi)" DestinationFiles="$(_ContractOpenApi)" SkipUnchangedFiles="true" Condition="Exists('$(_GeneratedOpenApi)')" />
+    <Delete Files="$(_GeneratedOpenApi)" Condition="Exists('$(_GeneratedOpenApi)')" />
+  </Target>
 </Project>

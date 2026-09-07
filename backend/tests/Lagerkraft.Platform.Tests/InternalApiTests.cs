@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Lagerkraft.Platform.Tests;
 
 [Collection(PostgresCollection.Name)]
+[Trait("Category", "Integration")]
 public sealed class InternalApiTests : IAsyncLifetime
 {
     private readonly PlatformApiFactory _factory;
