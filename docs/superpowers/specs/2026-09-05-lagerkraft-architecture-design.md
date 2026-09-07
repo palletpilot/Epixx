@@ -357,13 +357,17 @@ The change feed is already an ordered stream of what happened, so realtime is th
 
 ## Testing and quality (from day one, per the board)
 
-- xUnit + Testcontainers (Postgres, NATS) integration tests per service, `WebApplicationFactory`.
-- Architecture tests enforce module boundaries in wms-core.
-- Contract tests for event schemas and the sync API.
-- Property-based test for the ledger invariant.
-- Vitest + Vue Test Utils; Playwright E2E including offline simulation (`context.setOffline(true)`) of the mapping and pick flows.
-- k6 load tests for `POST /sync/commands`, `GET /sync/changes`, pick confirmation, and SSE fan-out (thousands of idle connections plus a burst of changes, measuring delivery latency), run nightly in CI with thresholds.
-- CI: build, test, lint, container images per service, migration dry-run against a seeded tenant.
+Three layers. Do not skip the middle one and wait for Playwright.
+
+- **Unit**: no IO. Pure functions, maps, value objects, AES round-trip without a database, a state-machine transition table. xUnit + Shouldly in the backend; Vitest + Vue Test Utils for stores and composables.
+- **Integration** (default for anything that writes or reads state): HTTP through `WebApplicationFactory` against Testcontainers Postgres and NATS. One `PostgresFixture` / `NatsFixture` per test project (collection fixture). Tests that use those fixtures carry `[Trait("Category", "Integration")]`. A feature is not done if its happy path and the failure that would lose data exist only as a unit test of the handler. Per-service tests live in that service's existing test project. No fifth test project until two services talk; then the later service hosts itself with WAF and calls the earlier one over HTTP (a second WAF or a test double), still without a browser.
+- **E2E**: Playwright against the AppHost, including offline simulation (`context.setOffline(true)`) of mapping and pick flows. Proves UI and the floor outbox. Does not replace the integration tests of the same backend path.
+
+Also: architecture tests enforce wms-core module boundaries; contract tests for event schemas and the sync API; property-based tests for the ledger invariant only; k6 load tests for `POST /sync/commands`, `GET /sync/changes`, pick confirmation, and SSE fan-out (thousands of idle connections plus a burst of changes, measuring delivery latency), run nightly in CI with thresholds, tagged `Category=Load` and excluded from the default `dotnet test` filter.
+
+Core backend flows that must be integration tests as their slice lands (sub-project 0): tenant catalog encrypt/decrypt, entitlement and migration-status; login JWT and refresh after a `session_version` bump; signup through to `Trialing`; invite/accept and role-assignment windows; command apply (idempotent retry, advisory lock, `held`); concurrent `ClaimTask` against Postgres; gateway `409` / `423` / `410` and forward to wms-core; outbox to NATS consumed once; SSE catch-up then live.
+
+CI: build, unit tests, integration tests with Testcontainers, architecture tests, contract tests, lint, container images per service, migration dry-run against a seeded tenant. The unit job excludes `Category=Integration` and `Category=Load`; the integration job is `--filter Category=Integration`.
 
 ## Repository layout
 
@@ -431,7 +435,7 @@ flowchart TB
 
 ### CI/CD per service (GitHub Actions, monorepo, path-filtered)
 
-- **On pull request**: path filter decides which services and frontends changed; a change under `backend/src/Shared` or `contracts/` triggers everything. Jobs: `dotnet build` + unit tests; integration tests with Testcontainers (Postgres, NATS); architecture tests; contract tests against `contracts/`; **migration check**: apply all EF migrations to a fresh Postgres, fail if `dotnet ef migrations has-pending-model-changes` reports drift, generate the SQL script and lint it with `squawk` (catches table rewrites, non-concurrent indexes, missing `lock_timeout`); frontend lint, typecheck, Vitest; container images built but not pushed. Required checks block merge.
+- **On pull request**: path filter decides which services and frontends changed; a change under `backend/src/Shared` or `contracts/` triggers everything. Jobs: `dotnet build` + unit tests (`Category!=Integration&Category!=Load`); integration tests with Testcontainers (Postgres, NATS, `--filter Category=Integration`); architecture tests; contract tests against `contracts/`; **migration check**: apply all EF migrations to a fresh Postgres, fail if `dotnet ef migrations has-pending-model-changes` reports drift, generate the SQL script and lint it with `squawk` (catches table rewrites, non-concurrent indexes, missing `lock_timeout`); frontend lint, typecheck, Vitest; Playwright E2E against the AppHost once F2 exists (smoke, not a substitute for the integration job); container images built but not pushed. Required checks block merge.
 - **On merge to main**: build and push images for changed services, tagged with the git SHA and referenced by digest from then on. Write a **release manifest** (`releases/<date>-<n>.yaml`: image digests per service, required schema version, git SHA) and commit it. Deploy to staging: `kustomize edit set image` from the manifest, `kubectl apply -k overlays/staging`, wait for the migration Job, `kubectl rollout status` per Deployment, then run Playwright smoke tests against a synthetic tenant and a two-minute k6 run on the sync endpoints. Any failure marks the release manifest `staging: failed` and pages nobody; it shows up in Slack.
 - **Promote to prod**: a `workflow_dispatch` on the release manifest, guarded by the GitHub Environment `production` requiring approval from a founder other than the author. It deploys the **same digests** that passed staging. Steps in order: (1) pre-deploy hook: pause tenant provisioning by taking the migration lock in the platform DB; (2) migration Job (see fan-out below); (3) rolling update of Deployments with `maxUnavailable: 0`, readiness gates, PodDisruptionBudgets; (4) smoke test against the demo tenant; (5) release the migration lock. A failed step stops the pipeline at that step; nothing later runs.
 - **Deploy frequency**: every merge goes to staging; prod promotion happens whenever a founder approves, typically daily. No deploy windows are needed because schema changes follow the compatibility rules below.
@@ -1011,7 +1015,7 @@ Method: for each component, what happens when it dies or misbehaves in the middl
 - Four services for a small team: identical template, one solution, one pipeline, Aspire for local. Split wms-core only when a real reason appears.
 - Pool exhaustion with many tenant DBs: low per-tenant pool, PgBouncer at scale, alert on connection count.
 - Migration fan-out time: parallel with cap, per-tenant failure isolation.
-- Sync correctness: it is the product's core; contract tests, offline E2E and k6 are non-negotiable in sub-project 0.
+- Sync correctness: it is the product's core; integration tests of the command and gateway path, contract tests, offline E2E and k6 are non-negotiable in sub-project 0.
 - NATS operations: single-node JetStream with file store is enough for the pilot; cluster later.
 
 ## Next steps
@@ -1022,5 +1026,6 @@ Method: for each component, what happens when it dies or misbehaves in the middl
 
 ## Changelog
 
+- 2026-09-07: testing layers. Unit tests are for code with no IO. Integration tests (`WebApplicationFactory` + Testcontainers, `Category=Integration`) are the default for any feature that writes or reads state; the core SP0 flows are listed under Testing and quality. Playwright is E2E (UI and offline) and does not replace those tests. No extra test project until two services talk; the later service calls the earlier one over HTTP. CI splits unit and integration jobs by trait.
 - 2026-09-06: align with the sub-project 0 plan. Module prefix `Lagerkraft.WmsCore`. NATS subjects are only `lagerkraft.{tenant}.{module}.{event}`; SSE subscribes to `lagerkraft.{tenant}.>`. Device enrollment, PIN unlock and both app shells move into sub-project 0; badge unlock stays with labels in sub-project 1. Membership history is fetched from platform HTTP in sub-project 0 (tenant `membership_history` table is a later ponytail). Platform publishes tenant and billing events directly to NATS with job retry; wms-core keeps the outbox. Webhook, delivery, import-job and integrations `processed_events` rows live in the platform DB; integrations may write those tables only. Auth tables `RefreshToken`, `DeviceSession`, `Membership.pin_hash`, `Tenant.refresh_token_hours`. Lifecycle transitions are `AuditLog` rows, not a separate `TenantStateTransition`. `TaskLine` created in sub-project 0 with spec columns and no FKs. Impersonation designed, not built in sub-project 0. Local Aspire uses `platform` + `tenant_migrate`. Day-23/28 trial emails deferred to billing; sub-project 0 ships the day-20 banner and 48-hour closed-window warning.
 - 2026-09-05: initial version, written from the approved design and the 14-use-case review.

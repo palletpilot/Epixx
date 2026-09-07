@@ -54,10 +54,10 @@ If the build fails with a file lock on `Epixx.exe`, an instance is already runni
 ## Tests
 
 ```powershell
-dotnet test backend/Lagerkraft.sln --filter "Category!=Load"
+dotnet test backend/Lagerkraft.sln --filter "Category!=Load"   # unit + integration; needs Docker
 dotnet test backend/tests/Lagerkraft.WmsCore.Tests --filter "FullyQualifiedName~ClaimTask"
 pnpm -C frontend test
-pnpm -C frontend e2e                             # Playwright, needs the stack running
+pnpm -C frontend e2e                             # Playwright E2E, needs the stack running
 k6 run load/sync-commands.js                     # nightly in CI; local for a smoke run
 ```
 

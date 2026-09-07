@@ -6,7 +6,12 @@ alwaysApply: false
 
 # Backend tests
 
+Three layers (spec Testing section). Unit: no IO. Integration: HTTP through `WebApplicationFactory` against Testcontainers; default for anything that writes or reads state. E2E is Playwright and lives in the frontend tree.
+
 - xUnit + Shouldly. Integration tests use the project's shared `PostgresFixture` / `NatsFixture` (Testcontainers, one container per test project via collection fixture) and `WebApplicationFactory<Program>`. These fixtures already exist; reuse them, do not spin containers per test. (This is the codebase's existing pattern, so it satisfies ponytail's "no fixtures" rule.)
+- Integration tests carry `[Trait("Category", "Integration")]` on the class or method. Load tests are k6, tagged `Category=Load`, excluded from the default `dotnet test` filter. Local `dotnet test --filter Category!=Load` runs unit and integration together.
+- A feature that writes or reads state is not done if its happy path and the failure that would lose data exist only as a unit test of the handler.
+- No fifth test project until two services talk. The later service hosts itself with WAF and calls the earlier one over HTTP (second WAF or a test double).
 - Names: `Method_State_Expected`, e.g. `ClaimTask_AlreadyClaimedByOther_Rejected`.
 - Time is `FakeClock`. No `Task.Delay`, no `Thread.Sleep`, no wall-clock assertions.
 - Concurrency tests run the real thing: 20 parallel `ClaimTask` through the dispatcher against Postgres, assert exactly one `applied`. Mocks do not prove locks.
@@ -15,7 +20,6 @@ alwaysApply: false
 - Golden tests read fixtures from `contracts/`; never inline a copy of a schema or fixture in a test.
 - Property-based tests (`FsCheck`) for invariants only: ledger sum equals balance, breakdown rule totals equal the request, slug normalization is idempotent.
 - Architecture tests live in `Lagerkraft.Architecture.Tests`; a new module or service adds its rule there in the same commit.
-- Load tests are k6, tagged `Category=Load`, excluded from the default `dotnet test` filter.
 - One assertion group per test. No `try/catch` in tests. No `[Fact(Skip=...)]` without a linked plan task.
 
 ```csharp

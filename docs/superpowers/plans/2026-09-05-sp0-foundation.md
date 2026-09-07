@@ -23,11 +23,11 @@ Out: everything with a location, article or stock in it; label printing; the onb
 - wms-core module projects are `Lagerkraft.WmsCore.<Module>`. Architecture tests and C3 use this name.
 - Ids are UUIDv7 (`Guid.CreateVersion7()`); timestamps are `timestamptz`; money is integer öre; quantities that exist as columns are `NUMERIC(18,6)` / decimal strings on the wire even when nothing fills them yet.
 - Domain failures return `Result<T>`; endpoints map them with the shared `ToHttp()` extension to `ProblemDetails`.
-- Tests: xUnit, `Shouldly` for assertions, Testcontainers for Postgres and NATS, one shared `PostgresFixture` per test project (collection fixture), `WebApplicationFactory` per service.
+- Tests: three layers, same as the spec's Testing section. Unit: no IO. Integration (default for state): `WebApplicationFactory` + Testcontainers, one `PostgresFixture` / `NatsFixture` per test project, `[Trait("Category", "Integration")]`. E2E: Playwright against the AppHost (F2/F3), not a substitute for the integration test of the same path. No fifth test project until two services talk. xUnit + Shouldly. Tag existing B1 WAF tests when B2 next edits `Lagerkraft.Platform.Tests`.
 - Commits are small and named by task: `sp0: <task> - <what>`.
 - Anything that needs a human (accounts, secrets, hardware) is marked **needs-human** and is not on the critical path of the tasks before it.
 
-## SP0 decisions (locked in the spec 2026-09-06)
+## SP0 decisions (locked in the spec 2026-09-06, testing layers 2026-09-07)
 
 1. **Module prefix** is `Lagerkraft.WmsCore`.
 2. **NATS subjects** are only `lagerkraft.{tenant}.{module}.{event}`. SSE subscribes to `lagerkraft.{tenant}.>`. There is no `lagerkraft.{tenant}.changes.{warehouse}` subject.
@@ -38,6 +38,7 @@ Out: everything with a location, article or stock in it; label printing; the onb
 7. **AppHost databases** are `platform` plus a disposable `tenant_migrate` used only by migrator tests. Provisioning creates `tenant_<id>`. There is no product `tenant_demo` database in A1.
 8. **OpenAPI**: each service with public HTTP endpoints writes `contracts/openapi/<service>.json` at build from `Microsoft.AspNetCore.OpenApi`, starting when that service first has a public route (B2, D1, C3).
 9. **CORS** for the two Vite origin ports is in `ServiceDefaults` (localhost in Development).
+10. **Testing layers.** Unit tests cover code with no IO. Integration tests (WAF + Testcontainers, `Category=Integration`) are the default for any feature that writes or reads state; the core flows are listed in the spec. Playwright is E2E only. No extra test project until two services talk.
 
 ---
 
@@ -88,7 +89,7 @@ Seed: four system roles (`tenant_admin`, `warehouse_manager`, `floor_worker`, `v
 
 Internal API (called by other services, protected by a shared internal token header on the cluster network, `Lagerkraft-Internal-Token`): `GET /internal/tenants/{id}` (catalog row without the secret), `GET /internal/tenants/{id}/connection` (decrypted connection string; wms-core caches it), `GET /internal/tenants/{id}/entitlement` (plan features, hard cap, lifecycle state), `PUT /internal/tenants/{id}/migration-status` (body: `schema_version`, `migration_status`, `last_error`; called by C1), `GET /internal/memberships/{tenantId}/history?userId=` (role assignments with validity windows, for authorization at `occurred_at`).
 
-Tests: EF model snapshot has no pending changes (`dotnet ef migrations has-pending-model-changes` in CI, and a unit test that builds the model); catalog decrypts what the protector encrypted; entitlement endpoint returns the seeded plan; migration-status PUT is persisted and returned on the next GET.
+Tests: unit: EF model snapshot has no pending changes (`dotnet ef migrations has-pending-model-changes` in CI, and a unit test that builds the model); protector round-trip without a database. Integration (`Category=Integration`, WAF + Postgres; this is the pattern for later platform tasks): catalog decrypts what the protector encrypted; entitlement endpoint returns the seeded plan; migration-status PUT is persisted and returned on the next GET.
 
 Commit: `sp0: B1 - platform DB, catalog, internal API`.
 
@@ -98,7 +99,7 @@ Files: `Auth/Login/` (email + password, optional TOTP step), `Auth/Totp/Enroll/`
 
 Signing key: RSA key pair in configuration for dev, Kubernetes secret in prod; JWKS at `GET /.well-known/jwks.json` so sync-gateway and wms-core validate offline.
 
-Tests: login issues a token with the right claims for a two-warehouse manager; refresh fails after a session version bump; PIN unlock locks out after 5 failures for 15 minutes (use `FakeClock`) and after 10 failures requires a full online login; TOTP enroll then login with a valid code succeeds and a wrong code does not; switch-tenant issues a token for the second membership and refuses a tenant the user is not a member of.
+Tests: integration (WAF + Postgres). Login issues a token with the right claims for a two-warehouse manager; refresh fails after a session version bump; PIN unlock locks out after 5 failures for 15 minutes (use `FakeClock`) and after 10 failures requires a full online login; TOTP enroll then login with a valid code succeeds and a wrong code does not; switch-tenant issues a token for the second membership and refuses a tenant the user is not a member of. Tag B1's WAF tests `Category=Integration` in this commit if they are still untagged.
 
 Commit: `sp0: B2 - local login, JWT, refresh, PIN unlock`.
 
@@ -106,7 +107,7 @@ Commit: `sp0: B2 - local login, JWT, refresh, PIN unlock`.
 
 Files: `Signup/Request/` (form fields from the spec, Luhn check on the org number, disposable-domain list as an embedded resource, slug proposal and uniqueness, join-request branch when the org number exists), `Signup/Verify/` (24-hour token), `Signup/JoinRequest/` (owner approve creates an `Invitation`), `Signup/PurgeUnverifiedJob.cs` (`PeriodicJob`, deletes unverified `SignupRequest` rows older than 7 days), `Provisioning/ProvisioningJob.cs` (a `PeriodicJob` that picks `SignupRequest` rows verified but not provisioned: create `Tenant` in `Provisioning`, generate the DEK, `CREATE DATABASE tenant_<id>` **or** call the provider API behind `ITenantDatabaseCreator` with two implementations `PostgresCreateDatabase` and `UpCloudApiCreator` (the second is a stub until the spike in Task G2), run wms-core migrate through an internal HTTP call to wms-core `POST /internal/tenants/{id}/migrate`, create owner `Membership` with `is_owner` and `tenant_admin`, create `BillingAccount` and `Subscription` in `trialing` with `trial_ends_at = now + 30 days` and the `pro` plan with `hard_cap_units = 1000`, publish `tenant.provisioned` directly to NATS, set `Trialing`; three attempts then `ProvisioningFailed` and an alert log line at Error level; a retry of a tenant already in `Trialing` is a no-op, which is how a lost publish is recovered), `Email/IEmailSender.cs` with `MailpitSmtpSender` for dev and `MailjetSender` behind configuration.
 
-Tests: full signup to `Trialing` against Testcontainers Postgres with wms-core's migrate endpoint faked; org-number collision produces a join request and reveals nothing but the company name; a failing `CREATE DATABASE` retries three times then lands in `ProvisioningFailed`; unverified requests older than 7 days are deleted (`FakeClock`).
+Tests: integration (WAF + Testcontainers Postgres) with wms-core's migrate endpoint faked. Full signup to `Trialing`; org-number collision produces a join request and reveals nothing but the company name; a failing `CREATE DATABASE` retries three times then lands in `ProvisioningFailed`; unverified requests older than 7 days are deleted (`FakeClock`).
 
 Commit: `sp0: B3 - signup, verification, provisioning job`.
 
@@ -114,7 +115,7 @@ Commit: `sp0: B3 - signup, verification, provisioning job`.
 
 Files: `Auth/Oidc/DynamicOidcHandler.cs` (resolve `IdentityProvider` by slug or email domain at request time, build the `OpenIdConnectOptions` per tenant, cache the discovery document per issuer), `Auth/Oidc/Callback/` (link or JIT-provision per the spec's strict rules: same tenant's provider, `email_verified`, domain matches `domain_hint`; `jit_provisioning` modes `off | mapped | all`; role from `role_mappings` on the `roles` claim then `groups`; groups-overflow detection via the `_claim_names` marker fails with the spec's message), `Auth/Oidc/Admin/` (tenant admin CRUD for the provider row, "test login" that completes the flow and reports the claims seen, `enforced` toggle that refuses unless the tenant is `Active`, one admin has logged in via SSO and every owner has TOTP enrolled), `client_secret_expires_at` with a `PeriodicJob` that emails owners at 30 and 7 days.
 
-Tests: against a fake OIDC server in tests (`Duende.IdentityServer` test host is heavy; use `OpenIddict` in-memory or a hand-rolled minimal issuer with signed JWTs, whichever is smaller; a hand-rolled issuer of about 100 lines is the lazy option): JIT `off` refuses unknown users, `mapped` grants the mapped role, linking refuses an unverified email, enforced blocks password login for non-owners and allows owner plus TOTP.
+Tests: integration (WAF + fake OIDC issuer). `Duende.IdentityServer` test host is heavy; use `OpenIddict` in-memory or a hand-rolled minimal issuer with signed JWTs, whichever is smaller; a hand-rolled issuer of about 100 lines is the lazy option. JIT `off` refuses unknown users, `mapped` grants the mapped role, linking refuses an unverified email, enforced blocks password login for non-owners and allows owner plus TOTP.
 
 **needs-human**: an Entra ID test tenant and a Google Workspace test project for the manual verification; until then the fake issuer is the test.
 
@@ -124,7 +125,7 @@ Commit: `sp0: B4 - per-tenant OIDC`.
 
 Files: `Devices/CreateEnrollmentCode/` (6 digits, 15 minutes, regenerable, tenant admin or warehouse manager), `Devices/Enroll/` (device posts the code, gets `device_id` and a device secret; returns `warehouse_ids` if the admin restricted it; creates a `DeviceSession` when a user later unlocks), `Devices/Revoke/` (sets `revoked_at`, bumps `session_version` for every membership in `DeviceSession` for that device, publishes `tenant.membership_changed`; the outbox on the device is not a server concern), `Devices/Remove/` (refuses while the beacon's pending count is greater than zero unless the caller passes `confirm_loss=true`; that is the spec's "manager confirms the loss" path), `Devices/List/` (last sync, pending count and oldest pending `occurred_at` as reported by the gateway's beacon), `Devices/Beacon/` (internal endpoint the gateway calls after each sync, and the floor-app telemetry beacon in D1).
 
-Tests: enrollment code expires; a revoked device gets `410` from a gateway call in Task D1; cannot re-enroll a revoked device id; remove with pending commands without `confirm_loss` is refused.
+Tests: integration (WAF + Postgres). Enrollment code expires; a revoked device gets `410` from a gateway call in Task D1; cannot re-enroll a revoked device id; remove with pending commands without `confirm_loss` is refused.
 
 Commit: `sp0: B5 - device enrollment and revocation`.
 
@@ -132,7 +133,7 @@ Commit: `sp0: B5 - device enrollment and revocation`.
 
 Files: `Lifecycle/TenantStateMachine.cs` (states and transitions from the spec's diagram, only `Provisioning`, `ProvisioningFailed`, `Trialing`, `Active`, `TrialExpired` wired in sub-project 0; the rest exist as enum values with transitions that throw `NotImplemented` so the table in the spec is the code's truth), every transition writes `AuditLog` and publishes `tenant.state_changed` directly to NATS, `Lifecycle/TrialExpiryJob.cs` (`PeriodicJob`, schedules the flip to `TrialExpired` at the tenant's next closed window per `operating_hours`, sends the 48-hour warning email; day-23 and day-28 reminder emails are out of sub-project 0), `Lifecycle/ConvertTrial/` (owner picks a plan, enters billing details as fields on `BillingAccount`, `Active`; no Fortnox, no invoice). The back-office banner from day 20 is a read of `trial_ends_at` in F2, not a job here.
 
-Tests: transition table test (every allowed transition succeeds, every other pair throws); trial expiry lands at the next closed window given `operating_hours` and `night_shift` (use `FakeClock`).
+Tests: unit: transition table (every allowed transition succeeds, every other pair throws). Integration (Postgres, `FakeClock`): trial expiry lands at the next closed window given `operating_hours` and `night_shift`.
 
 Commit: `sp0: B6 - lifecycle state machine`.
 
@@ -140,7 +141,7 @@ Commit: `sp0: B6 - lifecycle state machine`.
 
 Files: `Users/Invite/` (`POST /users/invitations`: email, role, optional `warehouse_ids`; 7-day token hash; role ceiling: a warehouse manager cannot grant `tenant_admin`), `Users/AcceptInvitation/` (creates `User` if needed, `Membership`, `RoleAssignment` with `valid_from = now`), `Users/List/`, `Users/AssignRole/` (never deletes a `RoleAssignment`: close with `valid_to` and insert a new row; publishes `tenant.membership_changed` and bumps `session_version`). Until C3 exists, `warehouse_id` values on assignments are stored as opaque UUIDs and not validated against a warehouse table. After C3, the same slice calls wms-core `GET /internal/warehouses/{id}` at assignment time; that call is added in C3, not here.
 
-Tests: invite then accept yields a membership with the granted role; a manager invite with `tenant_admin` is rejected; assigning a new role sets `valid_to` on the previous row; history endpoint from B1 then returns both windows.
+Tests: integration (WAF + Postgres). Invite then accept yields a membership with the granted role; a manager invite with `tenant_admin` is rejected; assigning a new role sets `valid_to` on the previous row; history endpoint from B1 then returns both windows.
 
 Commit: `sp0: B7 - users, invitations, role assignments`.
 
@@ -152,7 +153,7 @@ Commit: `sp0: B7 - users, invitations, role assignments`.
 
 Files under `backend/src/WmsCore/`: `Api/Program.cs` with subcommands via `System.CommandLine`: default (serve), `migrate [--tenant <slug>] [--all]`, `relay`, `replay --from <id> --to <id>`, `verify --tenant <slug>`; `Data/TenantDbContext.cs` (one type, connection resolved per request from `ITenantConnectionCache`, which calls platform's internal API and caches with the last known value, refreshed by `tenant.provisioned` and `tenant.migrated`), `Data/TenantMeta` table (`feed_epoch uuid`, `schema_version`), `Data/ChangeLog` (`seq bigserial, entity, id, op, payload jsonb, command_id, actor, occurred_at, recorded_at`), `Data/Outbox`, `Data/ProcessedCommands (command_id pk, result jsonb, applied_at)`, `Data/ProcessedEvents`, `Migrations/Migrator.cs` (fan-out per the spec: platform first is platform's job; here: first successfully provisioned tenant as canary, then by size ascending, 8 in parallel, prefer closed hours, restartable, resets `migrating` older than 15 minutes, drops `INVALID` indexes, `lock_timeout = 5s`, `statement_timeout = 60s`, retries with backoff up to 30 minutes, per-tenant status written back to platform via `PUT /internal/tenants/{id}/migration-status`, threshold rule 2 tenants or 5%, `[RequiresSnapshot]` attribute honoured by calling `pg_dump` to Object Storage; the dump target is a local folder in dev), `Migrations/PostMigrationVerify.cs` (row counts against the pre-migration manifest when one exists, FK sanity; the ledger invariant is added in sub-project 3), `Tenancy/SchemaVersionMiddleware.cs` (compares the tenant's `__EFMigrationsHistory` with the version the code requires; mismatch means maintenance mode: writes `503` with `Lagerkraft-Tenant-Maintenance`, reads continue). Rotating `feed_epoch` is a runbook step (SQL update on `tenant_meta`), never an application endpoint; definition of done item 6 is that SQL plus watching clients resync.
 
-Tests: migrate two tenant containers in parallel, one with a poisoned migration (a table the migration expects is missing) and confirm continue-isolate-decide; restartability by killing the migrator between tenants (simulate with a cancellation token) and rerunning; the maintenance middleware returns `503` for writes and `200` for reads when versions differ.
+Tests: integration (two tenant Postgres containers). Migrate in parallel, one with a poisoned migration (a table the migration expects is missing) and confirm continue-isolate-decide; restartability by killing the migrator between tenants (simulate with a cancellation token) and rerunning; the maintenance middleware returns `503` for writes and `200` for reads when versions differ.
 
 Commit: `sp0: C1 - TenantDbContext, migrator, maintenance middleware`.
 
@@ -164,7 +165,7 @@ Results: `applied | rejected | held | unknown`, with `426 Upgrade Required` sema
 
 Internal endpoints: `POST /internal/commands` (batch, from the gateway), `GET /internal/changes?warehouse=&since=` (returns entries plus `feed_epoch`, `410` if `since` is older than the oldest retained seq), `GET /internal/snapshot?warehouse=` (paginated per entity, only `Task` exists now), `GET /internal/compat` (`min_command_versions`, `latest_app_version`).
 
-Tests: idempotent retry returns the stored result and applies once; two batches for one device serialize; seq order equals commit order under 50 concurrent batches (the advisory lock test from the failure-mode analysis); upcaster chain golden test reads `contracts/commands/*/v*.json`; `held` for a tenant in `TrialExpired`; `426` stops the batch at the right index; rejection writes a deviation in the same transaction (kill the transaction after the domain write and check neither exists); implausible future `occurred_at` hits the stale hook.
+Tests: integration (WAF + Postgres). Idempotent retry returns the stored result and applies once; two batches for one device serialize; seq order equals commit order under 50 concurrent batches (the advisory lock test from the failure-mode analysis); `held` for a tenant in `TrialExpired`; `426` stops the batch at the right index; rejection writes a deviation in the same transaction (kill the transaction after the domain write and check neither exists); implausible future `occurred_at` hits the stale hook. Unit/contract: upcaster chain golden test reads `contracts/commands/*/v*.json`.
 
 Commit: `sp0: C2 - command pipeline with idempotency, locks, upcasters`.
 
@@ -172,7 +173,7 @@ Commit: `sp0: C2 - command pipeline with idempotency, locks, upcasters`.
 
 Files: `Inventory/Lagerkraft.WmsCore.Inventory.csproj` with `Contracts/` (public) and `Tasks/` (internal): `Task(id, warehouse_id, type putaway|pick|move|count, status open|claimed|done|cancelled, assignee_user_id, assigned_until, suggested_location_id nullable, created_at)` and `TaskLine` using the spec's pick-oriented columns (`task_id, article_id, requested_qty_base, picked_qty_base, from_location_id, from_handling_unit_id, suggested_breakdown jsonb, tolerance_pct, status`) with quantities `NUMERIC(18,6)` and **no foreign keys** (article, location and handling unit do not exist yet); nothing in sub-project 0 writes a line. Commands `CreateTask` (back office, REST for now and also a command so the pipeline has a second type), `ClaimTask(task_id)` (Epixx `ClaimPalletsForTransfer`: `SELECT ... FOR UPDATE SKIP LOCKED`, assignment expires after `Warehouse.claim_minutes`, default 30; a claim on a task assigned to someone else whose `assigned_until` has passed succeeds), `ReleaseTask`, `CompleteTask`. First command schemas: `contracts/commands/CreateTask/v1.json`, `ClaimTask/v1.json`, `ReleaseTask/v1.json`, `CompleteTask/v1.json` plus a fixture each. `Tasks/AssignmentSweepJob.cs` (`PeriodicJob`, every 60 seconds, releases expired claims and writes change_log entries: Epixx's `ReservationCleanupService`). `warehouse_id` is a plain column until Layout exists in sub-project 1; a `Warehouse(id, name, code_pattern, operating_hours, night_shift, claim_minutes, blind_count, count_auto_adjust_threshold, pack_step, zone_picking)` stub table is created here because tasks, permissions and the gateway all scope by warehouse, with `POST /warehouses` for admins (client or server may mint the id; warehouses are not device-created). `GET /internal/warehouses/{id}` exists so B7 can start validating assignments. Sub-project 1 grows the warehouse; it does not replace it. Public routes write `contracts/openapi/wms-core.json` at build.
 
-Tests: 20 concurrent `ClaimTask` for one task yield exactly one `applied` and 19 `rejected` with `already_claimed`; the sweep releases an expired claim and emits a change_log entry; claim by a `viewer` is rejected with `forbidden`; claim with `occurred_at` before the user's `valid_from` is rejected, after `valid_to` too, in between accepted.
+Tests: integration (WAF + Postgres). 20 concurrent `ClaimTask` for one task yield exactly one `applied` and 19 `rejected` with `already_claimed`; the sweep releases an expired claim and emits a change_log entry; claim by a `viewer` is rejected with `forbidden`; claim with `occurred_at` before the user's `valid_from` is rejected, after `valid_to` too, in between accepted.
 
 Commit: `sp0: C3 - Task module with claim-work and assignment sweep`.
 
@@ -180,7 +181,7 @@ Commit: `sp0: C3 - Task module with claim-work and assignment sweep`.
 
 Files: `Relay/OutboxRelay.cs` (`PeriodicJob` at 200 ms when idle, tight loop when busy: `SELECT ... FOR UPDATE SKIP LOCKED LIMIT 100`, publish to `lagerkraft.{tenant}.{module}.{event}` with `Nats-Msg-Id` = event id, mark published; runs per tenant DB, iterating the catalog; JetStream stream `LAGERKRAFT` with subjects `lagerkraft.>`, dedupe window 10 minutes, file storage, created on startup if missing), `Relay/Replay.cs` (`wms-core replay --tenant --from --to`), `Events/` (the first events in `contracts/events/`: `inventory.task.created|claimed|released|completed`, `tenant.provisioned|state_changed|membership_changed|migrated` owned by platform, all CloudEvents JSON with `specversion`, `id`, `source`, `type`, `time`, `data`), retention job deletes outbox rows older than 30 days and change_log older than 30 days.
 
-Tests (Testcontainers NATS): publish twice with the same `Nats-Msg-Id` and consume once; kill the relay mid-batch and confirm nothing is lost or duplicated after restart; contract test validates every fixture in `contracts/events/` against its JSON Schema.
+Tests: integration (Testcontainers NATS). Publish twice with the same `Nats-Msg-Id` and consume once; kill the relay mid-batch and confirm nothing is lost or duplicated after restart. Contract: every fixture in `contracts/events/` against its JSON Schema.
 
 Commit: `sp0: C4 - outbox relay, replay, event contracts`.
 
@@ -192,7 +193,7 @@ Commit: `sp0: C4 - outbox relay, replay, event contracts`.
 
 Files under `backend/src/SyncGateway/`: JWT validation against platform's JWKS, `Sync/Commands/` (`POST /sync/commands`: validates device claim `dev` and that the device is not revoked (`410`), enforces one in-flight batch per device with an in-memory set plus `409`; evaluates lifecycle state and maintenance flag for the batch and returns `402 | 423 | 503` with `Lagerkraft-Tenant-State`; accepts flushes with a stale `sv` and any active member's session per the spec, but only for `POST /sync/commands`; forwards to wms-core over internal HTTP with the batch's `now` for skew; posts the device beacon to platform), `Sync/Changes/` (`GET /sync/changes` proxy with `feed_epoch` header), `Sync/Snapshot/`, `Sync/Compat/` (`GET /sync/compat`, and the same values as headers `Lagerkraft-Min-App-Version`, `Lagerkraft-Latest-App-Version` on every sync response), `Sync/Beacon/` (`POST /sync/beacon` from the floor app: queue depth, last successful sync, SSE connected; exposed as metrics, also forwarded to platform `Devices/Beacon` so the back-office device list stays current), rate limiting `429` with `Retry-After` per tenant using the built-in rate limiter, `X-Lagerkraft-App-Version` recorded as a metric label. Write `contracts/openapi/sync-gateway.json` at build.
 
-Tests: `409` on a concurrent second batch for the same device; `423` for a `TrialExpired` tenant with the whole batch untouched; revoked device gets `410`; stale `sv` flush is accepted and a stale `sv` read is `401`; headers present; beacon updates the platform device row.
+Tests: integration (WAF). Host sync-gateway; call platform and wms-core over HTTP (second WAF or a test double for the other service). No new test project. `409` on a concurrent second batch for the same device; `423` for a `TrialExpired` tenant with the whole batch untouched; revoked device gets `410`; stale `sv` flush is accepted and a stale `sv` read is `401`; headers present; beacon updates the platform device row.
 
 Commit: `sp0: D1 - sync-gateway command intake, changes, compat`.
 
@@ -200,7 +201,7 @@ Commit: `sp0: D1 - sync-gateway command intake, changes, compat`.
 
 Files: `Realtime/RealtimeEndpoint.cs` (`GET /realtime?warehouse=&since=`, JWT in the initial request, `Last-Event-ID` = seq; on connect: subscribe to `lagerkraft.{tenant}.>` first, buffer, serve catch-up from wms-core's changes endpoint, then drain the buffer and go live; drop entries the user lacks permission to see using the same permission map as `RequirePermission`; heartbeat comment every 15 seconds; `event: resync` on NATS reconnect and when the connection falls more than N entries behind, N = 500 to start; on `SIGTERM` send `retry: <1-10 s random>` and close within the grace period), `Realtime/MembershipWatcher.cs` (subscribes to `tenant.membership_changed` and closes connections whose user's `sv` changed), `Realtime/ConnectionRegistry.cs` (in-memory, per instance, metrics: connections by tenant, delivery lag histogram measured from `recorded_at` to send).
 
-Tests: connect with a stale `Last-Event-ID`, publish three change entries during catch-up, receive exactly the right sequence without gaps or duplicates; membership change closes the stream; `SIGTERM` simulation sends `retry`; a viewer does not receive an entity their role cannot read (use a synthetic entry type the fixture marks as `tasks.read_all` only).
+Tests: integration (WAF + NATS). Connect with a stale `Last-Event-ID`, publish three change entries during catch-up, receive exactly the right sequence without gaps or duplicates; membership change closes the stream; `SIGTERM` simulation sends `retry`; a viewer does not receive an entity their role cannot read (use a synthetic entry type the fixture marks as `tasks.read_all` only).
 
 Commit: `sp0: D2 - realtime SSE with catch-up-then-live`.
 
@@ -212,7 +213,7 @@ Commit: `sp0: D2 - realtime SSE with catch-up-then-live`.
 
 Files under `backend/src/Integrations/`: durable JetStream consumer `integrations` on `lagerkraft.>`, `processed_events` dedupe against the platform DB table seeded in B1 (`consumer = integrations`), `Webhooks/` using the B1 tables (`WebhookEndpoint(tenant_id, url, secret, events[], active)`, `WebhookDelivery` with retry schedule 1m, 5m, 30m, 2h, 12h then dead-letter, HMAC-SHA256 signature header, `webhook.gap` event type defined), tenant admin CRUD for endpoints (HTTP in integrations, writes through platform DbContext or a thin platform internal API; pick the DbContext, it is fewer hops and the tables already live there). Import and export jobs are sub-project 1 and 2; only the `ImportJob` table already created in B1 exists. Integrations has no database of its own and no reference to `TenantDbContext`.
 
-Tests: duplicate event delivered once; failed delivery follows the retry schedule with `FakeClock`; signature verifies.
+Tests: integration (NATS + platform Postgres). Duplicate event delivered once; failed delivery follows the retry schedule with `FakeClock`; signature verifies.
 
 Commit: `sp0: E1 - integrations consumer and webhook delivery`.
 
@@ -236,7 +237,7 @@ Commit: `sp0: F1 - frontend monorepo and shared packages`.
 
 Pages: signup (with slug preview and the join-request branch), verify, login (password, TOTP step, SSO redirect when the tenant has a provider, tenant chooser), provisioning progress (waits on `tenant.provisioned` over SSE), warehouses (create, list), tasks (create, list live over SSE with `useRealtime()` feeding TanStack Query, "last activity" line from `actor` and `occurred_at`), devices (enrollment code, list with pending counts, revoke, remove-with-confirm-loss), users (invite and accept-invite via B7, roles per warehouse), SSO settings (provider CRUD, test login, enforced toggle with its preconditions explained), trial banner from day 20 (computed from `trial_ends_at`) and the `TrialExpired` conversion page. Tenant switcher in the header. No hardcoded copy; strings live in `packages/i18n`.
 
-Tests: Vitest for the auth store and the realtime composable; Playwright smoke: signup to task list.
+Tests: Vitest for the auth store and the realtime composable. Playwright E2E smoke: signup to task list. Does not replace B3/C3/D2 integration tests of the same path.
 
 Commit: `sp0: F2 - back office shell`.
 
@@ -244,7 +245,7 @@ Commit: `sp0: F2 - back office shell`.
 
 Files: `apps/floor/` with vite-plugin-pwa (`registerType: 'prompt'`, full precache), Dexie schema v1: `outbox(id, type, v, payload, created_at, device_id, user_id, state, sent_at)`, `confirmed(id, confirmed_at)` (7 days), `tasks`, `cursor(warehouse_id, seq, feed_epoch, snapshot_schema)`, `sessions(user_id, display_name, encrypted_refresh_token, pin_hash, failed_attempts, locked_until)`, `device(id, secret, warehouse_ids, crypto_key_handle)`; `sync/` (Web Locks around the flush, batch size 50, results handling for `applied | rejected | held | unknown` and `426`, `410` → snapshot resync, `feed_epoch` change → resync and re-send unconfirmed, seq regression → re-send acked-but-unconfirmed, acked-but-unconfirmed older than 10 minutes while online → re-send, skew: send `now` with each batch, `POST /sync/beacon` on a timer when online), `auth/` (full login online, enrollment screen that refuses unless `display-mode: standalone` on iOS, pick-name-then-PIN unlock with the local hash and lockout rules: 5 failures then 15 minutes, 10 failures then full login, idle auto-lock default 5 minutes, 60-minute expiry warning, `navigator.storage.persist()` at enrollment; logout and user switch never clear the outbox; a 410 after revoke keeps the outbox and shows "hand in this device", which flushes once a manager session is on the device), `update/` (`isAtRest()` including the `426`-blocked clause, `applyUpdate()`), screens: enroll, unlock, warehouse pick, task list (`liveQuery`), task detail with claim and complete, sync issues list (device-bound), unsynced badge and 4-hour warning.
 
-Tests: Vitest with `fake-indexeddb` for the outbox state machine (pending → sent → acked → confirmed, re-send of `sent` older than 60 seconds, `held` stays pending, seq regression re-sends unconfirmed, logout leaves the outbox intact); Playwright: claim a task with `context.setOffline(true)`, go online, see it `applied` and the back office list update.
+Tests: Vitest with `fake-indexeddb` for the outbox state machine (pending → sent → acked → confirmed, re-send of `sent` older than 60 seconds, `held` stays pending, seq regression re-sends unconfirmed, logout leaves the outbox intact). Playwright E2E: claim a task with `context.setOffline(true)`, go online, see it `applied` and the back office list update. Does not replace C3/D1 integration tests of claim and sync.
 
 Commit: `sp0: F3 - floor app shell with offline outbox`.
 
@@ -254,7 +255,7 @@ Commit: `sp0: F3 - floor app shell with offline outbox`.
 
 ### Task G1. GitHub Actions on pull request
 
-Files: one `Dockerfile` per service (multi-stage, `mcr.microsoft.com/dotnet/aspnet:10.0`, non-root, no `HEALTHCHECK`), `.github/workflows/pr.yml` with path filters (`backend/src/Shared/**` and `contracts/**` trigger everything), jobs: `dotnet build` and unit tests; integration tests with Testcontainers (Docker service on the runner); architecture tests; contract tests; migration check (fresh Postgres, apply all migrations, `dotnet ef migrations has-pending-model-changes`, `dotnet ef migrations script` piped to `squawk` with the ruleset requiring `lock_timeout` and concurrent indexes); frontend lint, typecheck, Vitest, generated files current (domain permissions, OpenAPI client, i18n not required to be generated); Playwright against the AppHost started in CI; container images built with `docker buildx` but not pushed. `.github/workflows/nightly.yml`: k6 against a CI-started stack for `POST /sync/commands`, `GET /sync/changes` and SSE fan-out (500 idle connections plus a burst, delivery latency p95 under 1 second as the first threshold).
+Files: one `Dockerfile` per service (multi-stage, `mcr.microsoft.com/dotnet/aspnet:10.0`, non-root, no `HEALTHCHECK`), `.github/workflows/pr.yml` with path filters (`backend/src/Shared/**` and `contracts/**` trigger everything), jobs: `dotnet build` and unit tests (`Category!=Integration&Category!=Load`); integration tests with Testcontainers (Docker service on the runner, `--filter Category=Integration`); architecture tests; contract tests; migration check (fresh Postgres, apply all migrations, `dotnet ef migrations has-pending-model-changes`, `dotnet ef migrations script` piped to `squawk` with the ruleset requiring `lock_timeout` and concurrent indexes); frontend lint, typecheck, Vitest, generated files current (domain permissions, OpenAPI client, i18n not required to be generated); Playwright E2E against the AppHost started in CI (smoke once F2 exists, not a substitute for the integration job); container images built with `docker buildx` but not pushed. `.github/workflows/nightly.yml`: k6 against a CI-started stack for `POST /sync/commands`, `GET /sync/changes` and SSE fan-out (500 idle connections plus a burst, delivery latency p95 under 1 second as the first threshold).
 
 **needs-human**: the repository is `palletpilot/Epixx` on GitHub; branch protection on `master` requiring the PR checks once the workflow exists.
 
@@ -262,7 +263,7 @@ Commit: `sp0: G1 - CI on pull request and nightly load tests`.
 
 ### Task G2. Staging infrastructure and the two spikes
 
-Files: `infra/terraform/` (UpCloud provider: UKS cluster with 3 workers, Managed PostgreSQL HA, Managed Load Balancer, Object Storage buckets `backups` and `tenants`, SDN network; Terraform state in the UpCloud Object Storage backend, locked), `infra/k8s/base/` (Deployments, Services, PodDisruptionBudgets, the migrate Job, cert-manager issuer, NATS StatefulSet single node with file store) and `infra/k8s/overlays/staging/`, secrets as SOPS+age encrypted files next to the overlays (two age keys, staging and prod; prod key **needs-human**), `.github/workflows/deploy-staging.yml` (on merge to `master`: build and push images by digest, write `releases/<date>-<n>.yaml`, `kustomize edit set image`, apply, wait for the migrate Job, rollout status, Playwright smoke, two-minute k6; the frontend bundle publish step `needs:` the service rollouts and health checks).
+Files: `infra/terraform/` (UpCloud provider: UKS cluster with 3 workers, Managed PostgreSQL HA, Managed Load Balancer, Object Storage buckets `backups` and `tenants`, SDN network; Terraform state in the UpCloud Object Storage backend, locked), `infra/k8s/base/` (Deployments, Services, PodDisruptionBudgets, the migrate Job, cert-manager issuer, NATS StatefulSet single node with file store) and `infra/k8s/overlays/staging/`, secrets as SOPS+age encrypted files next to the overlays (two age keys, staging and prod; prod key **needs-human**), `.github/workflows/deploy-staging.yml` (on merge to `master`: build and push images by digest, write `releases/<date>-<n>.yaml`, `kustomize edit set image`, apply, wait for the migrate Job, rollout status, Playwright E2E smoke, two-minute k6; the frontend bundle publish step `needs:` the service rollouts and health checks).
 
 Spikes, each a short markdown note in `docs/superpowers/spikes/`: (1) can the platform role `CREATE DATABASE` on UpCloud Managed PostgreSQL; if not, implement `UpCloudApiCreator` from Task B3 for real; (2) does the Managed Load Balancer terminate TLS with HTTP/2 to clients; if not, `SharedWorker` fallback in `packages/realtime`.
 

@@ -15,7 +15,7 @@ alwaysApply: false
 - Styling: Tailwind + shadcn-vue components from `packages/ui`. No component libraries beyond that, no inline style attributes.
 - Strings: all user-visible text goes through `t("key")`; Swedish is the default locale, English second. No hardcoded copy in templates.
 - Accessibility: every interactive element has a label; focus order follows reading order; colour is never the only signal (banners carry an icon and text).
-- Tests: Vitest + Vue Test Utils for stores and composables; Playwright for flows. A composable with logic gets a unit test; a page does not, its flow test covers it.
+- Tests: Vitest + Vue Test Utils for stores and composables; Playwright E2E for UI and offline flows. Playwright does not replace backend integration tests of the same path. A composable with logic gets a unit test; a page does not, its flow test covers it.
 - Files: `PascalCase.vue` for components, `camelCase.ts` for composables (`useX.ts`), one component per file, colocate `Component.test.ts`.
 
 ```vue

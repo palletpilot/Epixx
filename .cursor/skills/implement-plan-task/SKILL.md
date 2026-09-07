@@ -34,6 +34,8 @@ Copy and track:
 
 Pick the test from the task's Tests line that would fail for the most likely bug, not the happy path. For a handler: the impossible-state rejection or the concurrency case. For a job: the idempotency case. For a client: the transaction atomicity case.
 
+If the feature writes or reads state, that test is integration: HTTP through `WebApplicationFactory` and Testcontainers, tagged `Category=Integration`. A unit test of the handler is not enough. Playwright is E2E and is not this step.
+
 ## Step 9 detail: commit message
 
 ```
