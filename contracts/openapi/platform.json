@@ -705,6 +705,50 @@
           }
         }
       }
+    },
+    "/lifecycle/convert-trial": {
+      "post": {
+        "tags": [
+          "LifecycleApi"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConvertTrialRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/lifecycle/maintenance": {
+      "post": {
+        "tags": [
+          "LifecycleApi"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetMaintenanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -734,6 +778,83 @@
           "tenant_id": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "ConvertTrialRequest": {
+        "required": [
+          "plan_code",
+          "billing_interval",
+          "legal_name",
+          "org_number",
+          "billing_email",
+          "address_line1",
+          "postal_code",
+          "city",
+          "country",
+          "vat_number"
+        ],
+        "type": "object",
+        "properties": {
+          "plan_code": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "billing_interval": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "legal_name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "org_number": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "billing_email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "address_line1": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "postal_code": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "city": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "country": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "vat_number": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -986,6 +1107,24 @@
           }
         }
       },
+      "SetMaintenanceRequest": {
+        "required": [
+          "maintenance",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "maintenance": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "SignupRequestBody": {
         "required": [
           "company_name",
@@ -1119,6 +1258,9 @@
     },
     {
       "name": "OidcApi"
+    },
+    {
+      "name": "LifecycleApi"
     }
   ]
 }

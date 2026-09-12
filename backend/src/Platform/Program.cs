@@ -1,10 +1,11 @@
-using Lagerkraft.Platform.Auth;
+﻿using Lagerkraft.Platform.Auth;
 using Lagerkraft.Platform.Data;
 using Lagerkraft.Platform.Email;
 using Lagerkraft.Platform.Internal;
 using Lagerkraft.Platform.Provisioning;
 using Lagerkraft.Platform.Auth.Oidc;
 using Lagerkraft.Platform.Devices;
+using Lagerkraft.Platform.Lifecycle;
 using Lagerkraft.Platform.Signup;
 using Lagerkraft.Platform.Tenancy;
 using Lagerkraft.Shared;
@@ -22,6 +23,7 @@ builder.Services.AddSingleton<SigningKey>();
 builder.Services.AddSingleton<JwtIssuer>();
 builder.Services.AddScoped<RefreshTokenStore>();
 builder.Services.AddScoped<SessionVersionBump>();
+builder.Services.AddScoped<TenantStateMachine>();
 builder.Services.AddSingleton<IPlatformEventPublisher>(sp =>
 {
     var url = sp.GetRequiredService<IConfiguration>().GetConnectionString("nats")
@@ -72,6 +74,7 @@ else
 builder.Services.AddHostedService<ProvisioningJob>();
 builder.Services.AddHostedService<PurgeUnverifiedJob>();
 builder.Services.AddHostedService<ClientSecretExpiryJob>();
+builder.Services.AddHostedService<TrialExpiryJob>();
 builder.Services.AddSingleton<DynamicOidcHandler>();
 builder.Services.AddSingleton<OidcStateStore>();
 builder.Services.AddScoped<OidcProvisioner>();
@@ -102,6 +105,7 @@ app.MapAuthApi();
 app.MapSignupApi();
 app.MapOidcApi();
 app.MapDevicesApi();
+app.MapLifecycleApi();
 
 if (!IsOpenApiDocumentGeneration())
 {

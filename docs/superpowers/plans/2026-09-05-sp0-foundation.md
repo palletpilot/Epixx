@@ -129,7 +129,7 @@ Tests: integration (WAF + Postgres). Enrollment code expires; a revoked device g
 
 Commit: `sp0: B5 - device enrollment and revocation`.
 
-### Task B6. Lifecycle state machine and maintenance flag
+### Task B6. Lifecycle state machine and maintenance flag (done 2026-09-12, d6d4bf4)
 
 Files: `Lifecycle/TenantStateMachine.cs` (states and transitions from the spec's diagram, only `Provisioning`, `ProvisioningFailed`, `Trialing`, `Active`, `TrialExpired` wired in sub-project 0; the rest exist as enum values with transitions that throw `NotImplemented` so the table in the spec is the code's truth), every transition writes `AuditLog` and publishes `tenant.state_changed` directly to NATS, `Lifecycle/TrialExpiryJob.cs` (`PeriodicJob`, schedules the flip to `TrialExpired` at the tenant's next closed window per `operating_hours`, sends the 48-hour warning email; day-23 and day-28 reminder emails are out of sub-project 0), `Lifecycle/ConvertTrial/` (owner picks a plan, enters billing details as fields on `BillingAccount`, `Active`; no Fortnox, no invoice). The back-office banner from day 20 is a read of `trial_ends_at` in F2, not a job here.
 

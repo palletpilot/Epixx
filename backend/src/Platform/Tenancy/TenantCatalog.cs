@@ -1,4 +1,4 @@
-using Lagerkraft.Platform.Data;
+﻿using Lagerkraft.Platform.Data;
 using Lagerkraft.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -40,6 +40,15 @@ public sealed class TenantCatalog(PlatformDbContext db, ConnectionStringProtecto
         tenant.MigrationStatus = migrationStatus;
         tenant.LastError = lastError;
         tenant.LastAttemptAt = clock.UtcNow;
+        if (string.Equals(migrationStatus, "failed", StringComparison.OrdinalIgnoreCase))
+        {
+            tenant.Maintenance = true;
+        }
+        else if (string.Equals(migrationStatus, "up_to_date", StringComparison.OrdinalIgnoreCase))
+        {
+            tenant.Maintenance = false;
+        }
+
         await db.SaveChangesAsync(ct);
         return true;
     }

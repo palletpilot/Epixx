@@ -1,5 +1,6 @@
-using Lagerkraft.Platform.Auth;
+﻿using Lagerkraft.Platform.Auth;
 using Lagerkraft.Platform.Data;
+using Lagerkraft.Platform.Lifecycle;
 using Lagerkraft.Platform.Tenancy;
 using Lagerkraft.Shared;
 using Lagerkraft.Shared.Jobs;
@@ -50,6 +51,7 @@ public sealed class ProvisioningJob(
         var dbCreator = sp.GetRequiredService<ITenantDatabaseCreator>();
         var migrate = sp.GetRequiredService<IWmsCoreMigrateClient>();
         var events = sp.GetRequiredService<IPlatformEventPublisher>();
+        var machine = sp.GetRequiredService<TenantStateMachine>();
         var configuration = sp.GetRequiredService<IConfiguration>();
 
         var row = await db.SignupRequests.FirstAsync(s => s.Id == signupId, ct);
@@ -79,9 +81,13 @@ public sealed class ProvisioningJob(
             tenant = await db.Tenants.FirstAsync(t => t.Id == tid, ct);
             if (tenant.LifecycleState == LifecycleState.ProvisioningFailed)
             {
-                tenant.LifecycleState = LifecycleState.Provisioning;
-                tenant.StateChangedAt = clockLocal.UtcNow;
                 tenant.LastError = null;
+                await machine.TransitionAsync(
+                    tenant,
+                    LifecycleState.Provisioning,
+                    actor: "provisioning_job",
+                    reason: "retry",
+                    ct: ct);
             }
         }
         else
@@ -97,17 +103,9 @@ public sealed class ProvisioningJob(
                 MigrationStatus = "pending"
             };
             db.Tenants.Add(tenant);
-            db.AuditLogs.Add(new AuditLog
-            {
-                Id = Ids.New(),
-                TenantId = tenant.Id,
-                Kind = "lifecycle",
-                ToState = nameof(LifecycleState.Provisioning),
-                At = clockLocal.UtcNow,
-                Actor = "provisioning_job"
-            });
             row.TenantId = tenant.Id;
             await db.SaveChangesAsync(ct);
+            await machine.EnterProvisioningAsync(tenant, actor: "provisioning_job", ct);
         }
 
         var databaseName = "tenant_" + tenant.Id.ToString("N");
@@ -195,20 +193,13 @@ public sealed class ProvisioningJob(
                 });
             }
 
-            tenant.LifecycleState = LifecycleState.Trialing;
-            tenant.StateChangedAt = clockLocal.UtcNow;
             tenant.LastError = null;
-            db.AuditLogs.Add(new AuditLog
-            {
-                Id = Ids.New(),
-                TenantId = tenant.Id,
-                Kind = "lifecycle",
-                FromState = nameof(LifecycleState.Provisioning),
-                ToState = nameof(LifecycleState.Trialing),
-                At = clockLocal.UtcNow,
-                Actor = "provisioning_job"
-            });
             await db.SaveChangesAsync(ct);
+            await machine.TransitionAsync(
+                tenant,
+                LifecycleState.Trialing,
+                actor: "provisioning_job",
+                ct: ct);
 
             await events.PublishAsync(
                 tenant.Id,
@@ -231,21 +222,13 @@ public sealed class ProvisioningJob(
 
             if (row.ProvisioningAttempts >= 3)
             {
-                tenant.LifecycleState = LifecycleState.ProvisioningFailed;
-                tenant.StateChangedAt = clockLocal.UtcNow;
                 tenant.LastError = ex.Message;
-                db.AuditLogs.Add(new AuditLog
-                {
-                    Id = Ids.New(),
-                    TenantId = tenant.Id,
-                    Kind = "lifecycle",
-                    FromState = nameof(LifecycleState.Provisioning),
-                    ToState = nameof(LifecycleState.ProvisioningFailed),
-                    At = clockLocal.UtcNow,
-                    Actor = "provisioning_job",
-                    Reason = ex.Message
-                });
-                await db.SaveChangesAsync(ct);
+                await machine.TransitionAsync(
+                    tenant,
+                    LifecycleState.ProvisioningFailed,
+                    actor: "provisioning_job",
+                    reason: ex.Message,
+                    ct: ct);
             }
         }
     }
