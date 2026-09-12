@@ -4,6 +4,7 @@ using Lagerkraft.Platform.Email;
 using Lagerkraft.Platform.Internal;
 using Lagerkraft.Platform.Provisioning;
 using Lagerkraft.Platform.Auth.Oidc;
+using Lagerkraft.Platform.Devices;
 using Lagerkraft.Platform.Signup;
 using Lagerkraft.Platform.Tenancy;
 using Lagerkraft.Shared;
@@ -100,6 +101,7 @@ app.MapInternalApi();
 app.MapAuthApi();
 app.MapSignupApi();
 app.MapOidcApi();
+app.MapDevicesApi();
 
 if (!IsOpenApiDocumentGeneration())
 {

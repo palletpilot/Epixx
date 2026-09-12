@@ -26,4 +26,33 @@ public sealed class SessionVersionBump(PlatformDbContext db, IPlatformEventPubli
             at = clock.UtcNow
         }, ct);
     }
+
+    public async Task BumpForDeviceAsync(Guid deviceId, CancellationToken ct)
+    {
+        var membershipIds = await db.DeviceSessions.AsNoTracking()
+            .Where(s => s.DeviceId == deviceId)
+            .Select(s => s.MembershipId)
+            .Distinct()
+            .ToListAsync(ct);
+        if (membershipIds.Count == 0)
+        {
+            return;
+        }
+
+        var memberships = await db.Memberships.Where(m => membershipIds.Contains(m.Id)).ToListAsync(ct);
+        foreach (var membership in memberships)
+        {
+            membership.SessionVersion++;
+            await events.PublishAsync(membership.TenantId, "tenant", "membership_changed", new
+            {
+                user_id = membership.UserId,
+                membership_id = membership.Id,
+                session_version = membership.SessionVersion,
+                device_id = deviceId,
+                at = clock.UtcNow
+            }, ct);
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
 }

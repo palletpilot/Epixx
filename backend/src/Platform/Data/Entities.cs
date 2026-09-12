@@ -105,6 +105,10 @@ public sealed class Device
     public string? SecretHash { get; set; }
     public Guid? EnrolledBy { get; set; }
     public DateTimeOffset? RevokedAt { get; set; }
+    public DateTimeOffset? LastBeaconAt { get; set; }
+    public DateTimeOffset? LastSyncAt { get; set; }
+    public int PendingCount { get; set; }
+    public DateTimeOffset? OldestPendingOccurredAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
@@ -123,6 +127,7 @@ public sealed class EnrollmentCode
     public Guid TenantId { get; set; }
     public string CodeHash { get; set; } = "";
     public Guid CreatedBy { get; set; }
+    public Guid[] WarehouseIds { get; set; } = [];
     public DateTimeOffset ExpiresAt { get; set; }
     public DateTimeOffset? UsedAt { get; set; }
     public Guid? DeviceId { get; set; }

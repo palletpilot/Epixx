@@ -2,7 +2,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Lagerkraft.Platform.Data;
+using Lagerkraft.Platform.Devices;
 using Lagerkraft.Platform.Tenancy;
+using Lagerkraft.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lagerkraft.Platform.Internal;
@@ -18,6 +20,8 @@ public static class InternalApi
         group.MapGet("/tenants/{id:guid}/entitlement", GetEntitlement);
         group.MapPut("/tenants/{id:guid}/migration-status", PutMigrationStatus);
         group.MapGet("/memberships/{tenantId:guid}/history", GetMembershipHistory);
+        group.MapGet("/devices/{id:guid}", GetDevice);
+        group.MapPost("/devices/{id:guid}/beacon", PostBeacon);
         return app;
     }
 
@@ -101,6 +105,49 @@ public static class InternalApi
                 a.ValidTo))
             .ToListAsync(ct);
         return Results.Ok(rows);
+    }
+
+    private static async Task<IResult> GetDevice(Guid id, PlatformDbContext db, CancellationToken ct)
+    {
+        var device = await db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id, ct);
+        if (device is null)
+        {
+            return Results.NotFound();
+        }
+
+        return Results.Ok(new InternalDeviceResponse(
+            device.Id,
+            device.TenantId,
+            device.Name,
+            device.WarehouseIds,
+            device.RevokedAt,
+            device.PendingCount));
+    }
+
+    private static async Task<IResult> PostBeacon(
+        Guid id,
+        DeviceBeaconRequest body,
+        PlatformDbContext db,
+        IClock clock,
+        CancellationToken ct)
+    {
+        var device = await db.Devices.FirstOrDefaultAsync(d => d.Id == id, ct);
+        if (device is null)
+        {
+            return Results.NotFound();
+        }
+
+        if (device.RevokedAt is not null)
+        {
+            return Results.StatusCode(StatusCodes.Status410Gone);
+        }
+
+        device.PendingCount = body.PendingCount;
+        device.OldestPendingOccurredAt = body.OldestPendingOccurredAt;
+        device.LastSyncAt = body.LastSyncAt ?? clock.UtcNow;
+        device.LastBeaconAt = clock.UtcNow;
+        await db.SaveChangesAsync(ct);
+        return Results.NoContent();
     }
 }
 

@@ -107,11 +107,13 @@ public sealed class PlatformDbContext : IdentityUserContext<AppUser, Guid>
             e.Property(d => d.Name).HasMaxLength(100);
             e.Property(d => d.WarehouseIds).HasColumnType("uuid[]");
             e.Property(d => d.SecretHash).HasMaxLength(128);
+            e.Property(d => d.PendingCount).HasDefaultValue(0);
         });
 
         builder.Entity<EnrollmentCode>(e =>
         {
             e.Property(c => c.CodeHash).HasMaxLength(128);
+            e.Property(c => c.WarehouseIds).HasColumnType("uuid[]");
         });
 
         builder.Entity<RefreshToken>(e =>

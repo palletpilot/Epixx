@@ -29,6 +29,28 @@
         }
       }
     },
+    "/devices/enroll": {
+      "post": {
+        "tags": [
+          "DevicesApi"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollDeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/internal/tenants/{id}": {
       "get": {
         "tags": [
@@ -155,6 +177,62 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/internal/devices/{id}": {
+      "get": {
+        "tags": [
+          "InternalApi"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/internal/devices/{id}/beacon": {
+      "post": {
+        "tags": [
+          "InternalApi"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceBeaconRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "OK"
@@ -525,6 +603,108 @@
           }
         }
       }
+    },
+    "/devices/enrollment-codes": {
+      "post": {
+        "tags": [
+          "DevicesApi"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CreateEnrollmentCodeRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/devices": {
+      "get": {
+        "tags": [
+          "DevicesApi"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/devices/{id}/revoke": {
+      "post": {
+        "tags": [
+          "DevicesApi"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/devices/{id}": {
+      "delete": {
+        "tags": [
+          "DevicesApi"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RemoveDeviceRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -553,6 +733,89 @@
           },
           "tenant_id": {
             "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateEnrollmentCodeRequest": {
+        "required": [
+          "warehouse_ids"
+        ],
+        "type": "object",
+        "properties": {
+          "warehouse_ids": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "DeviceBeaconRequest": {
+        "required": [
+          "pending_count",
+          "oldest_pending_occurred_at",
+          "last_sync_at",
+          "sse_connected"
+        ],
+        "type": "object",
+        "properties": {
+          "pending_count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "oldest_pending_occurred_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "last_sync_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "sse_connected": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "EnrollDeviceRequest": {
+        "required": [
+          "code",
+          "name",
+          "device_id"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "device_id": {
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           }
         }
@@ -701,6 +964,17 @@
           }
         }
       },
+      "RemoveDeviceRequest": {
+        "required": [
+          "confirm_loss"
+        ],
+        "type": "object",
+        "properties": {
+          "confirm_loss": {
+            "type": "boolean"
+          }
+        }
+      },
       "SetEnforcedRequest": {
         "required": [
           "enforced"
@@ -833,6 +1107,9 @@
     },
     {
       "name": "AuthApi"
+    },
+    {
+      "name": "DevicesApi"
     },
     {
       "name": "InternalApi"
