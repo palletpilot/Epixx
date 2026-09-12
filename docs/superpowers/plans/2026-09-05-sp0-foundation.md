@@ -189,7 +189,7 @@ Commit: `sp0: C4 - outbox relay, replay, event contracts`.
 
 ## Phase D: sync-gateway
 
-### Task D1. Stateless gateway: commands, changes, snapshot, compat
+### Task D1. Stateless gateway: commands, changes, snapshot, compat (done 2026-09-12, 81fc2b6)
 
 Files under `backend/src/SyncGateway/`: JWT validation against platform's JWKS, `Sync/Commands/` (`POST /sync/commands`: validates device claim `dev` and that the device is not revoked (`410`), enforces one in-flight batch per device with an in-memory set plus `409`; evaluates lifecycle state and maintenance flag for the batch and returns `402 | 423 | 503` with `Lagerkraft-Tenant-State`; accepts flushes with a stale `sv` and any active member's session per the spec, but only for `POST /sync/commands`; forwards to wms-core over internal HTTP with the batch's `now` for skew; posts the device beacon to platform), `Sync/Changes/` (`GET /sync/changes` proxy with `feed_epoch` header), `Sync/Snapshot/`, `Sync/Compat/` (`GET /sync/compat`, and the same values as headers `Lagerkraft-Min-App-Version`, `Lagerkraft-Latest-App-Version` on every sync response), `Sync/Beacon/` (`POST /sync/beacon` from the floor app: queue depth, last successful sync, SSE connected; exposed as metrics, also forwarded to platform `Devices/Beacon` so the back-office device list stays current), rate limiting `429` with `Retry-After` per tenant using the built-in rate limiter, `X-Lagerkraft-App-Version` recorded as a metric label. Write `contracts/openapi/sync-gateway.json` at build.
 

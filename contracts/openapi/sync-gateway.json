@@ -1,0 +1,301 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Lagerkraft.SyncGateway | sync-gateway",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "Lagerkraft.SyncGateway"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/sync/commands": {
+      "post": {
+        "tags": [
+          "CommandsEndpoint"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncCommandBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/sync/changes": {
+      "get": {
+        "tags": [
+          "ChangesEndpoint"
+        ],
+        "parameters": [
+          {
+            "name": "warehouse",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/sync/snapshot": {
+      "get": {
+        "tags": [
+          "SnapshotEndpoint"
+        ],
+        "parameters": [
+          {
+            "name": "warehouse",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "entity",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/sync/compat": {
+      "get": {
+        "tags": [
+          "CompatEndpoint"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/sync/beacon": {
+      "post": {
+        "tags": [
+          "BeaconEndpoint"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncBeaconRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "JsonElement": { },
+      "SyncBeaconRequest": {
+        "required": [
+          "pending_count",
+          "oldest_pending_occurred_at",
+          "last_sync_at",
+          "sse_connected"
+        ],
+        "type": "object",
+        "properties": {
+          "pending_count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "oldest_pending_occurred_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "last_sync_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "sse_connected": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "SyncCommandBatchRequest": {
+        "required": [
+          "now",
+          "commands"
+        ],
+        "type": "object",
+        "properties": {
+          "now": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "commands": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncCommandEnvelope"
+            }
+          },
+          "pending_count_after": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "oldest_pending_occurred_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "sse_connected": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "SyncCommandEnvelope": {
+        "required": [
+          "id",
+          "type",
+          "v",
+          "payload",
+          "occurred_at",
+          "device_id",
+          "user_id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string"
+          },
+          "v": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "device_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Lagerkraft.SyncGateway"
+    },
+    {
+      "name": "CommandsEndpoint"
+    },
+    {
+      "name": "ChangesEndpoint"
+    },
+    {
+      "name": "SnapshotEndpoint"
+    },
+    {
+      "name": "CompatEndpoint"
+    },
+    {
+      "name": "BeaconEndpoint"
+    }
+  ]
+}

@@ -22,6 +22,7 @@ public static class InternalApi
         group.MapGet("/memberships/{tenantId:guid}/history", GetMembershipHistory);
         group.MapGet("/devices/{id:guid}", GetDevice);
         group.MapPost("/devices/{id:guid}/beacon", PostBeacon);
+        group.MapGet("/tenants/{tenantId:guid}/users/{userId:guid}/session-version", GetSessionVersion);
         return app;
     }
 
@@ -107,6 +108,22 @@ public static class InternalApi
         return Results.Ok(rows);
     }
 
+    
+    private static async Task<IResult> GetSessionVersion(
+        Guid tenantId,
+        Guid userId,
+        PlatformDbContext db,
+        CancellationToken ct)
+    {
+        var membership = await db.Memberships.AsNoTracking()
+            .FirstOrDefaultAsync(m => m.TenantId == tenantId && m.UserId == userId, ct);
+        if (membership is null)
+        {
+            return Results.NotFound();
+        }
+
+        return Results.Ok(new SessionVersionResponse(membership.SessionVersion));
+    }
     private static async Task<IResult> GetDevice(Guid id, PlatformDbContext db, CancellationToken ct)
     {
         var device = await db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id, ct);
@@ -215,3 +232,5 @@ public sealed record MembershipHistoryResponse(
     Guid? WarehouseId,
     DateTimeOffset ValidFrom,
     DateTimeOffset? ValidTo);
+public sealed record SessionVersionResponse(int SessionVersion);
+

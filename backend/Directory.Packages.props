@@ -1,4 +1,4 @@
-﻿<Project>
+<Project>
   <ItemGroup>
     <PackageVersion Include="Aspire.Hosting.Nats" Version="13.5.3" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.5.3" />
@@ -7,6 +7,7 @@
     <PackageVersion Include="FluentValidation" Version="12.0.0" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.14.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
