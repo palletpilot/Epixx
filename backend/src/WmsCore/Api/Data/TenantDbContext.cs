@@ -10,6 +10,9 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
     public DbSet<ProcessedCommand> ProcessedCommands => Set<ProcessedCommand>();
     public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
     public DbSet<Deviation> Deviations => Set<Deviation>();
+    public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+    public DbSet<WarehouseTask> Tasks => Set<WarehouseTask>();
+    public DbSet<TaskLine> TaskLines => Set<TaskLine>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -59,6 +62,39 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
             e.HasKey(x => x.Id);
             e.Property(x => x.Kind).HasMaxLength(64);
             e.Property(x => x.Detail).HasColumnType("jsonb");
+        });
+
+        builder.Entity<Warehouse>(e =>
+        {
+            e.ToTable("warehouse");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.CodePattern).HasMaxLength(64);
+            e.Property(x => x.OperatingHours).HasColumnType("jsonb");
+            e.Property(x => x.ClaimMinutes).HasDefaultValue(30);
+            e.Property(x => x.CountAutoAdjustThreshold).HasPrecision(18, 6);
+        });
+
+        builder.Entity<WarehouseTask>(e =>
+        {
+            e.ToTable("task");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Type).HasMaxLength(32);
+            e.Property(x => x.Status).HasMaxLength(32);
+            e.HasIndex(x => new { x.WarehouseId, x.Status });
+            e.HasIndex(x => x.AssignedUntil);
+        });
+
+        builder.Entity<TaskLine>(e =>
+        {
+            e.ToTable("task_line");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.RequestedQtyBase).HasPrecision(18, 6);
+            e.Property(x => x.PickedQtyBase).HasPrecision(18, 6);
+            e.Property(x => x.TolerancePct).HasPrecision(18, 6);
+            e.Property(x => x.SuggestedBreakdown).HasColumnType("jsonb");
+            e.Property(x => x.Status).HasMaxLength(32);
+            e.HasIndex(x => x.TaskId);
         });
     }
 }

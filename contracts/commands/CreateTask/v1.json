@@ -1,0 +1,13 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lagerkraft:commands/CreateTask/v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["warehouse_id", "type"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "warehouse_id": { "type": "string", "format": "uuid" },
+    "type": { "type": "string", "enum": ["putaway", "pick", "move", "count"] },
+    "suggested_location_id": { "type": ["string", "null"], "format": "uuid" }
+  }
+}

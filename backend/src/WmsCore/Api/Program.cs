@@ -3,6 +3,9 @@ using FluentValidation;
 using Lagerkraft.Shared;
 using Lagerkraft.WmsCore.Api.Commands;
 using Lagerkraft.WmsCore.Api.Commands.Probe;
+using Lagerkraft.WmsCore.Api.Commands.Tasks;
+using Lagerkraft.WmsCore.Api.Jobs;
+using Lagerkraft.WmsCore.Api.Warehouses;
 using Lagerkraft.WmsCore.Api.Internal;
 using Lagerkraft.WmsCore.Api.Migrations;
 using System.Text.Json.Serialization;
@@ -86,9 +89,15 @@ static void ConfigureServices(WebApplicationBuilder builder)
         var registry = new CommandRegistry();
         registry.Register(ActivatorUtilities.CreateInstance<ProbeHandler>(sp));
         registry.Register(new ProbeV0ToV1Upcaster());
+        registry.Register(ActivatorUtilities.CreateInstance<CreateTaskHandler>(sp));
+        registry.Register(ActivatorUtilities.CreateInstance<ClaimTaskHandler>(sp));
+        registry.Register(ActivatorUtilities.CreateInstance<ReleaseTaskHandler>(sp));
+        registry.Register(ActivatorUtilities.CreateInstance<CompleteTaskHandler>(sp));
         return registry;
     });
     builder.Services.AddSingleton<CommandDispatcher>();
+    builder.Services.AddSingleton<AssignmentSweepJob>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<AssignmentSweepJob>());
 }
 
 static void ConfigureApp(WebApplication app)
@@ -96,7 +105,9 @@ static void ConfigureApp(WebApplication app)
     app.UseMiddleware<SchemaVersionMiddleware>();
     app.MapDefaultEndpoints("wms-core");
     app.MapInternalApi();
+    app.MapWarehouseApi();
 }
 
 public partial class Program;
+
 

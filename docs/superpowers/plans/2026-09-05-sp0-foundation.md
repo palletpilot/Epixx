@@ -169,7 +169,7 @@ Tests: integration (WAF + Postgres). Idempotent retry returns the stored result 
 
 Commit: `sp0: C2 - command pipeline with idempotency, locks, upcasters`.
 
-### Task C3. Task module: the Epixx port
+### Task C3. Task module: the Epixx port (done 2026-09-12, 602dd5e)
 
 Files: `Inventory/Lagerkraft.WmsCore.Inventory.csproj` with `Contracts/` (public) and `Tasks/` (internal): `Task(id, warehouse_id, type putaway|pick|move|count, status open|claimed|done|cancelled, assignee_user_id, assigned_until, suggested_location_id nullable, created_at)` and `TaskLine` using the spec's pick-oriented columns (`task_id, article_id, requested_qty_base, picked_qty_base, from_location_id, from_handling_unit_id, suggested_breakdown jsonb, tolerance_pct, status`) with quantities `NUMERIC(18,6)` and **no foreign keys** (article, location and handling unit do not exist yet); nothing in sub-project 0 writes a line. Commands `CreateTask` (back office, REST for now and also a command so the pipeline has a second type), `ClaimTask(task_id)` (Epixx `ClaimPalletsForTransfer`: `SELECT ... FOR UPDATE SKIP LOCKED`, assignment expires after `Warehouse.claim_minutes`, default 30; a claim on a task assigned to someone else whose `assigned_until` has passed succeeds), `ReleaseTask`, `CompleteTask`. First command schemas: `contracts/commands/CreateTask/v1.json`, `ClaimTask/v1.json`, `ReleaseTask/v1.json`, `CompleteTask/v1.json` plus a fixture each. `Tasks/AssignmentSweepJob.cs` (`PeriodicJob`, every 60 seconds, releases expired claims and writes change_log entries: Epixx's `ReservationCleanupService`). `warehouse_id` is a plain column until Layout exists in sub-project 1; a `Warehouse(id, name, code_pattern, operating_hours, night_shift, claim_minutes, blind_count, count_auto_adjust_threshold, pack_step, zone_picking)` stub table is created here because tasks, permissions and the gateway all scope by warehouse, with `POST /warehouses` for admins (client or server may mint the id; warehouses are not device-created). `GET /internal/warehouses/{id}` exists so B7 can start validating assignments. Sub-project 1 grows the warehouse; it does not replace it. Public routes write `contracts/openapi/wms-core.json` at build.
 
@@ -312,6 +312,8 @@ Two developers: one takes B (platform), one takes C then D (core and gateway); w
 - `ponytail:` SSE permission filtering is in-process per event; a precomputed allow-list per connection is the upgrade if a busy warehouse makes it hot.
 - `ponytail:` `TaskLine` has the spec's columns and no foreign keys; sub-project 3 adds the FKs when article and location exist.
 - `ponytail:` no impersonation endpoints; `act` is a reserved claim name only.
+
+
 
 
 

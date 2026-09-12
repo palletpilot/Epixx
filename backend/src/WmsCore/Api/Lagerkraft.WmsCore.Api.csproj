@@ -2,6 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\ServiceDefaults\Lagerkraft.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\Shared\Lagerkraft.Shared.csproj" />
+    <ProjectReference Include="..\Inventory\Lagerkraft.WmsCore.Inventory.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="EFCore.NamingConventions" />
@@ -14,3 +15,4 @@
     <PackageReference Include="System.CommandLine" />
   </ItemGroup>
 </Project>
+

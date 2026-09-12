@@ -1,0 +1,10 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lagerkraft:commands/CompleteTask/v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["task_id"],
+  "properties": {
+    "task_id": { "type": "string", "format": "uuid" }
+  }
+}

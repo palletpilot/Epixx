@@ -141,14 +141,22 @@ public static class InternalApi
             .Options;
         await using var db = new TenantDbContext(options);
         var meta = await db.TenantMeta.SingleOrDefaultAsync(ct);
-        // Task entity arrives in C3; SP0 snapshot is empty pages plus feed_epoch.
+        var pageSize = 100;
+        var pageNum = page ?? 1;
+        var q = db.Tasks.AsNoTracking().AsQueryable();
+        if (warehouse is { } wh)
+        {
+            q = q.Where(t => t.WarehouseId == wh);
+        }
+
+        var items = await q.OrderBy(t => t.CreatedAt).Skip((pageNum - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         return Results.Ok(new
         {
             feed_epoch = meta?.FeedEpoch ?? Guid.Empty,
             warehouse,
             entity = entity ?? "Task",
-            page = page ?? 1,
-            items = Array.Empty<object>()
+            page = pageNum,
+            items
         });
     }
 
@@ -176,3 +184,4 @@ public sealed record CommandEnvelopeDto(
     DateTimeOffset OccurredAt,
     Guid DeviceId,
     Guid UserId);
+

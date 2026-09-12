@@ -53,3 +53,43 @@ public sealed class Deviation
     public string Detail { get; set; } = "{}";
     public DateTimeOffset CreatedAt { get; set; }
 }
+
+public sealed class Warehouse
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = "";
+    public string? CodePattern { get; set; }
+    public string? OperatingHours { get; set; }
+    public bool NightShift { get; set; }
+    public int ClaimMinutes { get; set; } = 30;
+    public bool BlindCount { get; set; }
+    public decimal? CountAutoAdjustThreshold { get; set; }
+    public bool PackStep { get; set; }
+    public bool ZonePicking { get; set; }
+}
+
+public sealed class WarehouseTask
+{
+    public Guid Id { get; set; }
+    public Guid WarehouseId { get; set; }
+    public string Type { get; set; } = "putaway";
+    public string Status { get; set; } = "open";
+    public Guid? AssigneeUserId { get; set; }
+    public DateTimeOffset? AssignedUntil { get; set; }
+    public Guid? SuggestedLocationId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class TaskLine
+{
+    public Guid Id { get; set; }
+    public Guid TaskId { get; set; }
+    public Guid? ArticleId { get; set; }
+    public decimal RequestedQtyBase { get; set; }
+    public decimal PickedQtyBase { get; set; }
+    public Guid? FromLocationId { get; set; }
+    public Guid? FromHandlingUnitId { get; set; }
+    public string? SuggestedBreakdown { get; set; }
+    public decimal? TolerancePct { get; set; }
+    public string Status { get; set; } = "open";
+}
