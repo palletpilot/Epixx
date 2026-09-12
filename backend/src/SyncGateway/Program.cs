@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using Lagerkraft.SyncGateway.Auth;
 using Lagerkraft.SyncGateway.Clients;
+using Lagerkraft.SyncGateway.Realtime;
 using Lagerkraft.SyncGateway.Sync;
 using Lagerkraft.SyncGateway.Sync.Beacon;
 using Lagerkraft.SyncGateway.Sync.Changes;
@@ -9,6 +10,7 @@ using Lagerkraft.SyncGateway.Sync.Compat;
 using Lagerkraft.SyncGateway.Sync.Snapshot;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Text.Json.Serialization;
+using NATS.Client.Core;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
@@ -20,7 +22,22 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 
 builder.Services.AddSyncGatewayAuth(builder.Configuration);
 builder.Services.AddSingleton<DeviceBatchGate>();
+builder.Services.AddSingleton<ConnectionRegistry>();
+builder.Services.AddSingleton<MembershipWatcher>();
 builder.Services.AddOpenApi("sync-gateway");
+
+var natsUrl = builder.Configuration.GetConnectionString("nats")
+    ?? builder.Configuration["NATS_URL"];
+if (!string.IsNullOrWhiteSpace(natsUrl) && !builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddSingleton<INatsConnection>(_ => new NatsConnection(new NatsOpts { Url = natsUrl }));
+    builder.Services.AddSingleton<ITenantEventBus, NatsTenantEventBus>();
+}
+else
+{
+    builder.Services.AddSingleton<InMemoryTenantEventBus>();
+    builder.Services.AddSingleton<ITenantEventBus>(sp => sp.GetRequiredService<InMemoryTenantEventBus>());
+}
 
 builder.Services.AddHttpClient<IPlatformSyncClient, HttpPlatformSyncClient>((sp, client) =>
 {
@@ -80,6 +97,7 @@ sync.MapSyncChanges();
 sync.MapSyncSnapshot();
 sync.MapSyncCompat();
 sync.MapSyncBeacon();
+app.MapRealtime();
 
 app.Run();
 

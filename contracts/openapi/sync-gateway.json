@@ -17,6 +17,40 @@
         }
       }
     },
+    "/realtime": {
+      "get": {
+        "tags": [
+          "RealtimeEndpoint"
+        ],
+        "parameters": [
+          {
+            "name": "warehouse",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/sync/commands": {
       "post": {
         "tags": [
@@ -281,6 +315,9 @@
   "tags": [
     {
       "name": "Lagerkraft.SyncGateway"
+    },
+    {
+      "name": "RealtimeEndpoint"
     },
     {
       "name": "CommandsEndpoint"

@@ -197,7 +197,7 @@ Tests: integration (WAF). Host sync-gateway; call platform and wms-core over HTT
 
 Commit: `sp0: D1 - sync-gateway command intake, changes, compat`.
 
-### Task D2. Realtime SSE
+### Task D2. Realtime SSE (done 2026-09-12, 8ab80a2)
 
 Files: `Realtime/RealtimeEndpoint.cs` (`GET /realtime?warehouse=&since=`, JWT in the initial request, `Last-Event-ID` = seq; on connect: subscribe to `lagerkraft.{tenant}.>` first, buffer, serve catch-up from wms-core's changes endpoint, then drain the buffer and go live; drop entries the user lacks permission to see using the same permission map as `RequirePermission`; heartbeat comment every 15 seconds; `event: resync` on NATS reconnect and when the connection falls more than N entries behind, N = 500 to start; on `SIGTERM` send `retry: <1-10 s random>` and close within the grace period), `Realtime/MembershipWatcher.cs` (subscribes to `tenant.membership_changed` and closes connections whose user's `sv` changed), `Realtime/ConnectionRegistry.cs` (in-memory, per instance, metrics: connections by tenant, delivery lag histogram measured from `recorded_at` to send).
 

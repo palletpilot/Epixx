@@ -58,7 +58,7 @@ public sealed class SyncGatewayApiFactory : WebApplicationFactory<Program>
         });
     }
 
-    public string IssueToken(Guid userId, Guid tenantId, int sessionVersion, Guid? deviceId)
+    public string IssueToken(Guid userId, Guid tenantId, int sessionVersion, Guid? deviceId, string? role = null)
     {
         var claims = new List<Claim>
         {
