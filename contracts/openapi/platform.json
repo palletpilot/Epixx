@@ -317,10 +317,110 @@
           }
         }
       }
+    },
+    "/signup": {
+      "post": {
+        "tags": [
+          "SignupApi"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignupRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/signup/verify": {
+      "post": {
+        "tags": [
+          "SignupApi"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifySignupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/signup/join-requests/approve": {
+      "post": {
+        "tags": [
+          "SignupApi"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveJoinRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/signup/slug-available": {
+      "get": {
+        "tags": [
+          "SignupApi"
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "ApproveJoinRequest": {
+        "required": [
+          "signup_id"
+        ],
+        "type": "object",
+        "properties": {
+          "signup_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "ChooseTenantRequest": {
         "required": [
           "chooser_token",
@@ -427,6 +527,44 @@
           }
         }
       },
+      "SignupRequestBody": {
+        "required": [
+          "company_name",
+          "org_number",
+          "email",
+          "display_name",
+          "password",
+          "slug",
+          "join_request"
+        ],
+        "type": "object",
+        "properties": {
+          "company_name": {
+            "type": "string"
+          },
+          "org_number": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "slug": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "join_request": {
+            "type": "boolean"
+          }
+        }
+      },
       "SwitchTenantRequest": {
         "required": [
           "tenant_id"
@@ -436,6 +574,17 @@
           "tenant_id": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "VerifySignupRequest": {
+        "required": [
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
           }
         }
       }
@@ -450,6 +599,9 @@
     },
     {
       "name": "InternalApi"
+    },
+    {
+      "name": "SignupApi"
     }
   ]
 }

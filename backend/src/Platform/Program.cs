@@ -1,6 +1,9 @@
 using Lagerkraft.Platform.Auth;
 using Lagerkraft.Platform.Data;
+using Lagerkraft.Platform.Email;
 using Lagerkraft.Platform.Internal;
+using Lagerkraft.Platform.Provisioning;
+using Lagerkraft.Platform.Signup;
 using Lagerkraft.Platform.Tenancy;
 using Lagerkraft.Shared;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -30,6 +33,43 @@ builder.Services.AddSingleton<IPlatformEventPublisher>(sp =>
         new NatsConnection(new NatsOpts { Url = url }),
         sp.GetRequiredService<IClock>());
 });
+
+var emailProvider = builder.Configuration["Email:Provider"] ?? "mailpit";
+if (string.Equals(emailProvider, "mailjet", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton<IEmailSender, MailjetSender>();
+}
+else
+{
+    builder.Services.AddSingleton<IEmailSender, MailpitSmtpSender>();
+}
+
+var dbCreator = builder.Configuration["Provisioning:DatabaseCreator"] ?? "postgres";
+if (string.Equals(dbCreator, "upcloud", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton<ITenantDatabaseCreator, UpCloudApiCreator>();
+}
+else
+{
+    builder.Services.AddSingleton<ITenantDatabaseCreator, PostgresCreateDatabase>();
+}
+
+var wmsBase = builder.Configuration["Services:WmsCore"];
+if (string.IsNullOrWhiteSpace(wmsBase))
+{
+    builder.Services.AddSingleton<IWmsCoreMigrateClient, NoopWmsCoreMigrateClient>();
+}
+else
+{
+    builder.Services.AddHttpClient<IWmsCoreMigrateClient, WmsCoreMigrateClient>(client =>
+    {
+        client.BaseAddress = new Uri(wmsBase.TrimEnd('/') + "/");
+    });
+}
+
+builder.Services.AddHostedService<ProvisioningJob>();
+builder.Services.AddHostedService<PurgeUnverifiedJob>();
+
 builder.Services.AddDbContext<PlatformDbContext>(options =>
 {
     options.UseNpgsql(builder.Configuration.GetConnectionString("platform"))
@@ -53,6 +93,7 @@ var app = builder.Build();
 app.MapDefaultEndpoints("platform");
 app.MapInternalApi();
 app.MapAuthApi();
+app.MapSignupApi();
 
 if (!IsOpenApiDocumentGeneration())
 {

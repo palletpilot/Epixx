@@ -138,7 +138,12 @@ public sealed class PlatformDbContext : IdentityUserContext<AppUser, Guid>
             e.Property(s => s.OrgNumber).HasMaxLength(32);
             e.Property(s => s.CompanyName).HasMaxLength(200);
             e.Property(s => s.Slug).HasMaxLength(30);
+            e.Property(s => s.DisplayName).HasMaxLength(200);
+            e.Property(s => s.PasswordHash).HasMaxLength(256);
             e.Property(s => s.VerificationTokenHash).HasMaxLength(128);
+            e.Property(s => s.ProvisioningAttempts).HasDefaultValue(0);
+            e.HasIndex(s => s.OrgNumber);
+            e.HasIndex(s => s.Slug);
         });
 
         builder.Entity<Invitation>(e =>

@@ -30,4 +30,7 @@
     <Copy SourceFiles="$(_GeneratedOpenApi)" DestinationFiles="$(_ContractOpenApi)" SkipUnchangedFiles="true" Condition="Exists('$(_GeneratedOpenApi)')" />
     <Delete Files="$(_GeneratedOpenApi)" Condition="Exists('$(_GeneratedOpenApi)')" />
   </Target>
+  <ItemGroup>
+    <EmbeddedResource Include="Signup\DisposableDomains.txt" />
+  </ItemGroup>
 </Project>

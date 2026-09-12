@@ -161,13 +161,17 @@ public sealed class SignupRequest
     public string OrgNumber { get; set; } = "";
     public string CompanyName { get; set; } = "";
     public string Slug { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public string PasswordHash { get; set; } = "";
     public string VerificationTokenHash { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }
     public DateTimeOffset? VerifiedAt { get; set; }
     public Guid? TenantId { get; set; }
     public Guid? JoinRequestForTenantId { get; set; }
     public DateTimeOffset? JoinDecidedAt { get; set; }
     public Guid? JoinDecidedBy { get; set; }
+    public int ProvisioningAttempts { get; set; }
 }
 
 public sealed class Invitation
