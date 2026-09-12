@@ -1,0 +1,16 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lagerkraft:events/tenant.membership_changed",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["specversion", "id", "source", "type", "time", "data"],
+  "properties": {
+    "specversion": { "const": "1.0" },
+    "id": { "type": "string", "format": "uuid" },
+    "source": { "type": "string" },
+    "type": { "const": "tenant.membership_changed" },
+    "time": { "type": "string", "format": "date-time" },
+    "datacontenttype": { "type": "string" },
+    "data": { "type": "object" }
+  }
+}

@@ -1,7 +1,8 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Lagerkraft.WmsCore.Api.Commands;
 using Lagerkraft.WmsCore.Api.Data;
 using Lagerkraft.WmsCore.Api.Migrations;
+using Lagerkraft.WmsCore.Api.Relay;
 using Lagerkraft.WmsCore.Api.Tenancy;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,6 +24,8 @@ public static class InternalApi
     private static async Task<IResult> Migrate(
         Guid id,
         ITenantMigrator migrator,
+        OutboxRelay relay,
+        OutboxRetentionJob retention,
         ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
@@ -30,6 +33,8 @@ public static class InternalApi
         try
         {
             await migrator.MigrateTenantAsync(id, ct);
+            relay.TrackTenant(id);
+            retention.TrackTenant(id);
             return Results.Ok();
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("connection not found", StringComparison.OrdinalIgnoreCase))
@@ -156,6 +161,7 @@ public static class InternalApi
             warehouse,
             entity = entity ?? "Task",
             page = pageNum,
+            snapshot_schema = SchemaVersions.RequiredFromAssembly(),
             items
         });
     }
@@ -184,4 +190,3 @@ public sealed record CommandEnvelopeDto(
     DateTimeOffset OccurredAt,
     Guid DeviceId,
     Guid UserId);
-

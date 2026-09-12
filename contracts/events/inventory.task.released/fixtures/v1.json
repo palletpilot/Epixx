@@ -1,0 +1,9 @@
+﻿{
+  "specversion": "1.0",
+  "id": "01900000-0000-7000-8000-0000000000aa",
+  "source": "/wms-core",
+  "type": "inventory.task.released",
+  "time": "2026-09-12T12:00:00Z",
+  "datacontenttype": "application/json",
+  "data": { "ok": true }
+}

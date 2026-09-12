@@ -11,8 +11,10 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="NATS.Net" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="System.CommandLine" />
   </ItemGroup>
 </Project>
+
 

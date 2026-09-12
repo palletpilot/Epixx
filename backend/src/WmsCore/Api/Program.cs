@@ -1,15 +1,17 @@
-﻿using System.CommandLine;
+using System.CommandLine;
+using System.Text.Json.Serialization;
 using FluentValidation;
 using Lagerkraft.Shared;
 using Lagerkraft.WmsCore.Api.Commands;
 using Lagerkraft.WmsCore.Api.Commands.Probe;
 using Lagerkraft.WmsCore.Api.Commands.Tasks;
-using Lagerkraft.WmsCore.Api.Jobs;
-using Lagerkraft.WmsCore.Api.Warehouses;
 using Lagerkraft.WmsCore.Api.Internal;
+using Lagerkraft.WmsCore.Api.Jobs;
 using Lagerkraft.WmsCore.Api.Migrations;
-using System.Text.Json.Serialization;
+using Lagerkraft.WmsCore.Api.Relay;
 using Lagerkraft.WmsCore.Api.Tenancy;
+using Lagerkraft.WmsCore.Api.Warehouses;
+using NATS.Client.Core;
 
 if (args is ["migrate", ..] or ["relay", ..] or ["replay", ..] or ["verify", ..])
 {
@@ -26,8 +28,9 @@ return 0;
 static async Task<int> RunCliAsync(string[] args)
 {
     var root = new RootCommand("Lagerkraft wms-core");
-    var tenantOption = new Option<Guid?>("--tenant") { Description = "Tenant id to migrate" };
-    var allOption = new Option<bool>("--all") { Description = "Migrate all tenants (not yet wired)" };
+
+    var tenantOption = new Option<Guid?>("--tenant") { Description = "Tenant id" };
+    var allOption = new Option<bool>("--all");
     var migrateCommand = new Command("migrate", "Apply tenant DB migrations");
     migrateCommand.Options.Add(tenantOption);
     migrateCommand.Options.Add(allOption);
@@ -46,14 +49,53 @@ static async Task<int> RunCliAsync(string[] args)
 
         if (tenant is null)
         {
-            throw new ArgumentException("--tenant <guid> is required until --all is wired");
+            throw new ArgumentException("--tenant <guid> is required");
         }
 
         await migrator.MigrateTenantAsync(tenant.Value, ct);
+        var relaySvc = host.Services.GetRequiredService<OutboxRelay>();
+        var retentionSvc = host.Services.GetRequiredService<OutboxRetentionJob>();
+        relaySvc.TrackTenant(tenant.Value);
+        retentionSvc.TrackTenant(tenant.Value);
     });
     root.Subcommands.Add(migrateCommand);
-    root.Subcommands.Add(new Command("relay", "Outbox relay (C4)"));
-    root.Subcommands.Add(new Command("replay", "Outbox replay (C4)"));
+
+    var relayCommand = new Command("relay", "Run outbox relay once for a tenant");
+    relayCommand.Options.Add(tenantOption);
+    relayCommand.SetAction(async (parseResult, ct) =>
+    {
+        var tenant = parseResult.GetValue(tenantOption)
+            ?? throw new ArgumentException("--tenant <guid> is required");
+        var hostBuilder = WebApplication.CreateBuilder([]);
+        ConfigureServices(hostBuilder);
+        await using var host = hostBuilder.Build();
+        var relay = host.Services.GetRequiredService<OutboxRelay>();
+        var n = await relay.RelayTenantAsync(tenant, ct);
+        Console.WriteLine($"relayed {n}");
+    });
+    root.Subcommands.Add(relayCommand);
+
+    var fromOption = new Option<Guid>("--from") { Required = true };
+    var toOption = new Option<Guid>("--to") { Required = true };
+    var replayCommand = new Command("replay", "Replay outbox range");
+    replayCommand.Options.Add(tenantOption);
+    replayCommand.Options.Add(fromOption);
+    replayCommand.Options.Add(toOption);
+    replayCommand.SetAction(async (parseResult, ct) =>
+    {
+        var tenant = parseResult.GetValue(tenantOption)
+            ?? throw new ArgumentException("--tenant <guid> is required");
+        var from = parseResult.GetValue(fromOption);
+        var to = parseResult.GetValue(toOption);
+        var hostBuilder = WebApplication.CreateBuilder([]);
+        ConfigureServices(hostBuilder);
+        await using var host = hostBuilder.Build();
+        var replay = host.Services.GetRequiredService<OutboxReplay>();
+        var n = await replay.ReplayAsync(tenant, from, to, ct);
+        Console.WriteLine($"replayed {n}");
+    });
+    root.Subcommands.Add(replayCommand);
+
     root.Subcommands.Add(new Command("verify", "Post-migration verify"));
     return await root.Parse(args).InvokeAsync();
 }
@@ -98,6 +140,25 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddSingleton<CommandDispatcher>();
     builder.Services.AddSingleton<AssignmentSweepJob>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<AssignmentSweepJob>());
+
+    var natsUrl = builder.Configuration.GetConnectionString("nats")
+        ?? builder.Configuration["NATS_URL"];
+    if (!string.IsNullOrWhiteSpace(natsUrl))
+    {
+        builder.Services.AddSingleton<INatsConnection>(_ => new NatsConnection(new NatsOpts { Url = natsUrl }));
+        builder.Services.AddSingleton<IOutboxPublisher, NatsOutboxPublisher>();
+    }
+    else
+    {
+        builder.Services.AddSingleton<IOutboxPublisher, RecordingOutboxPublisher>();
+    }
+
+    builder.Services.AddSingleton<OutboxRelay>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<OutboxRelay>());
+    builder.Services.AddSingleton<OutboxReplay>();
+    builder.Services.AddSingleton<OutboxRetentionJob>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<OutboxRetentionJob>());
+    builder.Services.AddHostedService<JetStreamBootstrap>();
 }
 
 static void ConfigureApp(WebApplication app)
@@ -109,5 +170,3 @@ static void ConfigureApp(WebApplication app)
 }
 
 public partial class Program;
-
-

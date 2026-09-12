@@ -1,4 +1,5 @@
 ﻿using Lagerkraft.Shared;
+using Lagerkraft.WmsCore.Api.Relay;
 using Lagerkraft.WmsCore.Api.Tenancy;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -13,6 +14,7 @@ public sealed class WmsCoreApiFactory : WebApplicationFactory<Program>
 
     public FakePlatformTenantClient Platform { get; } = new();
     public FakeClock? Clock { get; set; }
+    public RecordingOutboxPublisher Publisher { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -21,18 +23,24 @@ public sealed class WmsCoreApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Platform:BaseUrl", "http://platform.test");
         builder.ConfigureTestServices(services =>
         {
-            var existingPlatform = services.Where(d => d.ServiceType == typeof(IPlatformTenantClient)).ToList();
-            foreach (var descriptor in existingPlatform)
+            foreach (var descriptor in services.Where(d => d.ServiceType == typeof(IPlatformTenantClient)).ToList())
             {
                 services.Remove(descriptor);
             }
 
             services.AddSingleton<IPlatformTenantClient>(Platform);
 
+            foreach (var descriptor in services.Where(d => d.ServiceType == typeof(IOutboxPublisher)).ToList())
+            {
+                services.Remove(descriptor);
+            }
+
+            services.AddSingleton<IOutboxPublisher>(Publisher);
+            services.AddSingleton(Publisher);
+
             if (Clock is not null)
             {
-                var clocks = services.Where(d => d.ServiceType == typeof(IClock)).ToList();
-                foreach (var descriptor in clocks)
+                foreach (var descriptor in services.Where(d => d.ServiceType == typeof(IClock)).ToList())
                 {
                     services.Remove(descriptor);
                 }

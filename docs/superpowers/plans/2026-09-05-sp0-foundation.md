@@ -1,4 +1,4 @@
-﻿# Sub-project 0: Foundation. Implementation plan
+# Sub-project 0: Foundation. Implementation plan
 
 Spec: [2026-09-05-lagerkraft-architecture-design.md](../specs/2026-09-05-lagerkraft-architecture-design.md). Branch: `lagerkraft/sp0-foundation`. Every task ends in a commit; every non-trivial task ends in a test that fails if the logic breaks. The plan is ordered so that something runs end to end as early as possible and grows from there.
 
@@ -177,7 +177,7 @@ Tests: integration (WAF + Postgres). 20 concurrent `ClaimTask` for one task yiel
 
 Commit: `sp0: C3 - Task module with claim-work and assignment sweep`.
 
-### Task C4. Outbox relay and replay
+### Task C4. Outbox relay and replay (done 2026-09-12)
 
 Files: `Relay/OutboxRelay.cs` (`PeriodicJob` at 200 ms when idle, tight loop when busy: `SELECT ... FOR UPDATE SKIP LOCKED LIMIT 100`, publish to `lagerkraft.{tenant}.{module}.{event}` with `Nats-Msg-Id` = event id, mark published; runs per tenant DB, iterating the catalog; JetStream stream `LAGERKRAFT` with subjects `lagerkraft.>`, dedupe window 10 minutes, file storage, created on startup if missing), `Relay/Replay.cs` (`wms-core replay --tenant --from --to`), `Events/` (the first events in `contracts/events/`: `inventory.task.created|claimed|released|completed`, `tenant.provisioned|state_changed|membership_changed|migrated` owned by platform, all CloudEvents JSON with `specversion`, `id`, `source`, `type`, `time`, `data`), retention job deletes outbox rows older than 30 days and change_log older than 30 days.
 

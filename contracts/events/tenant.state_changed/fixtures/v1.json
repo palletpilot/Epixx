@@ -1,0 +1,9 @@
+﻿{
+  "specversion": "1.0",
+  "id": "01900000-0000-7000-8000-0000000000aa",
+  "source": "/platform",
+  "type": "tenant.state_changed",
+  "time": "2026-09-12T12:00:00Z",
+  "datacontenttype": "application/json",
+  "data": { "ok": true }
+}
