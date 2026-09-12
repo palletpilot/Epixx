@@ -41,9 +41,18 @@ platform
     .WithReference(wmsCore)
     .WithEnvironment("Services__WmsCore", "https+http://wms-core");
 
+// Sync D1: Platform JWKS + internal HTTP to Platform/WmsCore (same token as migrate).
 builder.AddProject<Projects.Lagerkraft_SyncGateway>("sync-gateway")
     .WithReference(nats)
-    .WaitFor(nats);
+    .WithReference(platform)
+    .WithReference(wmsCore)
+    .WithEnvironment("Internal__Token", internalToken)
+    .WithEnvironment("Services__Platform", "https+http://platform")
+    .WithEnvironment("Services__WmsCore", "https+http://wms-core")
+    .WithEnvironment("Jwt__JwksUrl", "https+http://platform/.well-known/jwks.json")
+    .WaitFor(nats)
+    .WaitFor(platform)
+    .WaitFor(wmsCore);
 
 builder.AddProject<Projects.Lagerkraft_Integrations>("integrations")
     .WithReference(platformDb, connectionName: "platform")
