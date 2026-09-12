@@ -16,17 +16,30 @@ builder.AddContainer("mailpit", "axllent/mailpit")
     .WithHttpEndpoint(targetPort: 8025, name: "http")
     .WithEndpoint(port: 1025, targetPort: 1025, name: "smtp");
 
-builder.AddProject<Projects.Lagerkraft_Platform>("platform")
+// Shared cluster-internal token for /internal/* (dev). Prod uses a K8s secret.
+const string internalToken = "lagerkraft-internal-dev";
+
+var platform = builder.AddProject<Projects.Lagerkraft_Platform>("platform")
     .WithReference(platformDb, connectionName: "platform")
     .WithReference(nats)
+    .WithEnvironment("Internal__Token", internalToken)
     .WaitFor(postgres)
     .WaitFor(nats);
 
-builder.AddProject<Projects.Lagerkraft_WmsCore_Api>("wms-core")
+var wmsCore = builder.AddProject<Projects.Lagerkraft_WmsCore_Api>("wms-core")
     .WithReference(tenantMigrateDb, connectionName: "tenant_migrate")
     .WithReference(nats)
+    .WithReference(platform)
+    .WithEnvironment("Internal__Token", internalToken)
+    .WithEnvironment("Platform__BaseUrl", "https+http://platform")
     .WaitFor(postgres)
-    .WaitFor(nats);
+    .WaitFor(nats)
+    .WaitFor(platform);
+
+// Platform B3 migrate client: service discovery + shared token (see WmsCore:BaseUrl).
+platform
+    .WithReference(wmsCore)
+    .WithEnvironment("WmsCore__BaseUrl", "https+http://wms-core");
 
 builder.AddProject<Projects.Lagerkraft_SyncGateway>("sync-gateway")
     .WithReference(nats)
