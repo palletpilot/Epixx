@@ -83,4 +83,12 @@ public sealed class RecordingMigrateClient : IWmsCoreMigrateClient
 
         return Task.CompletedTask;
     }
+
+    public int DevWarehouseCalls { get; private set; }
+
+    public Task EnsureDevWarehouseAsync(Guid tenantId, Guid warehouseId, string name, CancellationToken ct)
+    {
+        DevWarehouseCalls++;
+        return Task.CompletedTask;
+    }
 }

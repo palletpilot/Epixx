@@ -64,6 +64,7 @@ public sealed class SignupTests : IAsyncLifetime
         (await db.BillingAccounts.SingleAsync(b => b.TenantId == tenant.Id)).OrgNumber.ShouldBe(OrgNumber.Normalize(org));
         _factory.DatabaseCreator.Calls.ShouldBeGreaterThan(0);
         _factory.MigrateClient.Calls.ShouldBeGreaterThan(0);
+        _factory.MigrateClient.DevWarehouseCalls.ShouldBeGreaterThan(0);
     }
 
     [Fact]

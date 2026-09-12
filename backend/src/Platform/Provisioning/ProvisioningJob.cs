@@ -1,4 +1,4 @@
-﻿using Lagerkraft.Platform.Auth;
+using Lagerkraft.Platform.Auth;
 using Lagerkraft.Platform.Data;
 using Lagerkraft.Platform.Lifecycle;
 using Lagerkraft.Platform.Tenancy;
@@ -7,6 +7,7 @@ using Lagerkraft.Shared.Jobs;
 using Lagerkraft.Shared.Tenancy;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Npgsql;
 
 namespace Lagerkraft.Platform.Provisioning;
@@ -14,6 +15,7 @@ namespace Lagerkraft.Platform.Provisioning;
 public sealed class ProvisioningJob(
     IServiceScopeFactory scopes,
     IClock clock,
+    IHostEnvironment env,
     ILogger<ProvisioningJob> logger) : PeriodicJob(clock, logger)
 {
     protected override TimeSpan Interval => TimeSpan.FromSeconds(5);
@@ -122,6 +124,15 @@ public sealed class ProvisioningJob(
             await db.SaveChangesAsync(ct);
 
             await migrate.MigrateAsync(tenant.Id, ct);
+
+            if (env.IsDevelopment() || env.IsEnvironment("Testing"))
+            {
+                await migrate.EnsureDevWarehouseAsync(
+                    tenant.Id,
+                    WmsCoreMigrateClient.DevShellWarehouseId,
+                    "Dev warehouse",
+                    ct);
+            }
 
             var plan = await db.Plans.SingleAsync(p => p.Code == "pro", ct);
             var adminRole = await db.Roles.SingleAsync(
