@@ -1,4 +1,5 @@
-﻿using Lagerkraft.Platform.Auth;
+﻿using Lagerkraft.Platform.Dev;
+using Lagerkraft.Platform.Auth;
 using Lagerkraft.Platform.Data;
 using Lagerkraft.Platform.Email;
 using Lagerkraft.Platform.Internal;
@@ -108,6 +109,7 @@ app.MapOidcApi();
 app.MapDevicesApi();
 app.MapLifecycleApi();
 app.MapUsersApi();
+app.MapDevApi(); // Development/Testing only — not Production
 
 if (!IsOpenApiDocumentGeneration())
 {
