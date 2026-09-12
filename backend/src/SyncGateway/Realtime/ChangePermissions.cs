@@ -10,19 +10,18 @@ public static class ChangePermissions
     public static bool CanSee(ClaimsPrincipal user, string entity, string? requiredPermission, Guid? warehouseId)
     {
         var assignments = ParseAssignments(user);
+        if (assignments.Count == 0)
+        {
+            return false;
+        }
 
         if (!string.IsNullOrWhiteSpace(requiredPermission))
         {
-            return assignments.Count > 0 && Permissions.Allows(assignments, requiredPermission, warehouseId);
+            return Permissions.Allows(assignments, requiredPermission, warehouseId);
         }
 
         if (string.Equals(entity, "Task", StringComparison.OrdinalIgnoreCase))
         {
-            if (assignments.Count == 0)
-            {
-                return true;
-            }
-
             return Permissions.Allows(assignments, Permissions.TasksReadAll, warehouseId)
                    || Permissions.Allows(assignments, Permissions.TasksReadOwn, warehouseId);
         }
@@ -42,18 +41,16 @@ public static class ChangePermissions
         raw = raw.Trim();
         for (var i = 0; i < 2; i++)
         {
-            if (raw.StartsWith('"'))
+            if (!raw.StartsWith('"'))
             {
-                try
-                {
-                    raw = JsonSerializer.Deserialize<string>(raw) ?? raw;
-                }
-                catch (JsonException)
-                {
-                    break;
-                }
+                break;
             }
-            else
+
+            try
+            {
+                raw = JsonSerializer.Deserialize<string>(raw) ?? raw;
+            }
+            catch (JsonException)
             {
                 break;
             }

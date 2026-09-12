@@ -72,6 +72,12 @@ public sealed class SyncGatewayApiFactory : WebApplicationFactory<Program>
             claims.Add(Str(LagerkraftClaims.DeviceId, d.ToString()));
         }
 
+        if (!string.IsNullOrWhiteSpace(role))
+        {
+            var ra = JsonSerializer.Serialize(new[] { new Dictionary<string, object?> { ["r"] = role, ["w"] = "*" } });
+            claims.Add(Str(LagerkraftClaims.RoleAssignments, ra));
+        }
+
         var key = new RsaSecurityKey(Rsa) { KeyId = "sync-test-1" };
         var creds = new SigningCredentials(key, SecurityAlgorithms.RsaSha256);
         var handler = new JsonWebTokenHandler();

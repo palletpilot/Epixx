@@ -26,6 +26,7 @@ public static class RealtimeEndpoint
         [FromQuery] long? since,
         ClaimsPrincipal principal,
         IWmsCoreSyncClient wms,
+        IPlatformSyncClient platform,
         ITenantEventBus bus,
         ConnectionRegistry registry,
         MembershipWatcher membershipWatcher,
@@ -40,7 +41,7 @@ public static class RealtimeEndpoint
             return;
         }
 
-        if (await SessionGuard.IsStaleAsync(syncUser, http.RequestServices.GetRequiredService<IPlatformSyncClient>(), ct))
+        if (await SessionGuard.IsStaleAsync(syncUser, platform, ct))
         {
             http.Response.StatusCode = StatusCodes.Status401Unauthorized;
             return;
@@ -53,21 +54,23 @@ public static class RealtimeEndpoint
         }
 
         http.Response.Headers.ContentType = "text/event-stream";
-        http.Response.Headers.ContentEncoding = "identity";
-        http.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>()?.DisableBuffering();
         http.Response.Headers.CacheControl = "no-cache";
         http.Response.Headers.Connection = "keep-alive";
+        http.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>()?.DisableBuffering();
         await http.Response.Body.FlushAsync(ct);
 
+        var writeGate = new SemaphoreSlim(1, 1);
         var conn = registry.Register(syncUser.TenantId, syncUser.UserId, syncUser.SessionVersion, warehouse);
         var buffer = new ConcurrentQueue<TenantBusMessage>();
-        var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, conn.CloseToken, lifetime.ApplicationStopping);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, conn.CloseToken, lifetime.ApplicationStopping);
 
         await using var sub = await bus.SubscribeAsync(syncUser.TenantId, async (msg, token) =>
         {
             if (msg.IsReconnectHint)
             {
-                await WriteEventAsync(http, "resync", null, """{"reason":"nats_reconnect"}""", token);
+                // NATS pump death only — write resync then close the SSE stream.
+                await WriteEventAsync(http, writeGate, "resync", null, """{"reason":"nats_reconnect"}""", token);
+                conn.RequestClose("nats_reconnect");
                 return;
             }
 
@@ -75,6 +78,7 @@ public static class RealtimeEndpoint
                 || msg.Payload.Contains("membership_changed", StringComparison.OrdinalIgnoreCase))
             {
                 await membershipWatcher.HandleAsync(msg, token);
+                return;
             }
 
             buffer.Enqueue(msg);
@@ -82,40 +86,41 @@ public static class RealtimeEndpoint
 
         try
         {
-            // Catch-up from wms-core changes
             var changes = await wms.GetChangesAsync(syncUser.TenantId, warehouse, cursor, linked.Token);
             if (changes.StatusCode == System.Net.HttpStatusCode.Gone)
             {
-                await WriteEventAsync(http, "resync", null, """{"reason":"retention"}""", linked.Token);
+                await WriteEventAsync(http, writeGate, "resync", null, """{"reason":"retention"}""", linked.Token);
                 return;
             }
 
-            if (changes.Body is { } body)
+            if (changes.Body is { } body
+                && body.ValueKind == JsonValueKind.Object
+                && body.TryGetProperty("entries", out var entries)
+                && entries.ValueKind == JsonValueKind.Array)
             {
-                await EmitCatchUpAsync(http, principal, warehouse, body, linked.Token);
-                if (body.ValueKind == JsonValueKind.Object
-                    && body.TryGetProperty("entries", out var entries)
-                    && entries.ValueKind == JsonValueKind.Array
-                    && entries.GetArrayLength() > 0)
-                {
-                    var max = entries.EnumerateArray()
-                        .Select(e => e.TryGetProperty("seq", out var s) && s.TryGetInt64(out var v) ? v : 0L)
-                        .DefaultIfEmpty(cursor)
-                        .Max();
-                    if (max - cursor > ResyncBehindThreshold)
-                    {
-                        await WriteEventAsync(http, "resync", null, """{"reason":"too_far_behind"}""", linked.Token);
-                        return;
-                    }
+                var max = entries.EnumerateArray()
+                    .Select(e => e.TryGetProperty("seq", out var s) && s.TryGetInt64(out var v) ? v : 0L)
+                    .DefaultIfEmpty(cursor)
+                    .Max();
 
-                    cursor = Math.Max(cursor, max);
+                // Threshold before catch-up emit — avoid flooding then resyncing.
+                if (max - cursor > ResyncBehindThreshold)
+                {
+                    await WriteEventAsync(http, writeGate, "resync", null, """{"reason":"too_far_behind"}""", linked.Token);
+                    return;
                 }
+
+                await EmitCatchUpAsync(http, writeGate, principal, warehouse, body, linked.Token);
+                cursor = Math.Max(cursor, max);
             }
 
-            // Drain buffer accumulated during catch-up
             while (buffer.TryDequeue(out var buffered))
             {
-                await EmitLiveAsync(http, principal, warehouse, buffered, cursor, linked.Token);
+                if (!await EmitLiveAsync(http, writeGate, principal, warehouse, buffered, cursor, linked.Token))
+                {
+                    return; // resync written; close
+                }
+
                 if (buffered.Seq is { } s && s > cursor)
                 {
                     cursor = s;
@@ -129,7 +134,7 @@ public static class RealtimeEndpoint
                     try
                     {
                         await Task.Delay(HeartbeatInterval, linked.Token);
-                        await WriteCommentAsync(http, "heartbeat", linked.Token);
+                        await WriteCommentAsync(http, writeGate, "heartbeat", linked.Token);
                     }
                     catch (OperationCanceledException)
                     {
@@ -142,7 +147,11 @@ public static class RealtimeEndpoint
             {
                 if (buffer.TryDequeue(out var live))
                 {
-                    await EmitLiveAsync(http, principal, warehouse, live, cursor, linked.Token);
+                    if (!await EmitLiveAsync(http, writeGate, principal, warehouse, live, cursor, linked.Token))
+                    {
+                        break;
+                    }
+
                     if (live.Seq is { } s && s > cursor)
                     {
                         cursor = s;
@@ -161,7 +170,7 @@ public static class RealtimeEndpoint
                 }
             }
 
-            linked.Cancel();
+            await linked.CancelAsync();
             try { await heartbeat; } catch { /* ignore */ }
         }
         catch (OperationCanceledException)
@@ -175,7 +184,7 @@ public static class RealtimeEndpoint
                 var retry = Random.Shared.Next(1, 11);
                 try
                 {
-                    await WriteRawAsync(http, $"retry: {retry}\n\n", CancellationToken.None);
+                    await WriteRawAsync(http, writeGate, $"retry: {retry}\n\n", CancellationToken.None);
                 }
                 catch
                 {
@@ -191,6 +200,7 @@ public static class RealtimeEndpoint
 
     private static async Task EmitCatchUpAsync(
         HttpContext http,
+        SemaphoreSlim writeGate,
         ClaimsPrincipal principal,
         Guid? warehouse,
         JsonElement body,
@@ -205,7 +215,7 @@ public static class RealtimeEndpoint
         {
             var entity = entry.TryGetProperty("entity", out var e) ? e.GetString() ?? "" : "";
             string? required = null;
-            if (entry.TryGetProperty("required_permission", out var rp))
+            if (entry.TryGetProperty("required_permission", out var rp) && rp.ValueKind == JsonValueKind.String)
             {
                 required = rp.GetString();
             }
@@ -223,40 +233,37 @@ public static class RealtimeEndpoint
                 ConnectionRegistry.ObserveDeliveryLag(recorded);
             }
 
-            await WriteEventAsync(http, "change", seq?.ToString(), entry.GetRawText(), ct);
+            await WriteEventAsync(http, writeGate, "change", seq?.ToString(), entry.GetRawText(), ct);
         }
     }
 
-    private static async Task EmitLiveAsync(
+    /// <returns>false if a terminal resync was written and the stream should close.</returns>
+    private static async Task<bool> EmitLiveAsync(
         HttpContext http,
+        SemaphoreSlim writeGate,
         ClaimsPrincipal principal,
         Guid? warehouse,
         TenantBusMessage msg,
         long cursor,
         CancellationToken ct)
     {
-        if (msg.Subject.Contains("membership_changed", StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
         var entity = msg.Entity ?? GuessEntity(msg.Subject);
         if (!ChangePermissions.CanSee(principal, entity, msg.RequiredPermission, warehouse))
         {
-            return;
+            return true;
         }
 
         if (msg.Seq is { } seq)
         {
             if (seq <= cursor)
             {
-                return; // already sent in catch-up
+                return true;
             }
 
             if (seq - cursor > ResyncBehindThreshold)
             {
-                await WriteEventAsync(http, "resync", null, """{"reason":"too_far_behind"}""", ct);
-                return;
+                await WriteEventAsync(http, writeGate, "resync", null, """{"reason":"too_far_behind"}""", ct);
+                return false;
             }
         }
 
@@ -265,20 +272,15 @@ public static class RealtimeEndpoint
             ConnectionRegistry.ObserveDeliveryLag(recorded);
         }
 
-        await WriteEventAsync(http, "change", msg.Seq?.ToString(), msg.Payload, ct);
+        await WriteEventAsync(http, writeGate, "change", msg.Seq?.ToString(), msg.Payload, ct);
+        return true;
     }
 
-    private static string GuessEntity(string subject)
-    {
-        if (subject.Contains("task", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Task";
-        }
+    private static string GuessEntity(string subject) =>
+        subject.Contains("task", StringComparison.OrdinalIgnoreCase) ? "Task" : "unknown";
 
-        return "unknown";
-    }
-
-    private static async Task WriteEventAsync(HttpContext http, string eventName, string? id, string data, CancellationToken ct)
+    private static async Task WriteEventAsync(
+        HttpContext http, SemaphoreSlim writeGate, string eventName, string? id, string data, CancellationToken ct)
     {
         var sb = new StringBuilder();
         if (!string.IsNullOrEmpty(id))
@@ -293,16 +295,24 @@ public static class RealtimeEndpoint
         }
 
         sb.Append('\n');
-        await WriteRawAsync(http, sb.ToString(), ct);
+        await WriteRawAsync(http, writeGate, sb.ToString(), ct);
     }
 
-    private static Task WriteCommentAsync(HttpContext http, string comment, CancellationToken ct) =>
-        WriteRawAsync(http, $": {comment}\n\n", ct);
+    private static Task WriteCommentAsync(HttpContext http, SemaphoreSlim writeGate, string comment, CancellationToken ct) =>
+        WriteRawAsync(http, writeGate, $": {comment}\n\n", ct);
 
-    private static async Task WriteRawAsync(HttpContext http, string text, CancellationToken ct)
+    private static async Task WriteRawAsync(HttpContext http, SemaphoreSlim writeGate, string text, CancellationToken ct)
     {
-        var bytes = Encoding.UTF8.GetBytes(text);
-        await http.Response.Body.WriteAsync(bytes, ct);
-        await http.Response.Body.FlushAsync(ct);
+        await writeGate.WaitAsync(ct);
+        try
+        {
+            var bytes = Encoding.UTF8.GetBytes(text);
+            await http.Response.Body.WriteAsync(bytes, ct);
+            await http.Response.Body.FlushAsync(ct);
+        }
+        finally
+        {
+            writeGate.Release();
+        }
     }
 }

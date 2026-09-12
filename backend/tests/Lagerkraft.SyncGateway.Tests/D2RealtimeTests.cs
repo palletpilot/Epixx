@@ -94,6 +94,7 @@ public sealed class D2RealtimeTests : IAsyncLifetime
         ChangePermissions.CanSee(worker, "Task", Permissions.TasksReadOwn, null).ShouldBeTrue();
         ChangePermissions.CanSee(worker, "Task", Permissions.TasksReadAll, null).ShouldBeFalse();
         ChangePermissions.CanSee(viewer, "Task", Permissions.TasksReadAll, null).ShouldBeTrue();
+        ChangePermissions.CanSee(new ClaimsPrincipal(new ClaimsIdentity()), "Task", null, null).ShouldBeFalse();
     }
 
     private static ClaimsPrincipal PrincipalWithRole(string role)
@@ -104,6 +105,30 @@ public sealed class D2RealtimeTests : IAsyncLifetime
         return new ClaimsPrincipal(id);
     }
 
+
+    [Fact]
+    public async Task Realtime_NatsReconnect_WritesResyncAndCloses()
+    {
+        _factory.Wms.OnGetChanges = () => ChangesBody();
+        using var client = Authed(role: Permissions.Viewer);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/realtime");
+        request.Headers.Authorization = client.DefaultRequestHeaders.Authorization;
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        using var reader = new StreamReader(stream);
+
+        await Task.Delay(100);
+        var bus = _factory.Services.GetRequiredService<InMemoryTenantEventBus>();
+        await bus.PublishAsync(_tenantId, new TenantBusMessage(
+            $"lagerkraft.{_tenantId:D}.>",
+            "",
+            IsReconnectHint: true));
+
+        var body = await reader.ReadToEndAsync().WaitAsync(TimeSpan.FromSeconds(3));
+        body.ShouldContain("event: resync");
+        body.ShouldContain("nats_reconnect");
+    }
     [Fact]
     public async Task Realtime_ApplicationStopping_SendsRetry()
     {
