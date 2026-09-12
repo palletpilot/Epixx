@@ -1,4 +1,4 @@
-using Lagerkraft.Shared.Tenancy;
+﻿using Lagerkraft.Shared.Tenancy;
 
 namespace Lagerkraft.Platform.Data;
 
@@ -185,6 +185,7 @@ public sealed class Invitation
     public Guid TenantId { get; set; }
     public string Email { get; set; } = "";
     public Guid RoleId { get; set; }
+    public Guid[] WarehouseIds { get; set; } = [];
     public string TokenHash { get; set; } = "";
     public Guid InvitedBy { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }

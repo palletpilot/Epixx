@@ -51,6 +51,28 @@
         }
       }
     },
+    "/users/invitations/accept": {
+      "post": {
+        "tags": [
+          "UsersApi"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/internal/tenants/{id}": {
       "get": {
         "tags": [
@@ -749,10 +771,95 @@
           }
         }
       }
+    },
+    "/users": {
+      "get": {
+        "tags": [
+          "UsersApi"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/users/invitations": {
+      "post": {
+        "tags": [
+          "UsersApi"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/users/{userId}/roles": {
+      "post": {
+        "tags": [
+          "UsersApi"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AcceptInvitationRequest": {
+        "required": [
+          "token",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "password": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "ApproveJoinRequest": {
         "required": [
           "signup_id"
@@ -761,6 +868,25 @@
         "properties": {
           "signup_id": {
             "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AssignRoleRequest": {
+        "required": [
+          "role",
+          "warehouse_id"
+        ],
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "warehouse_id": {
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           }
         }
@@ -864,6 +990,32 @@
         ],
         "type": "object",
         "properties": {
+          "warehouse_ids": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "CreateInvitationRequest": {
+        "required": [
+          "email",
+          "role",
+          "warehouse_ids"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
           "warehouse_ids": {
             "type": [
               "null",
@@ -1249,6 +1401,9 @@
     },
     {
       "name": "DevicesApi"
+    },
+    {
+      "name": "UsersApi"
     },
     {
       "name": "InternalApi"

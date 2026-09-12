@@ -1,4 +1,4 @@
-using Lagerkraft.Shared;
+﻿using Lagerkraft.Shared;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -152,6 +152,7 @@ public sealed class PlatformDbContext : IdentityUserContext<AppUser, Guid>
         {
             e.Property(i => i.Email).HasMaxLength(256);
             e.Property(i => i.TokenHash).HasMaxLength(128);
+            e.Property(i => i.WarehouseIds).HasColumnType("uuid[]");
         });
 
         builder.Entity<BillingAccount>(e =>

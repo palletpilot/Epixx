@@ -6,6 +6,7 @@ using Lagerkraft.Platform.Provisioning;
 using Lagerkraft.Platform.Auth.Oidc;
 using Lagerkraft.Platform.Devices;
 using Lagerkraft.Platform.Lifecycle;
+using Lagerkraft.Platform.Users;
 using Lagerkraft.Platform.Signup;
 using Lagerkraft.Platform.Tenancy;
 using Lagerkraft.Shared;
@@ -106,6 +107,7 @@ app.MapSignupApi();
 app.MapOidcApi();
 app.MapDevicesApi();
 app.MapLifecycleApi();
+app.MapUsersApi();
 
 if (!IsOpenApiDocumentGeneration())
 {

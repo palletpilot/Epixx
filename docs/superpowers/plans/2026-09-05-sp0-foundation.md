@@ -137,7 +137,7 @@ Tests: unit: transition table (every allowed transition succeeds, every other pa
 
 Commit: `sp0: B6 - lifecycle state machine`.
 
-### Task B7. Users, invitations, role assignments
+### Task B7. Users, invitations, role assignments (done 2026-09-12, e2e5ffb)
 
 Files: `Users/Invite/` (`POST /users/invitations`: email, role, optional `warehouse_ids`; 7-day token hash; role ceiling: a warehouse manager cannot grant `tenant_admin`), `Users/AcceptInvitation/` (creates `User` if needed, `Membership`, `RoleAssignment` with `valid_from = now`), `Users/List/`, `Users/AssignRole/` (never deletes a `RoleAssignment`: close with `valid_to` and insert a new row; publishes `tenant.membership_changed` and bumps `session_version`). Until C3 exists, `warehouse_id` values on assignments are stored as opaque UUIDs and not validated against a warehouse table. After C3, the same slice calls wms-core `GET /internal/warehouses/{id}` at assignment time; that call is added in C3, not here.
 
