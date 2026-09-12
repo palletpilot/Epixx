@@ -36,10 +36,10 @@ var wmsCore = builder.AddProject<Projects.Lagerkraft_WmsCore_Api>("wms-core")
     .WaitFor(nats)
     .WaitFor(platform);
 
-// Platform B3 migrate client: service discovery + shared token (see WmsCore:BaseUrl).
+// Platform B3 migrate client (Program reads Services:WmsCore; empty => Noop).
 platform
     .WithReference(wmsCore)
-    .WithEnvironment("WmsCore__BaseUrl", "https+http://wms-core");
+    .WithEnvironment("Services__WmsCore", "https+http://wms-core");
 
 builder.AddProject<Projects.Lagerkraft_SyncGateway>("sync-gateway")
     .WithReference(nats)
