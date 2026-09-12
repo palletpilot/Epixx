@@ -1,4 +1,5 @@
 ﻿using Lagerkraft.WmsCore.Api.Tenancy;
+using Lagerkraft.WmsCore.Api.Migrations;
 
 namespace Lagerkraft.WmsCore.Api.Internal;
 
@@ -13,22 +14,19 @@ public static class InternalApi
 
     private static async Task<IResult> Migrate(
         Guid id,
-        IPlatformTenantClient platform,
+        ITenantMigrator migrator,
         ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
         var log = loggerFactory.CreateLogger("Lagerkraft.WmsCore.Api.Internal.Migrate");
         try
         {
-            var connection = await platform.GetConnectionAsync(id, ct);
-            if (connection is null)
-            {
-                return Results.NotFound();
-            }
-
-            // Early C1 stub: no-op DDL so Platform B3 can call this endpoint.
-            await platform.PutMigrationStatusAsync(id, "stub", "up_to_date", null, ct);
+            await migrator.MigrateTenantAsync(id, ct);
             return Results.Ok();
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("connection not found", StringComparison.OrdinalIgnoreCase))
+        {
+            return Results.NotFound();
         }
         catch (Exception ex)
         {
