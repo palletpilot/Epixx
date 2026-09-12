@@ -149,7 +149,7 @@ Commit: `sp0: B7 - users, invitations, role assignments`.
 
 ## Phase C: wms-core command pipeline
 
-### Task C1. Tenant DB context and migrate command (done 2026-09-12, 33d3a33)
+### Task C1. Tenant DB context and migrate command (done 2026-09-12, 7207812)
 
 Files under `backend/src/WmsCore/`: `Api/Program.cs` with subcommands via `System.CommandLine`: default (serve), `migrate [--tenant <slug>] [--all]`, `relay`, `replay --from <id> --to <id>`, `verify --tenant <slug>`; `Data/TenantDbContext.cs` (one type, connection resolved per request from `ITenantConnectionCache`, which calls platform's internal API and caches with the last known value, refreshed by `tenant.provisioned` and `tenant.migrated`), `Data/TenantMeta` table (`feed_epoch uuid`, `schema_version`), `Data/ChangeLog` (`seq bigserial, entity, id, op, payload jsonb, command_id, actor, occurred_at, recorded_at`), `Data/Outbox`, `Data/ProcessedCommands (command_id pk, result jsonb, applied_at)`, `Data/ProcessedEvents`, `Migrations/Migrator.cs` (fan-out per the spec: platform first is platform's job; here: first successfully provisioned tenant as canary, then by size ascending, 8 in parallel, prefer closed hours, restartable, resets `migrating` older than 15 minutes, drops `INVALID` indexes, `lock_timeout = 5s`, `statement_timeout = 60s`, retries with backoff up to 30 minutes, per-tenant status written back to platform via `PUT /internal/tenants/{id}/migration-status`, threshold rule 2 tenants or 5%, `[RequiresSnapshot]` attribute honoured by calling `pg_dump` to Object Storage; the dump target is a local folder in dev), `Migrations/PostMigrationVerify.cs` (row counts against the pre-migration manifest when one exists, FK sanity; the ledger invariant is added in sub-project 3), `Tenancy/SchemaVersionMiddleware.cs` (compares the tenant's `__EFMigrationsHistory` with the version the code requires; mismatch means maintenance mode: writes `503` with `Lagerkraft-Tenant-Maintenance`, reads continue). Rotating `feed_epoch` is a runbook step (SQL update on `tenant_meta`), never an application endpoint; definition of done item 6 is that SQL plus watching clients resync.
 
@@ -157,7 +157,7 @@ Tests: integration (two tenant Postgres containers). Migrate in parallel, one wi
 
 Commit: `sp0: C1 - TenantDbContext, migrator, maintenance middleware`.
 
-### Task C2. Command pipeline
+### Task C2. Command pipeline (done 2026-09-12, 45b6308)
 
 Files: `Commands/CommandEnvelope.cs` (`id, type, v, payload, occurred_at, device_id, user_id`), `Commands/ICommandHandler<TCommand>.cs`, `Commands/CommandRegistry.cs` (type name to handler, current version, upcaster chain), `Commands/IUpcaster.cs`, `Commands/CommandDispatcher.cs`: for a batch, `pg_advisory_xact_lock(hash(device_id))`, then per command in order inside one transaction each: `processed_commands` lookup returns the stored result; clock skew shift applied to `occurred_at` when the batch's skew exceeds 5 minutes, with `clock_skew_ms` recorded; an `occurred_at` in the future or before the device's enrollment is implausible and takes the stale-command hook (same as the 24-hour rule); upcast; authorize against membership history at `occurred_at` (from platform's internal API, cached per batch; no local `membership_history` table); tenant state and hard-cap checks produce `held` via an `EntitlementCache` that calls platform `GET /internal/tenants/{id}/entitlement` and refreshes on `tenant.state_changed` / `billing.entitlement.changed` (last-known value, fail open if platform is down, matching the spec); validator; handler; `change_log` insert under `pg_advisory_xact_lock(hash(tenant_id))`; outbox rows; `processed_commands` insert; result. A rejection also inserts a `Deviation(kind=rejected)` in the same transaction: the `Deviation` table is created here with the spec's columns because it is pipeline infrastructure, even though the deviation feature UI is later. Stale-command rule is a hook that sub-project 3 fills in (it needs the ledger); the hook exists and is tested with a fake.
 
@@ -312,5 +312,10 @@ Two developers: one takes B (platform), one takes C then D (core and gateway); w
 - `ponytail:` SSE permission filtering is in-process per event; a precomputed allow-list per connection is the upgrade if a busy warehouse makes it hot.
 - `ponytail:` `TaskLine` has the spec's columns and no foreign keys; sub-project 3 adds the FKs when article and location exist.
 - `ponytail:` no impersonation endpoints; `act` is a reserved claim name only.
+
+
+
+
+
 
 

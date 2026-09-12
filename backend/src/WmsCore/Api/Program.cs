@@ -1,6 +1,11 @@
 ﻿using System.CommandLine;
+using FluentValidation;
+using Lagerkraft.Shared;
+using Lagerkraft.WmsCore.Api.Commands;
+using Lagerkraft.WmsCore.Api.Commands.Probe;
 using Lagerkraft.WmsCore.Api.Internal;
 using Lagerkraft.WmsCore.Api.Migrations;
+using System.Text.Json.Serialization;
 using Lagerkraft.WmsCore.Api.Tenancy;
 
 if (args is ["migrate", ..] or ["relay", ..] or ["replay", ..] or ["verify", ..])
@@ -27,9 +32,9 @@ static async Task<int> RunCliAsync(string[] args)
     {
         var tenant = parseResult.GetValue(tenantOption);
         var all = parseResult.GetValue(allOption);
-        var builder = WebApplication.CreateBuilder([]);
-        ConfigureServices(builder);
-        await using var host = builder.Build();
+        var hostBuilder = WebApplication.CreateBuilder([]);
+        ConfigureServices(hostBuilder);
+        await using var host = hostBuilder.Build();
         var migrator = host.Services.GetRequiredService<ITenantMigrator>();
         if (all)
         {
@@ -53,6 +58,12 @@ static async Task<int> RunCliAsync(string[] args)
 static void ConfigureServices(WebApplicationBuilder builder)
 {
     builder.AddServiceDefaults();
+    builder.Services.ConfigureHttpJsonOptions(o =>
+    {
+        o.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower;
+        o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+    builder.Services.AddSingleton<IClock, SystemClock>();
     builder.Services.AddHttpClient<IPlatformTenantClient, HttpPlatformTenantClient>((sp, client) =>
     {
         var baseUrl = sp.GetRequiredService<IConfiguration>()["Platform:BaseUrl"];
@@ -67,6 +78,17 @@ static void ConfigureServices(WebApplicationBuilder builder)
     });
     builder.Services.AddSingleton<ITenantConnectionCache, TenantConnectionCache>();
     builder.Services.AddSingleton<ITenantMigrator, TenantMigrator>();
+    builder.Services.AddSingleton<IEntitlementCache, EntitlementCache>();
+    builder.Services.AddSingleton<IStaleCommandHook, DefaultStaleCommandHook>();
+    builder.Services.AddValidatorsFromAssemblyContaining<ProbeValidator>();
+    builder.Services.AddSingleton<CommandRegistry>(sp =>
+    {
+        var registry = new CommandRegistry();
+        registry.Register(ActivatorUtilities.CreateInstance<ProbeHandler>(sp));
+        registry.Register(new ProbeV0ToV1Upcaster());
+        return registry;
+    });
+    builder.Services.AddSingleton<CommandDispatcher>();
 }
 
 static void ConfigureApp(WebApplication app)
@@ -77,3 +99,4 @@ static void ConfigureApp(WebApplication app)
 }
 
 public partial class Program;
+
