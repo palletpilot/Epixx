@@ -78,6 +78,34 @@ public static class AuthApi
             return Unauthorized("no_membership");
         }
 
+        // Enforced SSO: non-owners cannot password-login for that tenant; owners need TOTP.
+        foreach (var membership in memberships.ToList())
+        {
+            var provider = await db.IdentityProviders.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.TenantId == membership.TenantId, ct);
+            if (provider is { Enforced: true })
+            {
+                if (!membership.IsOwner)
+                {
+                    memberships.Remove(membership);
+                    continue;
+                }
+
+                if (!user.TwoFactorEnabled
+                    || string.IsNullOrWhiteSpace(body.Totp)
+                    || !await users.VerifyTwoFactorTokenAsync(
+                        user, TokenOptions.DefaultAuthenticatorProvider, body.Totp))
+                {
+                    return Unauthorized("sso_enforced_owner_totp");
+                }
+            }
+        }
+
+        if (memberships.Count == 0)
+        {
+            return Unauthorized("sso_enforced");
+        }
+
         foreach (var membership in memberships)
         {
             ResetPinLock(membership);
@@ -310,7 +338,7 @@ public static class AuthApi
             .Include(m => m.RoleAssignments).ThenInclude(a => a.Role)
             .Where(m => m.UserId == userId);
 
-    private static async Task<TokenResponse> IssueAsync(
+    internal static async Task<TokenResponse> IssueAsync(
         JwtIssuer jwt,
         RefreshTokenStore refresh,
         Membership membership,

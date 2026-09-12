@@ -405,6 +405,126 @@
           }
         }
       }
+    },
+    "/auth/oidc/start": {
+      "post": {
+        "tags": [
+          "OidcApi"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OidcStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/auth/oidc/callback": {
+      "post": {
+        "tags": [
+          "OidcApi"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OidcCallbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/oidc/provider": {
+      "get": {
+        "tags": [
+          "OidcApi"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "OidcApi"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertOidcProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/oidc/provider/enforced": {
+      "post": {
+        "tags": [
+          "OidcApi"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetEnforcedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/oidc/provider/test-login": {
+      "post": {
+        "tags": [
+          "OidcApi"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OidcTestLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -495,6 +615,60 @@
           }
         }
       },
+      "OidcCallbackRequest": {
+        "required": [
+          "state",
+          "id_token",
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "id_token": {
+            "type": "string"
+          },
+          "code": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "OidcStartRequest": {
+        "required": [
+          "email",
+          "slug"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "slug": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "OidcTestLoginRequest": {
+        "required": [
+          "id_token"
+        ],
+        "type": "object",
+        "properties": {
+          "id_token": {
+            "type": "string"
+          }
+        }
+      },
       "PinUnlockRequest": {
         "required": [
           "device_id",
@@ -524,6 +698,17 @@
         "properties": {
           "refresh_token": {
             "type": "string"
+          }
+        }
+      },
+      "SetEnforcedRequest": {
+        "required": [
+          "enforced"
+        ],
+        "type": "object",
+        "properties": {
+          "enforced": {
+            "type": "boolean"
           }
         }
       },
@@ -577,6 +762,58 @@
           }
         }
       },
+      "UpsertOidcProviderRequest": {
+        "required": [
+          "issuer",
+          "client_id",
+          "client_secret",
+          "client_secret_expires_at",
+          "domain_hint",
+          "jit_provisioning",
+          "default_role",
+          "role_mappings"
+        ],
+        "type": "object",
+        "properties": {
+          "issuer": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "client_secret": {
+            "type": "string"
+          },
+          "client_secret_expires_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "domain_hint": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "jit_provisioning": {
+            "type": "string"
+          },
+          "default_role": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "role_mappings": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "VerifySignupRequest": {
         "required": [
           "token"
@@ -602,6 +839,9 @@
     },
     {
       "name": "SignupApi"
+    },
+    {
+      "name": "OidcApi"
     }
   ]
 }

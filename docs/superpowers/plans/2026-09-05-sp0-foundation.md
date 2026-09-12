@@ -111,7 +111,7 @@ Tests: integration (WAF + Testcontainers Postgres) with wms-core's migrate endpo
 
 Commit: `sp0: B3 - signup, verification, provisioning job`.
 
-### Task B4. Per-tenant OIDC
+### Task B4. Per-tenant OIDC (done 2026-09-12, 270fe7f)
 
 Files: `Auth/Oidc/DynamicOidcHandler.cs` (resolve `IdentityProvider` by slug or email domain at request time, build the `OpenIdConnectOptions` per tenant, cache the discovery document per issuer), `Auth/Oidc/Callback/` (link or JIT-provision per the spec's strict rules: same tenant's provider, `email_verified`, domain matches `domain_hint`; `jit_provisioning` modes `off | mapped | all`; role from `role_mappings` on the `roles` claim then `groups`; groups-overflow detection via the `_claim_names` marker fails with the spec's message), `Auth/Oidc/Admin/` (tenant admin CRUD for the provider row, "test login" that completes the flow and reports the claims seen, `enforced` toggle that refuses unless the tenant is `Active`, one admin has logged in via SSO and every owner has TOTP enrolled), `client_secret_expires_at` with a `PeriodicJob` that emails owners at 30 and 7 days.
 

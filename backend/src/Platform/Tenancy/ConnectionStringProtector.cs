@@ -22,6 +22,10 @@ public sealed class ConnectionStringProtector
         _kek = kek;
     }
 
+    public byte[] Protect(string plaintext) => Seal(_kek, Encoding.UTF8.GetBytes(plaintext));
+
+    public string Unprotect(byte[] packed) => Encoding.UTF8.GetString(Open(_kek, packed));
+
     public (byte[] WrappedDek, byte[] Ciphertext) Encrypt(string connectionString)
     {
         var dek = RandomNumberGenerator.GetBytes(32);

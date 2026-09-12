@@ -3,6 +3,7 @@ using Lagerkraft.Platform.Data;
 using Lagerkraft.Platform.Email;
 using Lagerkraft.Platform.Internal;
 using Lagerkraft.Platform.Provisioning;
+using Lagerkraft.Platform.Auth.Oidc;
 using Lagerkraft.Platform.Signup;
 using Lagerkraft.Platform.Tenancy;
 using Lagerkraft.Shared;
@@ -69,6 +70,10 @@ else
 
 builder.Services.AddHostedService<ProvisioningJob>();
 builder.Services.AddHostedService<PurgeUnverifiedJob>();
+builder.Services.AddHostedService<ClientSecretExpiryJob>();
+builder.Services.AddSingleton<DynamicOidcHandler>();
+builder.Services.AddSingleton<OidcStateStore>();
+builder.Services.AddScoped<OidcProvisioner>();
 
 builder.Services.AddDbContext<PlatformDbContext>(options =>
 {
@@ -94,6 +99,7 @@ app.MapDefaultEndpoints("platform");
 app.MapInternalApi();
 app.MapAuthApi();
 app.MapSignupApi();
+app.MapOidcApi();
 
 if (!IsOpenApiDocumentGeneration())
 {
