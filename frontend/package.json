@@ -15,8 +15,9 @@
     "lint": "eslint .",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "test:e2e": "playwright test --config apps/web/playwright.config.ts",
+    "test:e2e": "playwright test --config apps/web/playwright.config.ts && playwright test --config apps/floor/playwright.config.ts",
     "dev:web": "vite --config apps/web/vite.config.ts",
+    "dev:floor": "vite --config apps/floor/vite.config.ts",
     "format": "prettier --write ."
   },
   "devDependencies": {
