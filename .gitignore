@@ -370,3 +370,7 @@ dist/
 !.env.example
 appsettings.*.local.json
 
+# NuGet's **/[Pp]ackages/* would hide the Vue workspace packages.
+!frontend/packages/
+!frontend/packages/**
+frontend/packages/**/node_modules/

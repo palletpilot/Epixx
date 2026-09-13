@@ -1,0 +1,36 @@
+{
+  "name": "lagerkraft-frontend",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.4.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "gen:permissions": "dotnet run --project tools/gen-permissions -- packages/domain/src/generated/permissions.ts",
+    "gen:commands": "node scripts/gen-commands.mjs",
+    "gen:api": "node scripts/gen-api.mjs",
+    "gen": "dotnet run --project tools/gen-permissions -- packages/domain/src/generated/permissions.ts && node scripts/gen-commands.mjs && node scripts/gen-api.mjs",
+    "check:generated": "dotnet run --project tools/gen-permissions -- packages/domain/src/generated/permissions.ts && node scripts/gen-commands.mjs && node scripts/gen-api.mjs && git -C .. diff --exit-code -- frontend/packages/domain/src/generated frontend/packages/api-client/src/generated",
+    "lint": "eslint .",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.35.0",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "eslint": "^9.35.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.4.0",
+    "json-schema-to-typescript": "^15.0.4",
+    "openapi-typescript": "^7.9.1",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.43.0",
+    "vitest": "^3.2.4",
+    "vite": "^7.1.5",
+    "vue": "^3.5.21",
+    "vue-tsc": "^3.0.7"
+  }
+}
