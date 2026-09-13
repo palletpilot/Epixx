@@ -221,7 +221,7 @@ Commit: `sp0: E1 - integrations consumer and webhook delivery`.
 
 ## Phase F: frontend skeleton
 
-### Task F1. pnpm monorepo, packages (done 2026-09-13, 232dcb9)
+### Task F1. pnpm monorepo, packages (done 2026-09-13, 9905754)
 
 Files: `frontend/pnpm-workspace.yaml`, `frontend/package.json`, `frontend/tsconfig.base.json`, `frontend/.npmrc`, `frontend/packages/domain/` (command types generated from `contracts/commands/*.json` via `json-schema-to-typescript`; the permission map as a TypeScript constant generated from `Lagerkraft.Shared.Permissions` by a small `dotnet run` generator so the two never drift, with a CI check that the generated file is committed and current), `frontend/packages/api-client/` (generated from `contracts/openapi/*.json`, which each service writes at build with `Microsoft.AspNetCore.OpenApi`; `openapi-typescript` plus `openapi-fetch`), `frontend/packages/realtime/` (`createRealtime({ url, token, warehouse, since })`: `EventSource` with `Last-Event-ID`, 45-second dead-connection detection, reconnect with the server's `retry`, `resync` handling, 30-second polling fallback, 100 ms batching for consumers), `frontend/packages/ui/` (Tailwind config, shadcn-vue init, three components: `Button`, `Input`, `Banner`), `frontend/packages/i18n/` (vue-i18n, default locale `sv`, `en` second; all user-visible strings go through `t("key")` in resource files, never inline in templates).
 
