@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { cva, type VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 import { cn } from "../lib/utils";
 
 const buttonVariants = cva(
@@ -26,15 +26,18 @@ const buttonVariants = cva(
   },
 );
 
-type ButtonProps = VariantProps<typeof buttonVariants> & {
-  type?: "button" | "submit" | "reset";
-  disabled?: boolean;
-  class?: string;
-};
-
-const props = withDefaults(defineProps<ButtonProps>(), {
-  type: "button",
-});
+const props = withDefaults(
+  defineProps<{
+    variant?: "default" | "destructive" | "outline" | "ghost";
+    size?: "default" | "sm" | "lg";
+    type?: "button" | "submit" | "reset";
+    disabled?: boolean;
+    class?: string;
+  }>(),
+  {
+    type: "button",
+  },
+);
 
 const classes = computed(() => cn(buttonVariants({ variant: props.variant, size: props.size }), props.class));
 </script>

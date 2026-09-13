@@ -374,3 +374,8 @@ appsettings.*.local.json
 !frontend/packages/
 !frontend/packages/**
 frontend/packages/**/node_modules/
+
+**/test-results/
+**/playwright-report/
+
+/scratch/

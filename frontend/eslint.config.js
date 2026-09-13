@@ -5,7 +5,17 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["**/node_modules/**", "**/dist/**", "**/generated/**", "tools/**", "scripts/**"],
+    ignores: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/generated/**",
+      "tools/**",
+      "scripts/**",
+    "**/e2e/**",
+    "**/playwright.config.ts",
+    "**/test-results/**",
+    "**/playwright-report/**",
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,

@@ -1,5 +1,105 @@
 {
   "ui": {
     "close": "Stäng"
+  },
+  "nav": {
+    "warehouses": "Lager",
+    "tasks": "Uppgifter",
+    "devices": "Enheter",
+    "users": "Användare",
+    "sso": "SSO",
+    "logout": "Logga ut",
+    "tenant": "Företag"
+  },
+  "auth": {
+    "login": "Logga in",
+    "email": "E-post",
+    "password": "Lösenord",
+    "totp": "TOTP-kod",
+    "submit": "Fortsätt",
+    "sso": "Fortsätt med SSO",
+    "signupLink": "Skapa konto",
+    "chooserTitle": "Välj företag",
+    "error": "Inloggningen misslyckades",
+    "provisioning": "Företaget skapas. Försöker igen…"
+  },
+  "signup": {
+    "title": "Skapa konto",
+    "company": "Företagsnamn",
+    "orgNumber": "Organisationsnummer",
+    "name": "Namn",
+    "slug": "Webbadress",
+    "slugHint": "Föreslagen från företagsnamnet. 3–30 tecken, a–z, 0–9 och bindestreck.",
+    "submit": "Skapa",
+    "loginLink": "Har du redan konto?",
+    "joinTitle": "{company} finns redan",
+    "joinHint": "Inget mer visas om företaget. Begär att få gå med.",
+    "joinSubmit": "Begär att gå med",
+    "joinSent": "Förfrågan är skickad. Vänta på godkännande.",
+    "done": "Kolla e-posten för verifieringslänken."
+  },
+  "verify": {
+    "title": "Verifiera e-post",
+    "token": "Kod",
+    "submit": "Verifiera",
+    "ok": "E-post verifierad. Logga in när provisioneringen är klar."
+  },
+  "invite": {
+    "title": "Acceptera inbjudan",
+    "token": "Kod",
+    "password": "Välj lösenord",
+    "submit": "Acceptera"
+  },
+  "trial": {
+    "banner": "Provet slutar om {days} dagar.",
+    "expiredTitle": "Provet har gått ut",
+    "expiredBody": "Konvertera till en plan för att fortsätta använda Lagerkraft.",
+    "plan": "Plan",
+    "convert": "Konvertera"
+  },
+  "warehouses": {
+    "title": "Lager",
+    "name": "Namn",
+    "create": "Skapa lager",
+    "empty": "Inga lager ännu.",
+    "list": "Lagerlista"
+  },
+  "tasks": {
+    "title": "Uppgifter",
+    "list": "Uppgiftslista",
+    "create": "Skapa uppgift",
+    "type": "Typ",
+    "warehouse": "Lager",
+    "empty": "Inga uppgifter.",
+    "lastActivity": "Senaste aktivitet: {actor}, {time}",
+    "lastActivityNone": "Ingen aktivitet ännu."
+  },
+  "devices": {
+    "title": "Enheter",
+    "code": "Skapa anslutningskod",
+    "codeValue": "Kod: {code}",
+    "revoke": "Återkalla",
+    "remove": "Ta bort",
+    "confirmLoss": "Bekräfta förlust",
+    "pending": "{count} väntande"
+  },
+  "users": {
+    "title": "Användare",
+    "invite": "Bjud in",
+    "role": "Roll",
+    "warehouse": "Lager (valfritt)"
+  },
+  "sso": {
+    "title": "SSO",
+    "issuer": "Utfärdare",
+    "clientId": "Klient-id",
+    "clientSecret": "Klienthemlighet",
+    "domainHint": "Domän",
+    "jit": "JIT-provisionering",
+    "save": "Spara",
+    "enforced": "Tvinga SSO",
+    "enforcedHint": "Kräver aktivt företag, minst en SSO-inloggning och TOTP hos alla ägare. Ägare kan alltid logga in med lösenord plus TOTP.",
+    "testLogin": "Testinloggning",
+    "idToken": "ID-token"
   }
 }

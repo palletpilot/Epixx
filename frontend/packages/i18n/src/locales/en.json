@@ -1,5 +1,105 @@
 {
   "ui": {
     "close": "Close"
+  },
+  "nav": {
+    "warehouses": "Warehouses",
+    "tasks": "Tasks",
+    "devices": "Devices",
+    "users": "Users",
+    "sso": "SSO",
+    "logout": "Log out",
+    "tenant": "Company"
+  },
+  "auth": {
+    "login": "Log in",
+    "email": "Email",
+    "password": "Password",
+    "totp": "TOTP code",
+    "submit": "Continue",
+    "sso": "Continue with SSO",
+    "signupLink": "Create an account",
+    "chooserTitle": "Choose a company",
+    "error": "Login failed",
+    "provisioning": "The company is still being created. Retrying…"
+  },
+  "signup": {
+    "title": "Create an account",
+    "company": "Company name",
+    "orgNumber": "Organisation number",
+    "name": "Name",
+    "slug": "Slug",
+    "slugHint": "Suggested from the company name. 3–30 characters, a–z, 0–9 and hyphen.",
+    "submit": "Create",
+    "loginLink": "Already have an account?",
+    "joinTitle": "{company} already exists",
+    "joinHint": "Nothing else about the company is shown. Request to join.",
+    "joinSubmit": "Request to join",
+    "joinSent": "Request sent. Wait for an owner to approve.",
+    "done": "Check your email for the verification link."
+  },
+  "verify": {
+    "title": "Verify email",
+    "token": "Code",
+    "submit": "Verify",
+    "ok": "Email verified. Log in when provisioning finishes."
+  },
+  "invite": {
+    "title": "Accept invitation",
+    "token": "Code",
+    "password": "Choose a password",
+    "submit": "Accept"
+  },
+  "trial": {
+    "banner": "Trial ends in {days} days.",
+    "expiredTitle": "The trial has ended",
+    "expiredBody": "Convert to a plan to keep using Lagerkraft.",
+    "plan": "Plan",
+    "convert": "Convert"
+  },
+  "warehouses": {
+    "title": "Warehouses",
+    "name": "Name",
+    "create": "Create warehouse",
+    "empty": "No warehouses yet.",
+    "list": "Warehouse list"
+  },
+  "tasks": {
+    "title": "Tasks",
+    "list": "Task list",
+    "create": "Create task",
+    "type": "Type",
+    "warehouse": "Warehouse",
+    "empty": "No tasks.",
+    "lastActivity": "Last activity: {actor}, {time}",
+    "lastActivityNone": "No activity yet."
+  },
+  "devices": {
+    "title": "Devices",
+    "code": "Create enrollment code",
+    "codeValue": "Code: {code}",
+    "revoke": "Revoke",
+    "remove": "Remove",
+    "confirmLoss": "Confirm loss",
+    "pending": "{count} pending"
+  },
+  "users": {
+    "title": "Users",
+    "invite": "Invite",
+    "role": "Role",
+    "warehouse": "Warehouse (optional)"
+  },
+  "sso": {
+    "title": "SSO",
+    "issuer": "Issuer",
+    "clientId": "Client ID",
+    "clientSecret": "Client secret",
+    "domainHint": "Domain",
+    "jit": "JIT provisioning",
+    "save": "Save",
+    "enforced": "Enforce SSO",
+    "enforcedHint": "Requires an Active tenant, at least one SSO login, and TOTP on every owner. Owners may always log in with password plus TOTP.",
+    "testLogin": "Test login",
+    "idToken": "ID token"
   }
 }

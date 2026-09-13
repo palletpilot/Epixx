@@ -8,6 +8,9 @@
     "packages/**/*.ts",
     "packages/**/*.vue",
     "packages/**/*.d.ts",
+    "apps/**/*.ts",
+    "apps/**/*.vue",
+    "apps/**/*.d.ts",
     "vitest.config.ts"
   ]
 }

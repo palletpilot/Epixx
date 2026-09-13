@@ -1,7 +1,9 @@
 packages:
   - "packages/*"
+  - "apps/*"
 
-engineStrict: true
+engineStrict: false
 
 allowBuilds:
   esbuild: true
+  vue-demi: true
