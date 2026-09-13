@@ -1,5 +1,4 @@
-using System.Security.Claims;
-using System.Text.Json;
+﻿using System.Security.Claims;
 using Lagerkraft.SyncGateway.Auth;
 using Lagerkraft.SyncGateway.Clients;
 using Microsoft.AspNetCore.Mvc;
@@ -32,32 +31,32 @@ public static class SnapshotEndpoint
             return Results.Unauthorized();
         }
 
+        if (syncUser.DeviceId is { } deviceId)
+        {
+            var device = await platform.GetDeviceAsync(deviceId, ct);
+            if (device is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (device.RevokedAt is not null)
+            {
+                return Results.StatusCode(StatusCodes.Status410Gone);
+            }
+
+            if (device.TenantId != syncUser.TenantId)
+            {
+                return Results.Unauthorized();
+            }
+        }
+
         if (await SessionGuard.IsStaleAsync(syncUser, platform, ct))
         {
             return Results.Unauthorized();
         }
 
+        // Proxy wms-core envelope as-is (includes snapshot_schema from C1/ba64fe8).
         var body = await wms.GetSnapshotAsync(syncUser.TenantId, warehouse, entity, page, ct);
-        if (body.ValueKind == JsonValueKind.Object && !body.TryGetProperty("snapshot_schema", out _))
-        {
-            using var stream = new MemoryStream();
-            await using (var writer = new Utf8JsonWriter(stream))
-            {
-                writer.WriteStartObject();
-                foreach (var prop in body.EnumerateObject())
-                {
-                    prop.WriteTo(writer);
-                }
-
-                writer.WriteString("snapshot_schema", config["Compat:SnapshotSchema"] ?? "Task");
-                writer.WriteEndObject();
-            }
-
-            stream.Position = 0;
-            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
-            return Results.Json(doc.RootElement.Clone());
-        }
-
         return Results.Json(body);
     }
 }

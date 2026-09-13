@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -10,6 +10,7 @@ using Lagerkraft.Shared.Auth;
 using Lagerkraft.Shared.Tenancy;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Lagerkraft.Platform.Tests;
 
@@ -28,7 +29,7 @@ public sealed class DevMintFloorTokenTests : IAsyncLifetime
     public Task DisposeAsync() => _factory.DisposeAsync().AsTask();
 
     [Fact]
-    public async Task MintFloorToken_TestingEnv_ReturnsJwtWithDevClaim()
+    public async Task MintFloorToken_TestingEnv_ReturnsJwtWithPinAmrAndDeviceClaim()
     {
         var seeded = await SeedAsync();
         using var client = _factory.CreateClient();
@@ -42,9 +43,23 @@ public sealed class DevMintFloorTokenTests : IAsyncLifetime
         var jwt = Payload(tokens.AccessToken);
         jwt.GetProperty("sub").GetString().ShouldBe(seeded.UserId.ToString());
         jwt.GetProperty(LagerkraftClaims.TenantId).GetString().ShouldBe(seeded.TenantId.ToString());
+        // Floor device claim short name is "dev" (LagerkraftClaims.DeviceId).
         jwt.GetProperty(LagerkraftClaims.DeviceId).GetString().ShouldBe(seeded.DeviceId.ToString());
+        jwt.GetProperty("dev").GetString().ShouldBe(seeded.DeviceId.ToString());
         jwt.GetProperty(LagerkraftClaims.SessionVersion).GetString().ShouldNotBeNullOrEmpty();
         jwt.GetProperty(LagerkraftClaims.AuthMethod).GetString().ShouldBe("pin");
+    }
+
+    [Fact]
+    public async Task MintFloorToken_ProductionEnv_Returns404()
+    {
+        await using var prodFactory = _factory.WithWebHostBuilder(b => b.UseEnvironment(Environments.Production));
+        using var client = prodFactory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/dev/mint-floor-token", new MintFloorTokenRequest(
+            Ids.New(), Ids.New(), Ids.New(), "shell"));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     private static JsonElement Payload(string accessToken)

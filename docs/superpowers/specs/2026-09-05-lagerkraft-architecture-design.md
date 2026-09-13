@@ -1,7 +1,7 @@
 
 # Lagerkraft: Architecture and Foundation Design
 
-Date: 2026-09-05. Status: approved design, pending final read-through. Source: brainstorm board (four photos from the planning session), the Epixx POC under `Epixx/`, and a design session that settled each area in turn. Sub-project 0 gets its own implementation plan from this document.
+Date: 2026-09-05. Status: approved; founder review gate closed 2026-09-12. Source: brainstorm board (four photos from the planning session), the Epixx POC under `Epixx/`, and a design session that settled each area in turn. Sub-project 0 gets its own implementation plan from this document.
 
 Reviewed use case by use case on 2026-09-05 (14 flows: signup, mapping, CSV import, shared scanner, inbound, move/count, outbound, deviations, realtime + deploy, returning device, dunning, offboarding, restore, SSO/roles/support). Fixes accepted in that review are folded into the sections below. Cross-cutting principles that came out of it: **the floor is the truth** (physical facts are accepted, rule breaches become deviations), **client-generated ids** for everything a device creates, **authorization at `occurred_at`**, **state denials are batch-level holds, never per-command rejections**, and **every tenant object lives under `tenants/<tenant_id>/`**.
 
@@ -52,7 +52,7 @@ Epixx is a .NET 10 ASP.NET MVC app (`Epixx/Epixx.csproj`) with Razor, jQuery/Boo
 
 ### How the repo is laid out around it
 
-The Epixx repository itself becomes the Lagerkraft repository (decided 2026-09-05): `master` stays the POC as it was, Lagerkraft work happens on `lagerkraft/*` branches starting with `lagerkraft/sp0-foundation`, and the POC code stays untouched in the `Epixx/` project folder next to the new `backend/`, `frontend/` and `contracts/` trees. Do not copy Razor or `wwwroot/lib` into the new solution. The root `Epixx.slnx` and the stray root `WarehouseController.cs` belong to the POC and are left alone; the new solution is `backend/Lagerkraft.sln`.
+The Epixx repository itself becomes the Lagerkraft repository (decided 2026-09-05; confirmed on self-review 2026-09-12 — this supersedes the earlier Cursor-plan idea of a parent git at `F:\lagerstuff` with Epixx nested): `master` stays the POC as it was, Lagerkraft work happens on `lagerkraft/*` branches starting with `lagerkraft/sp0-foundation`, and the POC code stays untouched in the `Epixx/` project folder next to the new `backend/`, `frontend/` and `contracts/` trees. Do not copy Razor or `wwwroot/lib` into the new solution. The root `Epixx.slnx` and the stray root `WarehouseController.cs` belong to the POC and are left alone; the new solution is `backend/Lagerkraft.sln`.
 
 ### Running Epixx (reference only)
 
@@ -68,6 +68,43 @@ Prerequisites: .NET 10 SDK, SQL Server LocalDB (`(localdb)\mssqllocaldb`; ships 
 5. **Billing**: usage snapshots, month-end invoicing, Fortnox sync, proration, dunning, internal admin. Must ship before the first paying customer's second month; trial handling and the hard cap are already in sub-project 0.
 
 Then pilot. Items 10-31 on the board build on the ledger, tasks and events without new foundations.
+
+## Competitive modularity (how we sell against large WMS)
+
+Lagerkraft wins by being **agile, easy to use, and modular** — not by matching suite sprawl (yard, waves, full labour management). Build and sales share this list.
+
+### Wedge (already in this design)
+
+- **Floor-first, offline-first**: the warehouse keeps working when the network does not; physical facts win (`floor is the truth`); denials are batch holds, not per-tap red errors.
+- **Modular core, not a monolith**: `platform` / `wms-core` / `sync-gateway` / `integrations`, with wms-core split into Layout, Catalog, Inventory, Inbound, Outbound (and Printing) behind architecture tests.
+- **Configure without consultants**: tenant-defined attributes, packaging levels, location tree, and putaway as a strategy interface — change behaviour without schema rewrites or vendor projects.
+- **Integrations at the edge**: webhooks and events; partners never write stock. Headless **command contracts** are the same path our floor PWA uses, so a customer or partner scanner app can plug in without a second API.
+- **Honest SaaS packaging**: priced per storage location / m2, soft limits with overage, short pilot loop (goods in, then stored, then picked, then shipped).
+
+### Sellable capability map (aligns to sub-projects)
+
+| Capability | What the buyer turns on | Sub-project |
+| --- | --- | --- |
+| Foundation | Tenant, identity, devices, sync, thin app shells | 0 |
+| Layout | Map warehouse, labels, import/export locations | 1 |
+| Catalog | Articles, packaging, attribute templates | 2 |
+| Inbound + inventory | Receive, putaway, ledger, balances | 3 |
+| Outbound | Orders, pick, ship, deviations | 4 |
+| Billing | Usage, invoices, Fortnox, dunning | 5 |
+
+Capabilities light up per tenant as entitlement flags on the subscription (platform-owned). Missing capabilities return **batch holds** with a clear reason — never half-working screens. We do not sell yard, wave planning, or full LMS in the pilot; that is the deliberate non-goal versus lumbering suites.
+
+### Product promises to keep sharp
+
+- **Time-to-first-pick**: named path — enroll device, then map one aisle, then receive one handling unit, then putaway, then pick, then ship handoff — measurable in days, not a multi-month programme.
+- **Vertical starters**: ship retail, food/temperature, and industrial attribute + label starter sets at provisioning so onboarding is not a blank canvas (see Modular product fields).
+- **Customer-visible ops**: sync health (queue depth, last success, SSE), open deviations by age, and “what’s stuck on this device” are first-class back-office surfaces — trust against black-box enterprise suites.
+- **Headless by default**: OpenAPI + versioned command/event contracts; our Vue floor app is the reference client, not the only client.
+
+### Non-goals (say no in sales)
+
+Yard management, wave/waveless orchestration as a product line, full labour management, custom on-prem plugins inside wms-core, and rebuilding ERP/MES inside Lagerkraft. Extend via commands, webhooks, and integrations — not by forking the core.
+
 
 ## System architecture
 
@@ -263,7 +300,7 @@ For articles where the count is the stock-keeping unit but the weight varies per
 - **Retention and full resync**: `change_log` is kept 30 days (nightly prune). A `since` older than the oldest retained seq returns `410 Gone`, and the device performs a full resync through `GET /sync/snapshot?warehouse=`, which returns current state per entity type, paginated, plus the `seq` to continue from. First login on a device and an epoch change use the same endpoint; history is never replayed from zero. The outbox is untouched by any resync.
 - **Flush is authorized by the device, not by the original user**: any active member's session on a non-revoked device (`dev` claim matches) may flush the outbox; each command is then authorized against its own `sub` at `occurred_at`. The worker who queued the commands may have left the company by the time the scanner comes out of the drawer.
 - **Stale commands**: a command whose `occurred_at` is more than 24 hours before apply time is applied automatically only if no `count_adjust` or `correction` touched its source or destination (location, article, handling unit) after `occurred_at`. Otherwise it becomes `Deviation(kind=stale_command, status=pending_approval)` with apply or discard, because a count in between has probably already captured the physical result and applying would double-count.
-- **Clock skew**: every batch carries the device's `now`; the gateway computes the skew and, above 5 minutes, shifts every `occurred_at` in the batch by it and stores `clock_skew_ms` on the resulting movements, so count-at-`occurred_at` and the stale rule work on corrected times. Timestamps in the future or before the device's enrollment are implausible and take the stale-command approval path.
+- **Clock skew**: every batch carries the device's `now`; **wms-core** (not sync-gateway) computes the skew when applying the batch and, above 5 minutes, shifts every `occurred_at` in the batch by it and stores `clock_skew_ms` on the resulting movements, so count-at-`occurred_at` and the stale rule work on corrected times. Sync-gateway forwards `now` unchanged. Timestamps in the future or before the device's enrollment are implausible and take the stale-command approval path.
 - Conflicts: mapping data is last-write-wins per field with server authority; inventory commands are validated against current balances at apply time. Mapping flow answers ("how many racks in this aisle?", "levels per rack?", "bins per level?", "same H/W/D?") map one-to-one onto the batch commands, so a whole aisle is a handful of commands. The "no" branch of "same H/W/D?" asks **per level** (racks are built that way: level 1 tall, upper levels shorter), with per-bin override as a third option, never per-bin entry by default.
 - **Client-generated ids**: every entity a device creates offline (locations, handling units, deviations, print jobs) gets its UUIDv7 on the device, and the creating command carries the full list of `(id, code, parent_id)`. The server validates and accepts those ids, so follow-up commands written offline (`SetLocationDimensions(ids[])`, putaway to a new bin) reference ids the server will know.
 - **`CreateLocationBatch` is idempotent by code within a warehouse**: a code that already exists under the same parent is treated as already created, the response returns the server's id, and the device rewrites its local id and any queued commands that reference it. Different dimensions follow last-write-wins. Only a structural conflict (same code, different parent or type) is rejected. Two workers mapping the same aisle offline therefore converge instead of producing 144 deviations.
@@ -933,7 +970,7 @@ A **constrained editor**, not a drag-and-drop designer:
 - `PrintJob`: `warehouse_id`, `printer_id`, `template_id`, `requested_by`, `device_id`, `source` (command | web | api), `copies`, `status` (queued | sent | printing | done | failed | cancelled), `item_count`, `printed_count`, `error`, `created_at`, `completed_at`.
 - `PrintJobItem`: `job_id`, `sequence`, `entity_type`, `entity_id`, `data` jsonb (snapshot at request time, so a reprint shows what was printed), `status`.
 - `HandlingUnit`: `warehouse_id`, `license_plate`, `format` (sscc | internal), `status`, `height_mm` nullable, `created_by`, plus a per-tenant `Sequence` row for internal LPNs and the SSCC serial; `Tenant` gets `gs1_company_prefix`.
-- **Offline LPN minting**: sync-gateway allocates each device a block of 200 LPN numbers (and SSCC serials for GS1 tenants) at sync, refilled when 20% remain; `SequenceBlock(device_id, sequence, from, to, issued_at)` records the allocation. The device consumes locally, so a pallet received in a dead zone still gets its label two minutes later.
+- **Offline LPN minting**: at sync, sync-gateway calls wms-core to allocate each device a block of 200 LPN numbers (and SSCC serials for GS1 tenants), refilled when 20% remain. `SequenceBlock(device_id, sequence, from, to, issued_at)` and the per-tenant `Sequence` counters live in the **tenant DB** and are written only by wms-core (sync-gateway stays stateless and keeps no ledger). The device consumes locally, so a pallet received in a dead zone still gets its label two minutes later.
 - `UserBadge` (platform DB): `user_id`, `token_hash`, `issued_at`, `revoked_at`, `printed_by`.
 - Events: `printing.job.status_changed`, `printing.printer.status_changed` (both on the change feed for realtime UI).
 
@@ -991,7 +1028,7 @@ Method: for each component, what happens when it dies or misbehaves in the middl
 - **Browser evicts IndexedDB under storage pressure.** Chrome may evict site data that is not marked persistent; an unsynced outbox would vanish. **LOSS.** Mitigation: call `navigator.storage.persist()` at install (installed PWAs on Android Chrome are granted persistence), show an "unsynced: N" badge at all times, warn loudly when a device has been offline with pending commands for more than 4 hours, sync eagerly whenever a network appears, and keep the snapshot small so quota pressure never arises from us. On iOS, only home-screen-installed apps are exempt from the 7-day storage eviction, so **enrollment refuses to complete unless the app runs in `display-mode: standalone`**, with an inline "Add to Home Screen" guide; the Capacitor wrapper removes the issue for rugged devices. The back-office device list shows last sync, pending command count and the oldest pending `occurred_at`, highlighted after 24 hours.
 - **User clears site data, or MDM wipes the browser, with pending commands.** **LOSS**, and no software can prevent it. Mitigation is operational: the badge above, the 4-hour warning, MDM policies on rugged devices that block clearing data, and the device page in the back office showing every device's pending-command count so a manager sees a device that has not synced.
 - **QuotaExceededError while writing the outbox.** Mitigation: snapshot tables are evictable and re-fetched from the feed; the outbox is written first and errors are surfaced as a blocking message, never swallowed.
-- **Wrong device clock.** `occurred_at` and UUIDv7 ids come from the device; a device set to last year orders the ledger wrongly. Mitigation: the server records `recorded_at` on every movement and computes the device's clock offset from the batch's `now`; above 5 minutes the batch's `occurred_at` values are shifted by the offset and `clock_skew_ms` is stored on the movement (see the sync protocol), and the device page flags the device; the ledger and reports order by `recorded_at`.
+- **Wrong device clock.** `occurred_at` and UUIDv7 ids come from the device; a device set to last year orders the ledger wrongly. Mitigation: **wms-core** records `recorded_at` on every movement and computes the device's clock offset from the batch's `now`; above 5 minutes the batch's `occurred_at` values are shifted by the offset and `clock_skew_ms` is stored on the movement (see the sync protocol), and the device page flags the device; the ledger and reports order by `recorded_at`. Sync-gateway does not adjust timestamps.
 - **Mid-SSE-stream, app killed while applying a batch of entries.** Entries partially written and the cursor advanced would skip the rest. Mitigation: the entries and the cursor update are one IndexedDB transaction; entries are full-state upserts, so re-applying after a crash is harmless.
 - **Optimistic local state for a command the server later rejects.** The device shows state that never existed. Mitigation: on `rejected`, the device marks the affected entities stale and re-reads them from the next feed entries or an explicit fetch; the deviation itself arrives from the server through the feed.
 - **Logout or user switch on a shared device.** A logout that clears storage would drop other workers' unsynced commands. **LOSS.** Mitigation: the outbox is device-scoped, each command carries its user id, and logout never clears the outbox; "remove device" from the back office refuses while pending commands exist unless a manager confirms the loss explicitly.
@@ -1020,12 +1057,18 @@ Method: for each component, what happens when it dies or misbehaves in the middl
 
 ## Next steps
 
-1. Founders read this spec; corrections are made inline, dated in a short changelog at the bottom.
-2. Implementation plan for sub-project 0: `docs/superpowers/plans/2026-09-05-sp0-foundation.md`. Build it, starting at task A1.
+1. **Review gate (now):** founders read this spec; corrections are made inline, dated in the changelog below. Do not start new SP0 work from an unreviewed change.
+2. Implementation plan for sub-project 0 already exists at `docs/superpowers/plans/2026-09-05-sp0-foundation.md` (Phases A–… partially started on disk). After this gate, continue from the first incomplete task — do not re-litigate locked SP0 decisions.
 3. Buy the two label printers (ZD421, ZQ521) before sub-project 1 starts.
+4. **Still open for founders (not a design hole):** concrete billing tier base fees, included units, and overage prices (structure is locked; numbers are placeholders).
 
 ## Changelog
 
+- 2026-09-12: clock skew / `occurred_at` correction is owned by **wms-core** at apply time (matches Sync D1 locks); sync-gateway forwards batch `now` unchanged. Updated Offline sync protocol and Failure-mode analysis.
+ow unchanged. Updated Offline sync protocol and Failure-mode analysis.
+- 2026-09-12: added Competitive modularity section (sellable capability map, time-to-first-pick, vertical starters, headless commands, customer-visible ops, explicit non-goals vs large WMS).
+- 2026-09-12: founder review gate closed — spec approved as written after self-review. Ready for SP0 continuation from `docs/superpowers/plans/2026-09-05-sp0-foundation.md`.
+- 2026-09-12: self-review pass. Resolved Cursor-plan vs spec repo layout in favour of this document (Epixx repo becomes Lagerkraft on `lagerkraft/*` branches; no parent git at `F:\lagerstuff`). Clarified offline LPN / `SequenceBlock` allocation is performed by wms-core in the tenant DB; sync-gateway only exposes the sync endpoint and stays stateless. Status moved to awaiting founder review gate. Billing tier *numbers* remain founder placeholders (structure unchanged). No other TBD/TODO holes found.
 - 2026-09-07: testing layers. Unit tests are for code with no IO. Integration tests (`WebApplicationFactory` + Testcontainers, `Category=Integration`) are the default for any feature that writes or reads state; the core SP0 flows are listed under Testing and quality. Playwright is E2E (UI and offline) and does not replace those tests. No extra test project until two services talk; the later service calls the earlier one over HTTP. CI splits unit and integration jobs by trait.
 - 2026-09-06: align with the sub-project 0 plan. Module prefix `Lagerkraft.WmsCore`. NATS subjects are only `lagerkraft.{tenant}.{module}.{event}`; SSE subscribes to `lagerkraft.{tenant}.>`. Device enrollment, PIN unlock and both app shells move into sub-project 0; badge unlock stays with labels in sub-project 1. Membership history is fetched from platform HTTP in sub-project 0 (tenant `membership_history` table is a later ponytail). Platform publishes tenant and billing events directly to NATS with job retry; wms-core keeps the outbox. Webhook, delivery, import-job and integrations `processed_events` rows live in the platform DB; integrations may write those tables only. Auth tables `RefreshToken`, `DeviceSession`, `Membership.pin_hash`, `Tenant.refresh_token_hours`. Lifecycle transitions are `AuditLog` rows, not a separate `TenantStateTransition`. `TaskLine` created in sub-project 0 with spec columns and no FKs. Impersonation designed, not built in sub-project 0. Local Aspire uses `platform` + `tenant_migrate`. Day-23/28 trial emails deferred to billing; sub-project 0 ships the day-20 banner and 48-hour closed-window warning.
 - 2026-09-05: initial version, written from the approved design and the 14-use-case review.

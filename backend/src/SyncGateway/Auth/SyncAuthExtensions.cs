@@ -15,7 +15,7 @@ public static class SyncAuthExtensions
     {
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-            .Configure(options =>
+            .Configure<IHttpClientFactory>((options, httpFactory) =>
             {
                 options.MapInboundClaims = false;
                 options.TokenValidationParameters = new TokenValidationParameters
@@ -43,16 +43,17 @@ public static class SyncAuthExtensions
                     var jwksUrl = config["Jwt:JwksUrl"]
                         ?? throw new InvalidOperationException("Jwt:JwksUrl or Jwt:PrivateKeyPem is required");
                     options.TokenValidationParameters.IssuerSigningKeyResolver =
-                        (_, _, _, _) => LoadJwks(jwksUrl);
+                        (_, _, _, _) => LoadJwks(httpFactory, jwksUrl);
                 }
             });
         services.AddAuthorization();
         return services;
     }
 
-    private static IEnumerable<SecurityKey> LoadJwks(string jwksUrl)
+    private static IEnumerable<SecurityKey> LoadJwks(IHttpClientFactory httpFactory, string jwksUrl)
     {
-        using var http = new HttpClient();
+        // Must use IHttpClientFactory so Aspire https+http://{service}/ URLs resolve.
+        var http = httpFactory.CreateClient();
         var json = http.GetStringAsync(jwksUrl).GetAwaiter().GetResult();
         var jwks = new JsonWebKeySet(json);
         return jwks.GetSigningKeys();

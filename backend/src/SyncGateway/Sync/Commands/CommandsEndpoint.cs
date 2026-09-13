@@ -1,3 +1,4 @@
+﻿using System.Diagnostics.Metrics;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -9,6 +10,10 @@ namespace Lagerkraft.SyncGateway.Sync.Commands;
 
 public static class CommandsEndpoint
 {
+    private static readonly Meter Meter = new("Lagerkraft.SyncGateway");
+    private static readonly Counter<long> AppVersionCounter =
+        Meter.CreateCounter<long>("syncgateway_app_version_requests");
+
     public static RouteGroupBuilder MapSyncCommands(this RouteGroupBuilder sync)
     {
         sync.MapPost("/commands", PostCommands).RequireAuthorization();
@@ -39,6 +44,11 @@ public static class CommandsEndpoint
         }
 
         var deviceId = syncUser.DeviceId.Value;
+        if (body.Commands.Any(c => c.DeviceId != deviceId))
+        {
+            return Results.BadRequest(new { error = "device_id_mismatch" });
+        }
+
         var device = await platform.GetDeviceAsync(deviceId, ct);
         if (device is null)
         {
@@ -58,9 +68,13 @@ public static class CommandsEndpoint
         // Stale sv flush is accepted (spec exception).
         var entitlement = await platform.GetEntitlementAsync(syncUser.TenantId, ct);
         var hold = TenantHold.Evaluate(entitlement);
-        if (hold is not null && entitlement is not null)
+        if (hold is not null)
         {
-            TenantHold.ApplyStateHeaders(http.Response, entitlement);
+            if (entitlement is not null)
+            {
+                TenantHold.ApplyStateHeaders(http.Response, entitlement);
+            }
+
             return hold;
         }
 
@@ -103,7 +117,8 @@ public static class CommandsEndpoint
     {
         if (http.Request.Headers.TryGetValue(CompatHeaders.AppVersion, out var v) && v.Count > 0)
         {
-            http.Response.Headers["X-Lagerkraft-App-Version-Echo"] = v.ToString();
+            var version = v.ToString();
+            AppVersionCounter.Add(1, new KeyValuePair<string, object?>("app_version", version));
         }
     }
 }

@@ -19,6 +19,14 @@ public sealed class SyncGatewayApiFactory : WebApplicationFactory<Program>
     public RSA Rsa { get; } = RSA.Create(2048);
     public string PrivateKeyPem { get; }
 
+    /// <summary>
+    /// When set, skip the test PEM and validate via JWKS at this URL (Aspire-style https+http:// is allowed).
+    /// </summary>
+    public string? JwksUrl { get; set; }
+
+    /// <summary>Configuration service-discovery origin for host <c>jwks</c>, e.g. http://127.0.0.1:port.</summary>
+    public string? JwksServiceOrigin { get; set; }
+
     public SyncGatewayApiFactory()
     {
         PrivateKeyPem = Rsa.ExportRSAPrivateKeyPem();
@@ -30,7 +38,18 @@ public sealed class SyncGatewayApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Services:Platform", "http://platform.test");
         builder.UseSetting("Services:WmsCore", "http://wms.test");
         builder.UseSetting("Internal:Token", "test-internal-token");
-        builder.UseSetting("Jwt:PrivateKeyPem", PrivateKeyPem);
+        if (!string.IsNullOrWhiteSpace(JwksUrl))
+        {
+            builder.UseSetting("Jwt:JwksUrl", JwksUrl);
+            if (!string.IsNullOrWhiteSpace(JwksServiceOrigin))
+            {
+                builder.UseSetting("Services:jwks:http:0", JwksServiceOrigin);
+            }
+        }
+        else
+        {
+            builder.UseSetting("Jwt:PrivateKeyPem", PrivateKeyPem);
+        }
         builder.UseSetting("Compat:MinAppVersion", "0.9.0");
         builder.UseSetting("Compat:LatestAppVersion", "1.0.0");
         builder.ConfigureTestServices(services =>

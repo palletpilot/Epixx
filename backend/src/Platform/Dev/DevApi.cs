@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 using Lagerkraft.Platform.Auth;
 using Lagerkraft.Platform.Data;
 using Lagerkraft.Shared;
@@ -9,7 +9,7 @@ namespace Lagerkraft.Platform.Dev;
 
 /// <summary>
 /// Throwaway Dev/Testing-only helpers for the SP0 ugly floor shell.
-/// MUST NOT be mapped in Production — gated in <see cref="MapDevApi"/>.
+/// MUST NOT be mapped in Production - gated in <see cref="MapDevApi"/>.
 /// Real floor auth remains <c>POST /auth/pin-unlock</c>.
 /// </summary>
 public static class DevApi
@@ -23,7 +23,9 @@ public static class DevApi
         }
 
         var group = app.MapGroup("/dev");
-        group.MapPost("/mint-floor-token", MintFloorToken);
+        // Dev-only: keep out of contracts/openapi/platform.json even if OpenAPI runs as Development.
+        group.MapPost("/mint-floor-token", MintFloorToken)
+            .ExcludeFromDescription();
         return app;
     }
 

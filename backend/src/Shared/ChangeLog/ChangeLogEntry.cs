@@ -1,4 +1,4 @@
-namespace Lagerkraft.Shared.ChangeLog;
+﻿namespace Lagerkraft.Shared.ChangeLog;
 
 public sealed class ChangeLogEntry
 {
@@ -8,6 +8,7 @@ public sealed class ChangeLogEntry
     public string Op { get; init; } = "";
     public string Payload { get; init; } = "";
     public Guid? CommandId { get; init; }
-    public DateTimeOffset OccurredAt { get; init; }
     public Guid? Actor { get; init; }
+    public DateTimeOffset OccurredAt { get; init; }
+    public DateTimeOffset RecordedAt { get; init; }
 }

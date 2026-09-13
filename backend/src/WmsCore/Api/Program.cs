@@ -125,7 +125,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddSingleton<ITenantMigrator, TenantMigrator>();
     builder.Services.AddSingleton<IEntitlementCache, EntitlementCache>();
     builder.Services.AddSingleton<IStaleCommandHook, DefaultStaleCommandHook>();
-    builder.Services.AddValidatorsFromAssemblyContaining<ProbeValidator>();
+    builder.Services.AddValidatorsFromAssemblyContaining<ProbeValidator>(ServiceLifetime.Singleton);
     builder.Services.AddSingleton<CommandRegistry>(sp =>
     {
         var registry = new CommandRegistry();

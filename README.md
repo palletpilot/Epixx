@@ -10,10 +10,12 @@ This repository started as the Epixx proof of concept (below) and now hosts Lage
 Prerequisites: .NET 10 SDK 10.0.400, Docker, Node 24 (`corepack enable pnpm`).
 
 ```powershell
-dotnet run --project backend/src/AppHost
+./scripts/dev.ps1
 ```
 
-That starts Postgres (`platform` and `tenant_migrate`), NATS with JetStream, Mailpit, and the four services. The Aspire dashboard lists them. Without Aspire, `docker compose up -d` starts the same infrastructure; run each service with `dotnet run` against the fake connection strings in `appsettings.Development.json`.
+Or from Cursor: Terminal → Run Task → **Start Lagerkraft**. Either one is `dotnet run --project backend/src/AppHost`: Postgres (`platform` and `tenant_migrate`), NATS with JetStream, Mailpit, and the four services. The Aspire dashboard lists them. Stop with Ctrl+C.
+
+Without Aspire, `docker compose up -d` starts the same infrastructure; run each service with `dotnet run` against the fake connection strings in `appsettings.Development.json`. Do not run compose and AppHost at the same time.
 
 Layout:
 
