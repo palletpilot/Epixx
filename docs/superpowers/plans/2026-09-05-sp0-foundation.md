@@ -233,7 +233,7 @@ Tests: `realtime` unit tests with a fake `EventSource`: catch-up then live order
 
 Commit: `sp0: F1 - frontend monorepo and shared packages`.
 
-### Task F2. Back office shell (`apps/web`) (done 2026-09-13, PENDING)
+### Task F2. Back office shell (`apps/web`) (done 2026-09-13, a839fa7)
 
 Pages: signup (with slug preview and the join-request branch), verify, login (password, TOTP step, SSO redirect when the tenant has a provider, tenant chooser), provisioning progress (waits on `tenant.provisioned` over SSE), warehouses (create, list), tasks (create, list live over SSE with `useRealtime()` feeding TanStack Query, "last activity" line from `actor` and `occurred_at`), devices (enrollment code, list with pending counts, revoke, remove-with-confirm-loss), users (invite and accept-invite via B7, roles per warehouse), SSO settings (provider CRUD, test login, enforced toggle with its preconditions explained), trial banner from day 20 (computed from `trial_ends_at`) and the `TrialExpired` conversion page. Tenant switcher in the header. No hardcoded copy; strings live in `packages/i18n`.
 
