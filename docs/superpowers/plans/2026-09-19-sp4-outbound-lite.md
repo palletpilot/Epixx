@@ -207,7 +207,7 @@ Rules:
 
 ---
 
-## Task O5. Office orders, floor pick, Playwright (done 2026-09-19, pending)
+## Task O5. Office orders, floor pick, Playwright (done 2026-09-19, 971675b)
 
 **Files:** `OrdersView.vue`, `AppShell.vue`, `router.ts`, i18n, `TaskDetailView.vue` pick path, `floor.ts` enqueue, snapshot `Order`, Playwright.
 
