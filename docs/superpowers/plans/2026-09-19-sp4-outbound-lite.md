@@ -66,7 +66,7 @@ Pick-check, CheckPick, pack station, Destination, waves, zone picking, multi-lin
 
 ---
 
-## Task O1. Order tables (done 2026-09-19, PENDINGSHA)
+## Task O1. Order tables (done 2026-09-19, 9687498)
 
 **Files:** Outbound csproj + `Contracts/Dtos.cs`; `Entities.cs`, `TenantDbContext.cs`; migration `OutboundTables`; sln + Api + Architecture.Tests ProjectReferences; `OutboundModuleTests.cs`. Also snapshot_schema if the last migration name is asserted (LayoutCommandTests).
 
