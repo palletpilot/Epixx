@@ -102,7 +102,7 @@ Unique `(warehouse_id, source, external_ref)` on order.
 
 ---
 
-## Task O2. Create order and allocate (done 2026-09-19, PENDINGSHA)
+## Task O2. Create order and allocate (done 2026-09-19, 4d2e60e)
 
 **Files:** `OrderApi.cs`; `Program.cs`; tests in `OutboundModuleTests.cs`.
 
