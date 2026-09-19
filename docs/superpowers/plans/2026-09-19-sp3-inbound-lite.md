@@ -65,7 +65,7 @@ ASN/receipts, smart putaway strategy, dimensional fit, partial putaway, `new_hu_
 
 ---
 
-## Task I1. Inventory tables (done 2026-09-19, pending)
+## Task I1. Inventory tables (done 2026-09-19, d292648)
 
 **Files:** `Entities.cs`, `TenantDbContext.cs`, migration `InventoryTables`, extend `Inventory/Contracts/Dtos.cs`, test `InventoryModuleTests.cs`. Also `LayoutCommandTests` `snapshot_schema` if the last migration name changes (same as C1).
 
