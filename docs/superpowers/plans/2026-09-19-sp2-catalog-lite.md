@@ -258,17 +258,17 @@ Nav: `RouterLink` to `/app/articles` with the same `navClass` as Lager/Uppgifter
 
 ---
 
-## Task C5. Playwright: create article, list shows it
+## Task C5. Playwright: create article, list shows it (done 2026-09-19, SHA)
 
 **Files:** `frontend/apps/web/e2e/article-create.spec.ts`.
 
 Mock platform `/me` and login like `signup-to-tasks.spec.ts`. Mock wms `GET /units` with `st`, `GET /articles` empty then after POST return the created row, `POST /articles` 201. Flow: login → `/app/articles` → fill sku + name → Skapa artikel → list has `KAFFE-500`. Does not replace C2 integration tests.
 
-- [ ] **Step 1:** Write the spec. Run `pnpm -C frontend exec playwright test --config apps/web/playwright.config.ts`. Expected: FAIL (no /articles route or copy).
+- [x] **Step 1:** Write the spec. Run `pnpm -C frontend exec playwright test --config apps/web/playwright.config.ts`. Expected: FAIL (no /articles route or copy).
 
-- [ ] **Step 2:** C4 already added the page; the spec should pass. If selectors miss, fix the spec or the labels — do not weaken `/artikel|articles/i`.
+- [x] **Step 2:** C4 already added the page; the spec should pass. If selectors miss, fix the spec or the labels — do not weaken `/artikel|articles/i`.
 
-- [ ] **Step 3:** Confirm `signup-to-tasks` still green.
+- [x] **Step 3:** Confirm `signup-to-tasks` still green.
 
 **Tests:** `article-create.spec.ts`.
 
