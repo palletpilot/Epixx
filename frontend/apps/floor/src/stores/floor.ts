@@ -11,7 +11,16 @@ import {
   PIN_LOCK_MS,
   verifyPin,
 } from "../auth/pin";
-import { getDb, type DeviceRow, type LocationRow, type SessionRow, type TaskRow, type WarehouseRow } from "../db";
+import {
+  getDb,
+  type ArticleRow,
+  type DeviceRow,
+  type LocationRow,
+  type SessionRow,
+  type TaskRow,
+  type UnitRow,
+  type WarehouseRow,
+} from "../db";
 import { APP_VERSION, platformUrl, syncUrl } from "../env";
 import { applyFeedEntries, flushOutbox, flushState, webLock, type FlushHttpResult } from "../sync/flush";
 import { enqueueAisleMap } from "../map/enqueueAisle";
@@ -321,11 +330,13 @@ export const useFloorStore = defineStore("floor", {
       this.warehouses = await db.warehouses.toArray();
     },
     async loadSnapshot(warehouseId: string): Promise<void> {
-      const [taskRes, locRes] = await Promise.all([
+      const [taskRes, locRes, articleRes, unitRes] = await Promise.all([
         this.authedFetch(`${syncUrl()}/sync/snapshot?warehouse=${warehouseId}&entity=Task`),
         this.authedFetch(`${syncUrl()}/sync/snapshot?warehouse=${warehouseId}&entity=Location`),
+        this.authedFetch(`${syncUrl()}/sync/snapshot?warehouse=${warehouseId}&entity=Article`),
+        this.authedFetch(`${syncUrl()}/sync/snapshot?warehouse=${warehouseId}&entity=UnitOfMeasure`),
       ]);
-      if (taskRes.status === 410 || locRes.status === 410) {
+      if (taskRes.status === 410 || locRes.status === 410 || articleRes.status === 410 || unitRes.status === 410) {
         await this.markRevoked();
         return;
       }
@@ -341,16 +352,34 @@ export const useFloorStore = defineStore("floor", {
       const locBody = locRes.ok
         ? ((await locRes.json()) as { items?: LocationRow[] })
         : { items: [] };
+      const articleBody = articleRes.ok
+        ? ((await articleRes.json()) as { items?: ArticleRow[] })
+        : { items: [] };
+      const unitBody = unitRes.ok
+        ? ((await unitRes.json()) as { items?: UnitRow[] })
+        : { items: [] };
       const db = getDb();
-      await db.transaction("rw", db.tasks, db.locations, db.cursor, async () => {
+      await db.transaction("rw", db.tasks, db.locations, db.articles, db.units, db.cursor, async () => {
         await db.tasks.where("warehouse_id").equals(warehouseId).delete();
         await db.locations.where("warehouse_id").equals(warehouseId).delete();
+        await db.articles.clear();
+        await db.units.clear();
         for (const item of taskBody.items ?? []) {
           await db.tasks.put(item);
         }
         for (const item of locBody.items ?? []) {
           if (item.id) {
             await db.locations.put(item);
+          }
+        }
+        for (const item of articleBody.items ?? []) {
+          if (item.id) {
+            await db.articles.put(item);
+          }
+        }
+        for (const item of unitBody.items ?? []) {
+          if (item.id) {
+            await db.units.put(item);
           }
         }
         await db.cursor.put({

@@ -82,12 +82,34 @@ export type WarehouseRow = {
   activated_at?: string | null;
 };
 
+export type ArticleRow = {
+  id: string;
+  sku: string;
+  name: string;
+  status: string;
+  base_uom_id: string;
+  quantity_precision: number;
+  quantity_step: string;
+  packaging_levels: { id: string; rank: number; name: string; qty_in_base: string }[];
+};
+
+export type UnitRow = {
+  id: string;
+  code: string;
+  dimension: string;
+  factor_to_dimension_base: string;
+  display_name_sv: string;
+  display_name_en: string;
+};
+
 export class FloorDb extends Dexie {
   outbox!: Table<OutboxRow, string>;
   confirmed!: Table<ConfirmedRow, string>;
   tasks!: Table<TaskRow, string>;
   locations!: Table<LocationRow, string>;
   warehouses!: Table<WarehouseRow, string>;
+  articles!: Table<ArticleRow, string>;
+  units!: Table<UnitRow, string>;
   cursor!: Table<CursorRow, string>;
   sessions!: Table<SessionRow, string>;
   device!: Table<DeviceRow, string>;
@@ -105,6 +127,10 @@ export class FloorDb extends Dexie {
     this.version(2).stores({
       locations: "id, warehouse_id, parent_id, type, code",
       warehouses: "id",
+    });
+    this.version(3).stores({
+      articles: "id, sku, status",
+      units: "id, code",
     });
   }
 }
