@@ -195,7 +195,7 @@ Rules:
 
 ---
 
-## Task I4. Floor receive and putaway (done 2026-09-19, PENDINGSHA)
+## Task I4. Floor receive and putaway (done 2026-09-19, e4a73b7)
 
 **Files:** `ReceiveView.vue`, `TaskDetailView.vue`, `router.ts`, `floor.ts` enqueue, `TaskListView.vue` link, i18n sv/en.
 
