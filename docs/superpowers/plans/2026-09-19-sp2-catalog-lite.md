@@ -122,7 +122,7 @@ Must print none. Additive only (new tables).
 
 ---
 
-## Task C2. POST /articles, GET /articles, GET /units (done 2026-09-19, pending)
+## Task C2. POST /articles, GET /articles, GET /units (done 2026-09-19, 6bfa351)
 
 **Files:** create `backend/src/WmsCore/Api/Catalog/ArticleApi.cs`; modify `Program.cs`; tests in `CatalogModuleTests.cs`; snapshot branch in `InternalApi.cs` `GetSnapshot`.
 
