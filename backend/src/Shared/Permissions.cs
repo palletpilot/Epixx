@@ -2,7 +2,7 @@ namespace Lagerkraft.Shared;
 
 public static class Permissions
 {
-    public const int MapVersion = 1;
+    public const int MapVersion = 2;
 
     public const string TenantAdmin = "tenant_admin";
     public const string WarehouseManager = "warehouse_manager";
@@ -38,6 +38,7 @@ public static class Permissions
     public const string OutboundPick = "outbound.pick";
     public const string OutboundPack = "outbound.pack";
     public const string OutboundShip = "outbound.ship";
+    public const string OutboundCheck = "outbound.check";
     public const string TasksReadOwn = "tasks.read_own";
     public const string TasksReadAll = "tasks.read_all";
     public const string TasksExecute = "tasks.execute";
@@ -63,7 +64,7 @@ public static class Permissions
             CatalogRead, CatalogWrite, CatalogImport, AttributesManage,
             InventoryRead, InventoryMove, InventoryCount, InventoryAdjust,
             InboundManage, InboundReceive, InboundPutaway,
-            OrdersManage, OutboundPick, OutboundPack, OutboundShip,
+            OrdersManage, OutboundPick, OutboundPack, OutboundShip, OutboundCheck,
             TasksReadOwn, TasksReadAll, TasksExecute, TasksAssign,
             DeviationsReport, DeviationsResolve,
             PrintingPrint, PrintingManage,
@@ -80,7 +81,7 @@ public static class Permissions
             CatalogRead, CatalogWrite, CatalogImport,
             InventoryRead, InventoryMove, InventoryCount, InventoryAdjust,
             InboundManage, InboundReceive, InboundPutaway,
-            OrdersManage, OutboundPick, OutboundPack, OutboundShip,
+            OrdersManage, OutboundPick, OutboundPack, OutboundShip, OutboundCheck,
             TasksReadOwn, TasksReadAll, TasksExecute, TasksAssign,
             DeviationsReport, DeviationsResolve,
             PrintingPrint, PrintingManage,

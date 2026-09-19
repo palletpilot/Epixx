@@ -75,6 +75,19 @@ Rules: services do not reference each other (only `Shared` and `ServiceDefaults`
 
 Commit: `sp0: A3 - architecture tests`.
 
+### Task A4. Permission `outbound.check` (spec 2026-09-13) (done 2026-09-19, PLACEHOLDER)
+
+Files: `backend/src/Shared/Permissions.cs`, `backend/tests/Lagerkraft.Shared.Tests/PermissionMapTests.cs`, `frontend/packages/domain/src/generated/permissions.ts` (regenerate via `frontend/tools/gen-permissions`). Bump `Permissions.MapVersion` because the static map changed.
+
+Steps:
+1. Add constant `OutboundCheck = "outbound.check"`.
+2. Grant it to `tenant_admin` and `warehouse_manager` only, matching the spec Permission model table.
+3. Regenerate the frontend map. The copied expected arrays in `PermissionMapTests` must include the new permission for A and M.
+
+Tests: existing `ForRole_SpecMatrix_Matches` fails until the map and the copied spec table agree.
+
+Commit: `sp0: A4 - outbound.check on the permission map`.
+
 ---
 
 ## Phase B: platform service
@@ -297,6 +310,8 @@ Commit: `sp0: G3 - observability, alerts, runbooks`.
 
 A1 ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ A2 ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ A3 are sequential and short. B1 and C1 can proceed in parallel once A2 is in; B2 to B7 depend on B1 (B7 after B2 is enough; it does not need B3); C2 to C4 depend on C1; D1 depends on C2, B2 and B5; D2 depends on C4 and D1; E1 depends on C4 and B1; F1 can start after A2 (empty `contracts/` trees exist from A1; real schemas arrive in C3/C4); F2 depends on B2, B3, B7, D2; F3 depends on D1, D2, B5; G1 can start after A3 and grows with every task; G2 and G3 are last and mostly needs-human.
 
+A4 can land any time after A2; it only touches the permission map.
+
 Two developers: one takes B (platform), one takes C then D (core and gateway); whoever finishes first takes F1. A third developer takes F2 and F3 as soon as D2 lands, and G in the gaps.
 
 ## Deliberate simplifications (each carries its ceiling)
@@ -310,7 +325,7 @@ Two developers: one takes B (platform), one takes C then D (core and gateway); w
 - `ponytail:` webhook tables live in the platform DB and integrations writes them; a platform-internal API in front of those tables is the upgrade if a second writer appears.
 - `ponytail:` local dev uses JWT `tid`, not wildcard slug hosts; slug host-header resolution is tested but not required to run Aspire.
 - `ponytail:` SSE permission filtering is in-process per event; a precomputed allow-list per connection is the upgrade if a busy warehouse makes it hot.
-- `ponytail:` `TaskLine` has the spec's columns and no foreign keys; sub-project 3 adds the FKs when article and location exist.
+- `ponytail:` `TaskLine` has the spec's columns and no foreign keys; sub-project 3 adds the FKs when article and location exist. Pick-check columns on `Task` (`checked_by`, `checked_at`, `check_verdict`) wait for sub-project 4.
 - `ponytail:` no impersonation endpoints; `act` is a reserved claim name only.
 
 
