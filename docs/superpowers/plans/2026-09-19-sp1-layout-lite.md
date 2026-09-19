@@ -122,7 +122,7 @@ Commit: `sp1: L5 - floor one-question mapping and id_map rewrite`.
 
 ---
 
-## Task L6. Office warehouse form and live schematic map
+## Task L6. Office warehouse form and live schematic map (done 2026-09-19, 9eb7cd4)
 
 Files: `frontend/packages/ui` `EmptyState.vue`, `AisleMap.vue` (racks as columns, levels as rows, bins as cells; cells keyed by location id/code); `WarehousesView.vue` — name + code pattern with live example (`A-01-03-02` for the default pattern); extra fields behind `Mer`; empty state next action; map on the warehouse page fed by `useRealtimeFeed` like `TasksView.vue`. Nav: Lager is home; devices/users/sso visually secondary (muted links), not restyled.
 
