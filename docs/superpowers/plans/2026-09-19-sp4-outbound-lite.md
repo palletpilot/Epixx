@@ -138,7 +138,7 @@ Create rules:
 
 ---
 
-## Task O3. ConfirmPick
+## Task O3. ConfirmPick (done 2026-09-19, pending)
 
 **Files:** `contracts/commands/ConfirmPick/v1.json` + fixture; `ConfirmPickHandler.cs`; register; `OutboundCommandTests.cs`; gen:commands.
 
@@ -158,13 +158,13 @@ Rules:
 - Apply: create tote HU if new; pick movement source bin → PICKING, from source HU to tote; decrement/delete source balance; upsert tote balance at PICKING; clear reservation; task `done`; line `picked`; order `picked`; `change_log` HU, balances, task, order.
 - Idempotent retry.
 
-- [ ] **Step 1:** `ConfirmPick_ShortPick_Rejected`. Fail.
+- [x] **Step 1:** `ConfirmPick_ShortPick_Rejected`. Fail.
 
-- [ ] **Step 2:** Schema, handler, register.
+- [x] **Step 2:** Schema, handler, register.
 
-- [ ] **Step 3:** `ConfirmPick_HappyPath_ToteAtPicking`; `ConfirmPick_Viewer_Forbidden`; `ConfirmPick_IdempotentRetry`.
+- [x] **Step 3:** `ConfirmPick_HappyPath_ToteAtPicking`; `ConfirmPick_Viewer_Forbidden`; `ConfirmPick_IdempotentRetry`.
 
-- [ ] **Step 4:** Break (leave stock at source); confirm happy-path fail; restore.
+- [x] **Step 4:** Break (leave stock at source); confirm happy-path fail; restore.
 
 **Tests:** those four names.
 

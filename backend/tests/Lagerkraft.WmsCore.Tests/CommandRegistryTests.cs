@@ -28,6 +28,7 @@ public sealed class CommandRegistryTests : IAsyncLifetime
         registry.TryGetHandler("SetLocationDimensions", out _).ShouldBeTrue();
         registry.TryGetHandler("ReceiveHandlingUnit", out _).ShouldBeTrue();
         registry.TryGetHandler("ConfirmPutaway", out _).ShouldBeTrue();
+        registry.TryGetHandler("ConfirmPick", out _).ShouldBeTrue();
     }
 
     [Fact]
