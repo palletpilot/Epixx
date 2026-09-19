@@ -2,6 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\ServiceDefaults\Lagerkraft.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\Shared\Lagerkraft.Shared.csproj" />
+    <ProjectReference Include="..\Catalog\Lagerkraft.WmsCore.Catalog.csproj" />
     <ProjectReference Include="..\Inventory\Lagerkraft.WmsCore.Inventory.csproj" />
     <ProjectReference Include="..\Layout\Lagerkraft.WmsCore.Layout.csproj" />
   </ItemGroup>

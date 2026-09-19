@@ -269,7 +269,7 @@ public sealed class LayoutCommandTests : IAsyncLifetime
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(Json);
         body.GetProperty("entity").GetString().ShouldBe("Location");
-        body.GetProperty("snapshot_schema").GetString()!.ShouldContain("LocationTree");
+        body.GetProperty("snapshot_schema").GetString()!.ShouldContain("CatalogTables");
         var items = body.GetProperty("items");
         var aisle = items.EnumerateArray().Single(el => el.GetProperty("id").GetGuid() == aisleId);
         aisle.GetProperty("code").GetString().ShouldBe("K");

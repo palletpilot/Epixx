@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Globalization;
+using Lagerkraft.WmsCore.Catalog.Contracts;
+using Microsoft.EntityFrameworkCore;
 
 namespace Lagerkraft.WmsCore.Api.Data;
 
@@ -14,6 +16,9 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
     public DbSet<Location> Locations => Set<Location>();
     public DbSet<WarehouseTask> Tasks => Set<WarehouseTask>();
     public DbSet<TaskLine> TaskLines => Set<TaskLine>();
+    public DbSet<UnitOfMeasure> UnitsOfMeasure => Set<UnitOfMeasure>();
+    public DbSet<Article> Articles => Set<Article>();
+    public DbSet<PackagingLevel> PackagingLevels => Set<PackagingLevel>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -112,5 +117,50 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
             e.Property(x => x.Status).HasMaxLength(32);
             e.HasIndex(x => x.TaskId);
         });
+
+        builder.Entity<UnitOfMeasure>(e =>
+        {
+            e.ToTable("unit_of_measure");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Code).HasMaxLength(16);
+            e.Property(x => x.Dimension).HasMaxLength(16);
+            e.Property(x => x.FactorToDimensionBase).HasPrecision(18, 6);
+            e.Property(x => x.DisplayNameSv).HasMaxLength(16);
+            e.Property(x => x.DisplayNameEn).HasMaxLength(16);
+            e.HasData(CatalogDefaults.Units.Select(ToUnitOfMeasure));
+        });
+
+        builder.Entity<Article>(e =>
+        {
+            e.ToTable("article");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Sku).HasMaxLength(64);
+            e.HasIndex(x => x.Sku).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.Gtin).HasMaxLength(14);
+            e.Property(x => x.Status).HasMaxLength(32);
+            e.Property(x => x.QuantityStep).HasPrecision(18, 6);
+            e.HasOne<UnitOfMeasure>().WithMany().HasForeignKey(x => x.BaseUomId);
+        });
+
+        builder.Entity<PackagingLevel>(e =>
+        {
+            e.ToTable("packaging_level");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(64);
+            e.Property(x => x.QtyInBase).HasPrecision(18, 6);
+            e.Property(x => x.Barcode).HasMaxLength(64);
+            e.HasIndex(x => new { x.ArticleId, x.Rank }).IsUnique();
+        });
     }
+
+    private static UnitOfMeasure ToUnitOfMeasure(UnitOfMeasureDto unit) => new()
+    {
+        Id = unit.Id,
+        Code = unit.Code,
+        Dimension = unit.Dimension,
+        FactorToDimensionBase = decimal.Parse(unit.FactorToDimensionBase, CultureInfo.InvariantCulture),
+        DisplayNameSv = unit.DisplayNameSv,
+        DisplayNameEn = unit.DisplayNameEn
+    };
 }
