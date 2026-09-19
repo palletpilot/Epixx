@@ -172,7 +172,7 @@ Rules:
 
 ---
 
-## Task O4. ShipAsPicked (done 2026-09-19, pending)
+## Task O4. ShipAsPicked (done 2026-09-19, 8cbc0d9)
 
 **Files:** `contracts/commands/ShipAsPicked/v1.json` + fixture; `ShipAsPickedHandler.cs`; register; tests in `OutboundCommandTests.cs`; gen:commands.
 
