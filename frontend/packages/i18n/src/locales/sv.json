@@ -8,6 +8,7 @@
   },
   "nav": {
     "warehouses": "Lager",
+    "articles": "Artiklar",
     "tasks": "Uppgifter",
     "devices": "Enheter",
     "users": "Användare",
@@ -77,6 +78,17 @@
     "emptyAction": "Skapa ett lager, sedan kartlägg en gång i golvappen.",
     "mapEmpty": "Inga platser ännu. Kartlägg en gång i golvappen.",
     "list": "Lagerlista"
+  },
+  "articles": {
+    "title": "Artiklar",
+    "sku": "Artikelnummer",
+    "name": "Namn",
+    "unit": "Enhet",
+    "create": "Skapa artikel",
+    "empty": "Inga artiklar ännu.",
+    "emptyAction": "Skapa en artikel. Nästa steg är att ta emot den på golvet.",
+    "list": "Artikellista",
+    "error": "Kunde inte skapa artikeln."
   },
   "tasks": {
     "title": "Uppgifter",

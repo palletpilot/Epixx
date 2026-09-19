@@ -34,6 +34,7 @@ async function logout() {
       <p class="text-sm font-semibold tracking-wide">{{ t("brand.name") }}</p>
       <nav class="flex flex-wrap gap-4" :aria-label="t('nav.tenant')">
         <RouterLink :class="navClass" to="/app/warehouses">{{ t("nav.warehouses") }}</RouterLink>
+        <RouterLink :class="navClass" to="/app/articles">{{ t("nav.articles") }}</RouterLink>
         <RouterLink :class="navClass" to="/app/tasks">{{ t("nav.tasks") }}</RouterLink>
         <RouterLink :class="[navClass, 'text-foreground/50']" to="/app/devices">{{ t("nav.devices") }}</RouterLink>
         <RouterLink :class="[navClass, 'text-foreground/50']" to="/app/users">{{ t("nav.users") }}</RouterLink>

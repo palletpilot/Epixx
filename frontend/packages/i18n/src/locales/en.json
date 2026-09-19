@@ -8,6 +8,7 @@
   },
   "nav": {
     "warehouses": "Warehouses",
+    "articles": "Articles",
     "tasks": "Tasks",
     "devices": "Devices",
     "users": "Users",
@@ -77,6 +78,17 @@
     "emptyAction": "Create a warehouse, then map an aisle on the floor app.",
     "mapEmpty": "No bins yet. Map an aisle on the floor app.",
     "list": "Warehouse list"
+  },
+  "articles": {
+    "title": "Articles",
+    "sku": "SKU",
+    "name": "Name",
+    "unit": "Unit",
+    "create": "Create article",
+    "empty": "No articles yet.",
+    "emptyAction": "Create an article. Next you receive it on the floor app.",
+    "list": "Article list",
+    "error": "Could not create the article."
   },
   "tasks": {
     "title": "Tasks",
