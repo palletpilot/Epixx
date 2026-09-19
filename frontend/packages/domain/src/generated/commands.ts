@@ -10,6 +10,14 @@ export interface CompleteTaskV1 {
   [k: string]: unknown;
 }
 
+export interface ConfirmPutawayV1 {
+  task_id: string;
+  location_id: string;
+  qty: string;
+  new_hu_id?: string | null;
+  [k: string]: unknown;
+}
+
 export interface CreateLocationBatchV1 {
   warehouse_id: string;
   parent_id?: string | null;

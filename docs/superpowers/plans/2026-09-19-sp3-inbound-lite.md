@@ -112,7 +112,7 @@ Unique `(warehouse_id, lpn)` on handling_unit. Unique `(handling_unit_id, articl
 
 ---
 
-## Task I2. ReceiveHandlingUnit (done 2026-09-19, pending)
+## Task I2. ReceiveHandlingUnit (done 2026-09-19, d88b0c1)
 
 **Files:** `contracts/commands/ReceiveHandlingUnit/v1.json` + fixture; `ReceiveHandlingUnitHandler.cs`; `Program.cs` register; `InboundCommandTests.cs`; `CommandRegistryTests` lists the type; `pnpm -C frontend gen:commands`.
 
@@ -155,7 +155,7 @@ Create rules:
 
 ---
 
-## Task I3. ConfirmPutaway
+## Task I3. ConfirmPutaway (done 2026-09-19, pending)
 
 **Files:** `contracts/commands/ConfirmPutaway/v1.json` + fixture; `ConfirmPutawayHandler.cs`; register; tests in `InboundCommandTests.cs`; gen:commands.
 
@@ -181,13 +181,13 @@ Rules:
 - If `location_id` ≠ `task.suggested_location_id` (and suggested is not null): still apply, insert `Deviation(kind=policy_override, command_id, location_id, handling_unit_id, article_id, qty_base)`.
 - Idempotent retry.
 
-- [ ] **Step 1:** Write `ConfirmPutaway_HuAlreadyMoved_Rejected`. Run; fail.
+- [x] **Step 1:** Write `ConfirmPutaway_HuAlreadyMoved_Rejected`. Run; fail.
 
-- [ ] **Step 2:** Schema, handler, register.
+- [x] **Step 2:** Schema, handler, register.
 
-- [ ] **Step 3:** `ConfirmPutaway_HappyPath_MovesToBin`; `ConfirmPutaway_WrongBin_PolicyOverride`; `ConfirmPutaway_UnknownLocation_Rejected`; `ConfirmPutaway_IdempotentRetry`.
+- [x] **Step 3:** `ConfirmPutaway_HappyPath_MovesToBin`; `ConfirmPutaway_WrongBin_PolicyOverride`; `ConfirmPutaway_UnknownLocation_Rejected`; `ConfirmPutaway_IdempotentRetry`.
 
-- [ ] **Step 4:** Break override (reject wrong bin); confirm policy test fails; restore.
+- [x] **Step 4:** Break override (reject wrong bin); confirm policy test fails; restore.
 
 **Tests:** those five names.
 
