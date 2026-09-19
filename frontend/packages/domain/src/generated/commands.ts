@@ -10,6 +10,14 @@ export interface CompleteTaskV1 {
   [k: string]: unknown;
 }
 
+export interface ConfirmPickV1 {
+  task_id: string;
+  tote_id: string;
+  tote_lpn: string;
+  qty: string;
+  [k: string]: unknown;
+}
+
 export interface ConfirmPutawayV1 {
   task_id: string;
   location_id: string;
