@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lagerkraft:commands/ShipAsPicked/v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["order_id", "tote_id"],
+  "properties": {
+    "order_id": { "type": "string", "format": "uuid" },
+    "tote_id": { "type": "string", "format": "uuid" }
+  }
+}

@@ -87,3 +87,9 @@ export interface SetLocationDimensionsV1 {
   [k: string]: unknown;
 }
 
+export interface ShipAsPickedV1 {
+  order_id: string;
+  tote_id: string;
+  [k: string]: unknown;
+}
+

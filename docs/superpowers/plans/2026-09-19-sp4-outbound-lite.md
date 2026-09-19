@@ -172,7 +172,7 @@ Rules:
 
 ---
 
-## Task O4. ShipAsPicked
+## Task O4. ShipAsPicked (done 2026-09-19, pending)
 
 **Files:** `contracts/commands/ShipAsPicked/v1.json` + fixture; `ShipAsPickedHandler.cs`; register; tests in `OutboundCommandTests.cs`; gen:commands.
 
@@ -193,13 +193,13 @@ Rules:
 - Apply: shipment + shipment_hu; movement pick reason=ship, from PICKING to null; delete zero balances; order `shipped`; outbox `outbound.shipped`; `change_log` order, balances.
 - Idempotent retry.
 
-- [ ] **Step 1:** `ShipAsPicked_OrderNotPicked_Rejected`. Fail.
+- [x] **Step 1:** `ShipAsPicked_OrderNotPicked_Rejected`. Fail.
 
-- [ ] **Step 2:** Schema, handler, register.
+- [x] **Step 2:** Schema, handler, register.
 
-- [ ] **Step 3:** `ShipAsPicked_HappyPath_BalanceGone`; `ShipAsPicked_IdempotentRetry`.
+- [x] **Step 3:** `ShipAsPicked_HappyPath_BalanceGone`; `ShipAsPicked_IdempotentRetry`.
 
-- [ ] **Step 4:** Break (leave balance); confirm fail; restore.
+- [x] **Step 4:** Break (leave balance); confirm fail; restore.
 
 **Tests:** those three names.
 

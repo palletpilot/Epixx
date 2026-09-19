@@ -168,6 +168,64 @@ public sealed class OutboundCommandTests : IAsyncLifetime
         (await db.HandlingUnits.CountAsync(h => h.Id == toteId)).ShouldBe(1);
     }
 
+    [Fact]
+    public async Task ShipAsPicked_OrderNotPicked_Rejected()
+    {
+        var seeded = await SeedAllocatedPickAsync();
+        var result = await Apply("ShipAsPicked", new
+        {
+            order_id = seeded.OrderId,
+            tote_id = Guid.CreateVersion7()
+        });
+        result.Outcome.ShouldBe("Rejected");
+        result.Code.ShouldBe("invalid_status");
+        await using var db = OpenDb();
+        (await db.OutboundOrders.SingleAsync(o => o.Id == seeded.OrderId)).Status.ShouldBe("allocated");
+        (await db.Shipments.CountAsync()).ShouldBe(0);
+        (await db.StockMovements.CountAsync(m => m.Reason == "ship")).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task ShipAsPicked_HappyPath_BalanceGone()
+    {
+        var seeded = await SeedPickedToteAsync();
+        var result = await Apply("ShipAsPicked", new
+        {
+            order_id = seeded.OrderId,
+            tote_id = seeded.ToteId
+        });
+        result.Outcome.ShouldBe("Applied");
+
+        await using var db = OpenDb();
+        var picking = await db.Locations.SingleAsync(l => l.WarehouseId == _warehouseId && l.Code == "PICKING");
+        (await db.StockBalances.AnyAsync(b => b.LocationId == picking.Id)).ShouldBeFalse();
+        (await db.OutboundOrders.SingleAsync(o => o.Id == seeded.OrderId)).Status.ShouldBe("shipped");
+        var shipment = await db.Shipments.SingleAsync(s => s.OrderId == seeded.OrderId);
+        (await db.ShipmentHandlingUnits.SingleAsync(h => h.ShipmentId == shipment.Id)).HandlingUnitId.ShouldBe(seeded.ToteId);
+        var move = await db.StockMovements.SingleAsync(m => m.Reason == "ship");
+        move.FromLocationId.ShouldBe(picking.Id);
+        move.ToLocationId.ShouldBeNull();
+        move.FromHandlingUnitId.ShouldBe(seeded.ToteId);
+        move.ToHandlingUnitId.ShouldBeNull();
+        (await db.Outbox.CountAsync(o => o.Type == "outbound.shipped")).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task ShipAsPicked_IdempotentRetry()
+    {
+        var seeded = await SeedPickedToteAsync();
+        var commandId = Guid.CreateVersion7();
+        var payload = new { order_id = seeded.OrderId, tote_id = seeded.ToteId };
+        var first = await Apply("ShipAsPicked", payload, commandId: commandId);
+        var second = await Apply("ShipAsPicked", payload, commandId: commandId);
+        first.Outcome.ShouldBe("Applied");
+        second.Outcome.ShouldBe("Applied");
+        second.CommandId.ShouldBe(commandId);
+        await using var db = OpenDb();
+        (await db.StockMovements.CountAsync(m => m.CommandId == commandId)).ShouldBe(1);
+        (await db.Shipments.CountAsync(s => s.OrderId == seeded.OrderId)).ShouldBe(1);
+    }
+
     private async Task<SeededPick> SeedAllocatedPickAsync()
     {
         var binId = Guid.CreateVersion7();
@@ -194,6 +252,20 @@ public sealed class OutboundCommandTests : IAsyncLifetime
             .Select(t => t.Id)
             .SingleAsync();
         return new SeededPick(orderId, taskId, huId, binId);
+    }
+
+    private async Task<SeededPicked> SeedPickedToteAsync()
+    {
+        var seeded = await SeedAllocatedPickAsync();
+        var toteId = Guid.CreateVersion7();
+        (await Apply("ConfirmPick", new
+        {
+            task_id = seeded.TaskId,
+            tote_id = toteId,
+            tote_lpn = "TOTE-" + toteId.ToString("N")[..8].ToUpperInvariant(),
+            qty = "1"
+        })).Outcome.ShouldBe("Applied");
+        return new SeededPicked(seeded.OrderId, toteId);
     }
 
     private object ReceivePayload(Guid huId, Guid taskId, string lpn) => new
@@ -273,6 +345,7 @@ public sealed class OutboundCommandTests : IAsyncLifetime
     }
 
     private sealed record SeededPick(Guid OrderId, Guid TaskId, Guid HuId, Guid BinId);
+    private sealed record SeededPicked(Guid OrderId, Guid ToteId);
     private sealed record BatchResultDto(List<CommandResultDto> Results);
     private sealed record CommandResultDto(
         Guid CommandId,

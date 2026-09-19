@@ -29,6 +29,7 @@ public sealed class CommandRegistryTests : IAsyncLifetime
         registry.TryGetHandler("ReceiveHandlingUnit", out _).ShouldBeTrue();
         registry.TryGetHandler("ConfirmPutaway", out _).ShouldBeTrue();
         registry.TryGetHandler("ConfirmPick", out _).ShouldBeTrue();
+        registry.TryGetHandler("ShipAsPicked", out _).ShouldBeTrue();
     }
 
     [Fact]
