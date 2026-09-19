@@ -23,6 +23,7 @@ const selectedId = ref("");
 const example = computed(() => previewLocationCode(pattern.value));
 const enabled = computed(() => Boolean(auth.accessToken && selectedId.value));
 const selected = computed(() => tenant.warehouses.find((w) => w.id === selectedId.value));
+const hasWarehouses = computed(() => tenant.warehouses.length > 0);
 
 onMounted(async () => {
   await tenant.refresh();
@@ -95,61 +96,102 @@ async function create() {
   });
   name.value = "";
   pattern.value = DEFAULT_PATTERN;
-  if (!selectedId.value && tenant.warehouses[0]) {
-    selectedId.value = tenant.warehouses[0].id;
+  const last = tenant.warehouses.at(-1);
+  if (last) {
+    selectedId.value = last.id;
   }
 }
 </script>
 
 <template>
   <section>
-    <h1 class="mb-4 text-xl font-semibold">{{ t("warehouses.title") }}</h1>
-    <form class="mb-6 flex max-w-md flex-col gap-3" @submit.prevent="create">
-      <Input id="wh-name" v-model="name" :label="t('warehouses.name')" />
-      <Input id="wh-pattern" v-model="pattern" :label="t('warehouses.pattern')" />
-      <p class="text-sm text-foreground/70">{{ t("warehouses.example", { code: example }) }}</p>
-      <details class="text-sm" :open="more" @toggle="more = ($event.target as HTMLDetailsElement).open">
-        <summary>{{ t("warehouses.more") }}</summary>
-        <div class="mt-2 flex flex-col gap-2">
-          <Input id="wh-claim" v-model="claimMinutes" type="number" :label="t('warehouses.claimMinutes')" />
-          <label class="flex items-center gap-2">
-            <input v-model="nightShift" type="checkbox" />
-            {{ t("warehouses.nightShift") }}
-          </label>
-          <label class="flex items-center gap-2">
-            <input v-model="blindCount" type="checkbox" />
-            {{ t("warehouses.blindCount") }}
-          </label>
-          <label class="flex items-center gap-2">
-            <input v-model="zonePicking" type="checkbox" />
-            {{ t("warehouses.zonePicking") }}
-          </label>
+    <template v-if="!hasWarehouses">
+      <h1 class="mb-4 text-2xl font-semibold tracking-tight">{{ t("warehouses.title") }}</h1>
+      <EmptyState class="mb-6" :title="t('warehouses.empty')">
+        {{ t("warehouses.emptyAction") }}
+      </EmptyState>
+      <form class="flex max-w-md flex-col gap-3" @submit.prevent="create">
+        <Input id="wh-name" v-model="name" :label="t('warehouses.name')" />
+        <Input id="wh-pattern" v-model="pattern" :label="t('warehouses.pattern')" />
+        <p class="text-sm text-foreground/70">{{ t("warehouses.example", { code: example }) }}</p>
+        <details class="text-sm" :open="more" @toggle="more = ($event.target as HTMLDetailsElement).open">
+          <summary>{{ t("warehouses.more") }}</summary>
+          <div class="mt-2 flex flex-col gap-2">
+            <Input id="wh-claim" v-model="claimMinutes" type="number" :label="t('warehouses.claimMinutes')" />
+            <label class="flex items-center gap-2">
+              <input v-model="nightShift" type="checkbox" />
+              {{ t("warehouses.nightShift") }}
+            </label>
+            <label class="flex items-center gap-2">
+              <input v-model="blindCount" type="checkbox" />
+              {{ t("warehouses.blindCount") }}
+            </label>
+            <label class="flex items-center gap-2">
+              <input v-model="zonePicking" type="checkbox" />
+              {{ t("warehouses.zonePicking") }}
+            </label>
+          </div>
+        </details>
+        <Button type="submit">{{ t("warehouses.create") }}</Button>
+      </form>
+    </template>
+
+    <template v-else>
+      <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 class="text-sm font-medium text-foreground/60">{{ t("warehouses.title") }}</h1>
+          <p class="text-3xl font-semibold tracking-tight">{{ selected?.name }}</p>
         </div>
+        <ul :aria-label="t('warehouses.list')" class="flex flex-wrap gap-2">
+          <li v-for="w in tenant.warehouses" :key="w.id">
+            <button
+              type="button"
+              class="rounded-md border px-3 py-1.5 text-sm"
+              :class="
+                w.id === selectedId
+                  ? 'border-foreground bg-foreground text-background'
+                  : 'border-border bg-background'
+              "
+              :aria-current="w.id === selectedId ? 'true' : undefined"
+              @click="selectedId = w.id"
+            >
+              {{ w.name }}
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="rounded-lg border border-border p-4 sm:p-6">
+        <AisleMap v-if="selected" :locations="mapLocations" :empty="t('warehouses.mapEmpty')" />
+      </div>
+
+      <details class="mt-8 max-w-md rounded-lg border border-border p-4">
+        <summary class="cursor-pointer font-medium">{{ t("warehouses.new") }}</summary>
+        <form class="mt-4 flex flex-col gap-3" @submit.prevent="create">
+          <Input id="wh-name" v-model="name" :label="t('warehouses.name')" />
+          <Input id="wh-pattern" v-model="pattern" :label="t('warehouses.pattern')" />
+          <p class="text-sm text-foreground/70">{{ t("warehouses.example", { code: example }) }}</p>
+          <details class="text-sm" :open="more" @toggle="more = ($event.target as HTMLDetailsElement).open">
+            <summary>{{ t("warehouses.more") }}</summary>
+            <div class="mt-2 flex flex-col gap-2">
+              <Input id="wh-claim" v-model="claimMinutes" type="number" :label="t('warehouses.claimMinutes')" />
+              <label class="flex items-center gap-2">
+                <input v-model="nightShift" type="checkbox" />
+                {{ t("warehouses.nightShift") }}
+              </label>
+              <label class="flex items-center gap-2">
+                <input v-model="blindCount" type="checkbox" />
+                {{ t("warehouses.blindCount") }}
+              </label>
+              <label class="flex items-center gap-2">
+                <input v-model="zonePicking" type="checkbox" />
+                {{ t("warehouses.zonePicking") }}
+              </label>
+            </div>
+          </details>
+          <Button type="submit">{{ t("warehouses.create") }}</Button>
+        </form>
       </details>
-      <Button type="submit">{{ t("warehouses.create") }}</Button>
-    </form>
-
-    <EmptyState v-if="tenant.warehouses.length === 0" :title="t('warehouses.empty')">
-      {{ t("warehouses.emptyAction") }}
-    </EmptyState>
-
-    <ul v-else :aria-label="t('warehouses.list')" class="mb-6 flex flex-col gap-2">
-      <li v-for="w in tenant.warehouses" :key="w.id">
-        <button
-          type="button"
-          class="w-full rounded-md border border-border px-3 py-2 text-left"
-          :aria-current="w.id === selectedId ? 'true' : undefined"
-          @click="selectedId = w.id"
-        >
-          {{ w.name }}
-        </button>
-      </li>
-    </ul>
-
-    <AisleMap
-      v-if="selected"
-      :locations="mapLocations"
-      :empty="t('warehouses.mapEmpty')"
-    />
+    </template>
   </section>
 </template>

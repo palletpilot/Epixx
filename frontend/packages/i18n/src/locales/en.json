@@ -2,6 +2,10 @@
   "ui": {
     "close": "Close"
   },
+  "brand": {
+    "name": "Lagerkraft",
+    "lead": "Back office for the warehouse"
+  },
   "nav": {
     "warehouses": "Warehouses",
     "tasks": "Tasks",
@@ -68,6 +72,7 @@
     "blindCount": "Blind count",
     "zonePicking": "Zone picking",
     "create": "Create warehouse",
+    "new": "New warehouse",
     "empty": "No warehouses yet.",
     "emptyAction": "Create a warehouse, then map an aisle on the floor app.",
     "mapEmpty": "No bins yet. Map an aisle on the floor app.",

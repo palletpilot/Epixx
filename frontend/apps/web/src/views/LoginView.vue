@@ -5,6 +5,7 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { platformUrl } from "../env";
 import { useAuthStore } from "../stores/auth";
+import AuthLayout from "./AuthLayout.vue";
 
 const { t } = useI18n();
 const router = useRouter();
@@ -56,21 +57,24 @@ async function startSso() {
 </script>
 
 <template>
-  <form class="mx-auto mt-16 flex max-w-sm flex-col gap-3" @submit.prevent="submit">
-    <h1 class="text-xl font-semibold">{{ t("auth.login") }}</h1>
-    <Input id="email" v-model="email" type="email" :label="t('auth.email')" autocomplete="username" />
-    <Input
-      id="password"
-      v-model="password"
-      type="password"
-      :label="t('auth.password')"
-      autocomplete="current-password"
-    />
-    <Input v-if="showTotp" id="totp" v-model="totp" :label="t('auth.totp')" autocomplete="one-time-code" />
-    <p v-if="message" role="status">{{ message }}</p>
-    <Button type="submit">{{ t("auth.submit") }}</Button>
-    <Input id="slug" v-model="slug" :label="t('signup.slug')" />
-    <Button type="button" variant="outline" @click="startSso">{{ t("auth.sso") }}</Button>
-    <RouterLink class="text-sm underline" to="/signup">{{ t("auth.signupLink") }}</RouterLink>
-  </form>
+  <AuthLayout :brand="t('brand.name')" :title="t('auth.login')" :lead="t('brand.lead')">
+    <form class="flex flex-col gap-3" @submit.prevent="submit">
+      <Input id="email" v-model="email" type="email" :label="t('auth.email')" autocomplete="username" />
+      <Input
+        id="password"
+        v-model="password"
+        type="password"
+        :label="t('auth.password')"
+        autocomplete="current-password"
+      />
+      <Input v-if="showTotp" id="totp" v-model="totp" :label="t('auth.totp')" autocomplete="one-time-code" />
+      <p v-if="message" role="status">{{ message }}</p>
+      <Button type="submit">{{ t("auth.submit") }}</Button>
+      <div class="mt-2 border-t border-border pt-3">
+        <Input id="slug" v-model="slug" :label="t('signup.slug')" />
+        <Button class="mt-3 w-full" type="button" variant="outline" @click="startSso">{{ t("auth.sso") }}</Button>
+      </div>
+      <RouterLink class="text-sm text-foreground/70 underline" to="/signup">{{ t("auth.signupLink") }}</RouterLink>
+    </form>
+  </AuthLayout>
 </template>

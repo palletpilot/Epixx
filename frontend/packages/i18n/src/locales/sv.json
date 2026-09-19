@@ -2,6 +2,10 @@
   "ui": {
     "close": "Stäng"
   },
+  "brand": {
+    "name": "Lagerkraft",
+    "lead": "Backoffice för lagret"
+  },
   "nav": {
     "warehouses": "Lager",
     "tasks": "Uppgifter",
@@ -68,6 +72,7 @@
     "blindCount": "Blindinventering",
     "zonePicking": "Zonplock",
     "create": "Skapa lager",
+    "new": "Nytt lager",
     "empty": "Inga lager ännu.",
     "emptyAction": "Skapa ett lager, sedan kartlägg en gång i golvappen.",
     "mapEmpty": "Inga platser ännu. Kartlägg en gång i golvappen.",

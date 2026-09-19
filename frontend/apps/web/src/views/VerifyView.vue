@@ -4,6 +4,7 @@ import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { platformUrl } from "../env";
+import AuthLayout from "./AuthLayout.vue";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -28,10 +29,11 @@ async function submit() {
 </script>
 
 <template>
-  <form class="mx-auto mt-16 flex max-w-sm flex-col gap-3" @submit.prevent="submit">
-    <h1 class="text-xl font-semibold">{{ t("verify.title") }}</h1>
-    <Input id="token" v-model="token" :label="t('verify.token')" />
-    <p v-if="message" role="status">{{ message }}</p>
-    <Button type="submit">{{ t("verify.submit") }}</Button>
-  </form>
+  <AuthLayout :brand="t('brand.name')" :title="t('verify.title')" :lead="t('brand.lead')">
+    <form class="flex flex-col gap-3" @submit.prevent="submit">
+      <Input id="token" v-model="token" :label="t('verify.token')" />
+      <p v-if="message" role="status">{{ message }}</p>
+      <Button type="submit">{{ t("verify.submit") }}</Button>
+    </form>
+  </AuthLayout>
 </template>

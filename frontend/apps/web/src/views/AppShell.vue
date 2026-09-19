@@ -11,6 +11,16 @@ const { t } = useI18n();
 const auth = useAuthStore();
 const tenant = useTenantStore();
 const days = computed(() => tenant.trialDaysLeft);
+const tenantLabel = computed(() => {
+  const fromContext = tenant.context.company_name || tenant.context.slug;
+  if (fromContext) {
+    return fromContext;
+  }
+  const match = auth.memberships.find((m) => m.tenant_id === auth.tenantId);
+  return match?.company_name || match?.slug || t("nav.tenant");
+});
+const navClass =
+  "text-sm [&.router-link-active]:underline [&.router-link-active]:underline-offset-4";
 
 async function logout() {
   await auth.logout();
@@ -20,13 +30,14 @@ async function logout() {
 
 <template>
   <div class="min-h-screen">
-    <header class="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
-      <nav class="flex flex-wrap gap-3" :aria-label="t('nav.tenant')">
-        <RouterLink to="/app/warehouses">{{ t("nav.warehouses") }}</RouterLink>
-        <RouterLink to="/app/tasks">{{ t("nav.tasks") }}</RouterLink>
-        <RouterLink class="text-foreground/50" to="/app/devices">{{ t("nav.devices") }}</RouterLink>
-        <RouterLink class="text-foreground/50" to="/app/users">{{ t("nav.users") }}</RouterLink>
-        <RouterLink class="text-foreground/50" to="/app/sso">{{ t("nav.sso") }}</RouterLink>
+    <header class="flex flex-wrap items-center gap-3 border-b border-border px-6 py-4">
+      <p class="text-sm font-semibold tracking-wide">{{ t("brand.name") }}</p>
+      <nav class="flex flex-wrap gap-4" :aria-label="t('nav.tenant')">
+        <RouterLink :class="navClass" to="/app/warehouses">{{ t("nav.warehouses") }}</RouterLink>
+        <RouterLink :class="navClass" to="/app/tasks">{{ t("nav.tasks") }}</RouterLink>
+        <RouterLink :class="[navClass, 'text-foreground/50']" to="/app/devices">{{ t("nav.devices") }}</RouterLink>
+        <RouterLink :class="[navClass, 'text-foreground/50']" to="/app/users">{{ t("nav.users") }}</RouterLink>
+        <RouterLink :class="[navClass, 'text-foreground/50']" to="/app/sso">{{ t("nav.sso") }}</RouterLink>
       </nav>
       <label class="ml-auto flex items-center gap-2 text-sm">
         <span>{{ t("nav.tenant") }}</span>
@@ -40,16 +51,16 @@ async function logout() {
             {{ m.company_name }}
           </option>
           <option v-if="auth.memberships.length === 0 && auth.tenantId" :value="auth.tenantId">
-            {{ tenant.context.slug ?? auth.tenantId }}
+            {{ tenantLabel }}
           </option>
         </select>
       </label>
       <button type="button" class="text-sm underline" @click="logout">{{ t("nav.logout") }}</button>
     </header>
-    <Banner v-if="tenant.showTrialBanner && days != null" class="m-4" variant="warning">
+    <Banner v-if="tenant.showTrialBanner && days != null" class="mx-6 mt-4" variant="warning">
       {{ t("trial.banner", { days }) }}
     </Banner>
-    <main class="p-4">
+    <main class="mx-auto max-w-6xl px-6 py-8">
       <RouterView />
     </main>
   </div>

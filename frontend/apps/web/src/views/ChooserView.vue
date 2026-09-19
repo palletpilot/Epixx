@@ -3,6 +3,7 @@ import { Button } from "@lagerkraft/ui";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
+import AuthLayout from "./AuthLayout.vue";
 
 const { t } = useI18n();
 const auth = useAuthStore();
@@ -17,8 +18,7 @@ async function choose(tenantId: string) {
 </script>
 
 <template>
-  <div class="mx-auto mt-16 max-w-sm">
-    <h1 class="mb-4 text-xl font-semibold">{{ t("auth.chooserTitle") }}</h1>
+  <AuthLayout :brand="t('brand.name')" :title="t('auth.chooserTitle')" :lead="t('brand.lead')">
     <ul class="flex flex-col gap-2">
       <li v-for="m in auth.memberships" :key="m.tenant_id">
         <Button class="w-full" type="button" @click="choose(m.tenant_id)">
@@ -26,5 +26,5 @@ async function choose(tenantId: string) {
         </Button>
       </li>
     </ul>
-  </div>
+  </AuthLayout>
 </template>

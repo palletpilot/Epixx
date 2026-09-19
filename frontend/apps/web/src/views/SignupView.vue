@@ -3,6 +3,7 @@ import { Button, Input } from "@lagerkraft/ui";
 import { ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { platformUrl } from "../env";
+import AuthLayout from "./AuthLayout.vue";
 
 const { t } = useI18n();
 const company = ref("");
@@ -73,22 +74,23 @@ async function submit(joinRequest = false) {
 </script>
 
 <template>
-  <form class="mx-auto mt-12 flex max-w-sm flex-col gap-3" @submit.prevent="submit(false)">
-    <h1 class="text-xl font-semibold">{{ t("signup.title") }}</h1>
-    <Input id="company" v-model="company" :label="t('signup.company')" />
-    <Input id="org" v-model="orgNumber" :label="t('signup.orgNumber')" />
-    <Input id="name" v-model="displayName" :label="t('signup.name')" />
-    <Input id="email" v-model="email" type="email" :label="t('auth.email')" />
-    <Input id="password" v-model="password" type="password" :label="t('auth.password')" />
-    <Input id="slug" v-model="slug" :label="t('signup.slug')" />
-    <p class="text-sm text-foreground/70">{{ t("signup.slugHint") }}</p>
-    <template v-if="joinCompany">
-      <p role="status">{{ t("signup.joinTitle", { company: joinCompany }) }}</p>
-      <p>{{ t("signup.joinHint") }}</p>
-      <Button type="button" @click="submit(true)">{{ t("signup.joinSubmit") }}</Button>
-    </template>
-    <p v-if="message" role="status">{{ message }}</p>
-    <Button v-if="!joinCompany" type="submit">{{ t("signup.submit") }}</Button>
-    <RouterLink class="text-sm underline" to="/login">{{ t("signup.loginLink") }}</RouterLink>
-  </form>
+  <AuthLayout :brand="t('brand.name')" :title="t('signup.title')" :lead="t('brand.lead')">
+    <form class="flex flex-col gap-3" @submit.prevent="submit(false)">
+      <Input id="company" v-model="company" :label="t('signup.company')" />
+      <Input id="org" v-model="orgNumber" :label="t('signup.orgNumber')" />
+      <Input id="name" v-model="displayName" :label="t('signup.name')" />
+      <Input id="email" v-model="email" type="email" :label="t('auth.email')" />
+      <Input id="password" v-model="password" type="password" :label="t('auth.password')" />
+      <Input id="slug" v-model="slug" :label="t('signup.slug')" />
+      <p class="text-sm text-foreground/70">{{ t("signup.slugHint") }}</p>
+      <template v-if="joinCompany">
+        <p role="status">{{ t("signup.joinTitle", { company: joinCompany }) }}</p>
+        <p>{{ t("signup.joinHint") }}</p>
+        <Button type="button" @click="submit(true)">{{ t("signup.joinSubmit") }}</Button>
+      </template>
+      <p v-if="message" role="status">{{ message }}</p>
+      <Button v-if="!joinCompany" type="submit">{{ t("signup.submit") }}</Button>
+      <RouterLink class="text-sm text-foreground/70 underline" to="/login">{{ t("signup.loginLink") }}</RouterLink>
+    </form>
+  </AuthLayout>
 </template>

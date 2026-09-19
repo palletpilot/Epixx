@@ -45,15 +45,15 @@ const aisles = computed(() => {
   <div v-if="aisles.length === 0" class="text-sm text-foreground/70">{{ empty }}</div>
   <div v-else class="flex flex-col gap-8">
     <section v-for="block in aisles" :key="block.aisle.id">
-      <h2 class="mb-2 text-sm font-medium">{{ block.aisle.code }}</h2>
+      <h2 class="mb-3 text-sm font-medium">{{ block.aisle.code }}</h2>
       <div
-        class="grid gap-1"
-        :style="{ gridTemplateColumns: `repeat(${Math.max(block.columns.length, 1)}, minmax(4rem, 1fr))` }"
+        class="grid gap-3"
+        :style="{ gridTemplateColumns: `repeat(${Math.max(block.columns.length, 1)}, minmax(5rem, 1fr))` }"
       >
         <div
           v-for="col in block.columns"
           :key="col.rack.id"
-          class="text-center text-xs font-medium text-foreground/70"
+          class="text-center font-mono text-xs font-medium text-foreground/70"
         >
           {{ col.rack.code }}
         </div>
@@ -62,7 +62,7 @@ const aisles = computed(() => {
             <div
               v-for="bin in col.rows[rowIndex - 1]?.bins ?? []"
               :key="bin.id"
-              class="min-h-10 rounded-md border border-border px-1 py-1 text-center text-xs"
+              class="flex min-h-12 items-center justify-center rounded-md border border-border bg-foreground/[0.04] px-1 py-1 text-center font-mono text-xs"
               :data-location-id="bin.id"
               :data-code="bin.code"
             >
