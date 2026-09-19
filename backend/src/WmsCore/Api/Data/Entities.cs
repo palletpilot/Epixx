@@ -222,3 +222,43 @@ public sealed class LocationReservation
     public Guid TaskId { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }
 }
+
+public sealed class OutboundOrder
+{
+    public Guid Id { get; set; }
+    public Guid WarehouseId { get; set; }
+    public string Source { get; set; } = "manual";
+    public string ExternalRef { get; set; } = "";
+    public string DestinationName { get; set; } = "";
+    public DateTimeOffset? RequestedShipDate { get; set; }
+    public string Status { get; set; } = "draft";
+    public string? Notes { get; set; }
+}
+
+public sealed class OutboundOrderLine
+{
+    public Guid Id { get; set; }
+    public Guid OrderId { get; set; }
+    public Guid ArticleId { get; set; }
+    public decimal RequestedQtyBase { get; set; }
+    public Guid RequestedLevelId { get; set; }
+    public decimal AllocatedQtyBase { get; set; }
+    public decimal TolerancePct { get; set; }
+    public string Status { get; set; } = "open";
+}
+
+public sealed class Shipment
+{
+    public Guid Id { get; set; }
+    public Guid OrderId { get; set; }
+    public Guid? DockLocationId { get; set; }
+    public string? CarrierRef { get; set; }
+    public string? ConfirmationCode { get; set; }
+    public DateTimeOffset ShippedAt { get; set; }
+}
+
+public sealed class ShipmentHandlingUnit
+{
+    public Guid ShipmentId { get; set; }
+    public Guid HandlingUnitId { get; set; }
+}

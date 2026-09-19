@@ -24,6 +24,10 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
     public DbSet<StockBalance> StockBalances => Set<StockBalance>();
     public DbSet<LocationReservation> LocationReservations => Set<LocationReservation>();
+    public DbSet<OutboundOrder> OutboundOrders => Set<OutboundOrder>();
+    public DbSet<OutboundOrderLine> OutboundOrderLines => Set<OutboundOrderLine>();
+    public DbSet<Shipment> Shipments => Set<Shipment>();
+    public DbSet<ShipmentHandlingUnit> ShipmentHandlingUnits => Set<ShipmentHandlingUnit>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -204,6 +208,43 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
             e.HasKey(x => x.LocationId);
             e.HasIndex(x => x.TaskId);
             e.HasIndex(x => x.ExpiresAt);
+        });
+
+        builder.Entity<OutboundOrder>(e =>
+        {
+            e.ToTable("outbound_order");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Source).HasMaxLength(16);
+            e.Property(x => x.ExternalRef).HasMaxLength(64);
+            e.Property(x => x.DestinationName).HasMaxLength(256);
+            e.Property(x => x.Status).HasMaxLength(16);
+            e.HasIndex(x => new { x.WarehouseId, x.Source, x.ExternalRef }).IsUnique();
+        });
+
+        builder.Entity<OutboundOrderLine>(e =>
+        {
+            e.ToTable("outbound_order_line");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.RequestedQtyBase).HasPrecision(18, 6);
+            e.Property(x => x.AllocatedQtyBase).HasPrecision(18, 6);
+            e.Property(x => x.TolerancePct).HasPrecision(5, 2);
+            e.Property(x => x.Status).HasMaxLength(16);
+            e.HasIndex(x => x.OrderId);
+        });
+
+        builder.Entity<Shipment>(e =>
+        {
+            e.ToTable("shipment");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.CarrierRef).HasMaxLength(64);
+            e.Property(x => x.ConfirmationCode).HasMaxLength(64);
+            e.HasIndex(x => x.OrderId);
+        });
+
+        builder.Entity<ShipmentHandlingUnit>(e =>
+        {
+            e.ToTable("shipment_handling_unit");
+            e.HasKey(x => new { x.ShipmentId, x.HandlingUnitId });
         });
     }
 
