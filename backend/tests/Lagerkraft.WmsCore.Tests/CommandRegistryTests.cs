@@ -24,6 +24,7 @@ public sealed class CommandRegistryTests : IAsyncLifetime
         registry.TryGetHandler("Probe", out _).ShouldBeTrue();
         registry.TryGetHandler("CreateTask", out _).ShouldBeTrue();
         registry.TryGetHandler("ClaimTask", out _).ShouldBeTrue();
+        registry.TryGetHandler("CreateLocationBatch", out _).ShouldBeTrue();
     }
 
     [Fact]

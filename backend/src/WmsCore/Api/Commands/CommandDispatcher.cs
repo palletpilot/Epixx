@@ -186,7 +186,12 @@ public sealed class CommandDispatcher(
                     result = result with { ClockSkewMs = clockSkewMs };
                 }
 
-                await StoreAsync(db, result, deviation: result.Outcome == CommandOutcome.Rejected, envelope, clock.UtcNow, ct);
+                // Held must not land in processed_commands: the device retries when the cap or tenant state lifts.
+                if (result.Outcome != CommandOutcome.Held)
+                {
+                    await StoreAsync(db, result, deviation: result.Outcome == CommandOutcome.Rejected, envelope, clock.UtcNow, ct);
+                }
+
                 results.Add(result);
             }
             catch (Exception ex)

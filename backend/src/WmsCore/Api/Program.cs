@@ -4,6 +4,7 @@ using FluentValidation;
 using Lagerkraft.Shared;
 using Lagerkraft.WmsCore.Api.Commands;
 using Lagerkraft.WmsCore.Api.Commands.Probe;
+using Lagerkraft.WmsCore.Api.Commands.Layout;
 using Lagerkraft.WmsCore.Api.Commands.Tasks;
 using Lagerkraft.WmsCore.Api.Internal;
 using Lagerkraft.WmsCore.Api.Jobs;
@@ -135,6 +136,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
         registry.Register(ActivatorUtilities.CreateInstance<ClaimTaskHandler>(sp));
         registry.Register(ActivatorUtilities.CreateInstance<ReleaseTaskHandler>(sp));
         registry.Register(ActivatorUtilities.CreateInstance<CompleteTaskHandler>(sp));
+        registry.Register(ActivatorUtilities.CreateInstance<CreateLocationBatchHandler>(sp));
         return registry;
     });
     builder.Services.AddSingleton<CommandDispatcher>();

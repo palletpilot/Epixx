@@ -10,6 +10,30 @@ export interface CompleteTaskV1 {
   [k: string]: unknown;
 }
 
+export interface CreateLocationBatchV1 {
+  warehouse_id: string;
+  parent_id?: string | null;
+  type: "zone" | "aisle" | "rack" | "level" | "bin" | "floor" | "dock";
+  /**
+   * @minItems 1
+   */
+  locations: [
+    {
+      id: string;
+      code: string;
+      parent_id?: string | null;
+      [k: string]: unknown;
+    },
+    ...{
+      id: string;
+      code: string;
+      parent_id?: string | null;
+      [k: string]: unknown;
+    }[]
+  ];
+  [k: string]: unknown;
+}
+
 export interface CreateTaskV1 {
   id?: string;
   warehouse_id: string;

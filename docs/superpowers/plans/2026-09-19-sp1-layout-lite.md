@@ -47,7 +47,7 @@ Commit: `sp1: L1 - location table, warehouse list, system locations`.
 
 ---
 
-## Task L2. CreateLocationBatch
+## Task L2. CreateLocationBatch (done 2026-09-19, pending)
 
 Files: `contracts/commands/CreateLocationBatch/v1.json` + `fixtures/v1.json`; `backend/src/WmsCore/Api/Commands/Layout/CreateLocationBatchHandler.cs` (or Layout module Commands if the dispatcher can see them — follow TaskHandlers in Api if Layout cannot reference TenantDbContext internals; keep handler next to Task handlers if that is the smaller diff); register in `Program.cs`; `backend/tests/Lagerkraft.Contracts.Tests` picks up the schema; `LayoutCommandTests.cs`.
 
