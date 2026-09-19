@@ -11,11 +11,14 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
     public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
     public DbSet<Deviation> Deviations => Set<Deviation>();
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+    public DbSet<Location> Locations => Set<Location>();
     public DbSet<WarehouseTask> Tasks => Set<WarehouseTask>();
     public DbSet<TaskLine> TaskLines => Set<TaskLine>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
+        builder.HasPostgresExtension("ltree");
+
         builder.Entity<TenantMeta>(e =>
         {
             e.ToTable("tenant_meta");
@@ -73,6 +76,19 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
             e.Property(x => x.OperatingHours).HasColumnType("jsonb");
             e.Property(x => x.ClaimMinutes).HasDefaultValue(30);
             e.Property(x => x.CountAutoAdjustThreshold).HasPrecision(18, 6);
+        });
+
+        builder.Entity<Location>(e =>
+        {
+            e.ToTable("location");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Type).HasMaxLength(32);
+            e.Property(x => x.Code).HasMaxLength(64);
+            e.Property(x => x.Path).HasColumnType("ltree");
+            e.Property(x => x.Barcode).HasMaxLength(64);
+            e.Property(x => x.Status).HasMaxLength(32);
+            e.HasIndex(x => new { x.WarehouseId, x.Code }).IsUnique();
+            e.HasIndex(x => new { x.WarehouseId, x.ParentId });
         });
 
         builder.Entity<WarehouseTask>(e =>

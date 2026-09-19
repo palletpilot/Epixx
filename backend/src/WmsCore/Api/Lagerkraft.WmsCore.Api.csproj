@@ -3,6 +3,7 @@
     <ProjectReference Include="..\..\ServiceDefaults\Lagerkraft.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\Shared\Lagerkraft.Shared.csproj" />
     <ProjectReference Include="..\Inventory\Lagerkraft.WmsCore.Inventory.csproj" />
+    <ProjectReference Include="..\Layout\Lagerkraft.WmsCore.Layout.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="EFCore.NamingConventions" />

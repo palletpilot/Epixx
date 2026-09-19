@@ -66,6 +66,28 @@ public sealed class Warehouse
     public decimal? CountAutoAdjustThreshold { get; set; }
     public bool PackStep { get; set; }
     public bool ZonePicking { get; set; }
+    public DateTimeOffset? ActivatedAt { get; set; }
+    public int? DefaultHeightMm { get; set; }
+    public int? DefaultWidthMm { get; set; }
+    public int? DefaultDepthMm { get; set; }
+    public int? DefaultMaxWeightG { get; set; }
+}
+
+public sealed class Location
+{
+    public Guid Id { get; set; }
+    public Guid WarehouseId { get; set; }
+    public Guid? ParentId { get; set; }
+    public string Type { get; set; } = "bin";
+    public string Code { get; set; } = "";
+    public string Path { get; set; } = "";
+    public int? HeightMm { get; set; }
+    public int? WidthMm { get; set; }
+    public int? DepthMm { get; set; }
+    public int? MaxWeightG { get; set; }
+    public string Barcode { get; set; } = "";
+    public string Status { get; set; } = "active";
+    public bool IsSystem { get; set; }
 }
 
 public sealed class WarehouseTask

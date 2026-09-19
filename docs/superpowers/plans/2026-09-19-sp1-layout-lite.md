@@ -24,7 +24,7 @@ Labels, print agent, Bluetooth, CSV/JSON, location attributes, onboarding wizard
 
 ---
 
-## Task L1. Layout module, Location table, warehouse list, system locations
+## Task L1. Layout module, Location table, warehouse list, system locations (done 2026-09-19, SHA_PLACEHOLDER)
 
 Files: `backend/src/WmsCore/Layout/Lagerkraft.WmsCore.Layout.csproj` (same shape as Inventory: classlib, `Contracts/` with `LocationDto` / `WarehouseDto` if moved), `backend/Lagerkraft.sln`, `backend/src/WmsCore/Api/Lagerkraft.WmsCore.Api.csproj`, `backend/tests/Lagerkraft.Architecture.Tests/Lagerkraft.Architecture.Tests.csproj` (ProjectReference so C3's module scan cannot skip Layout), `backend/src/WmsCore/Api/Data/Entities.cs`, `TenantDbContext.cs`, `Warehouses/WarehouseApi.cs`, new migration `LocationTree`.
 
