@@ -258,7 +258,7 @@ Nav: `RouterLink` to `/app/articles` with the same `navClass` as Lager/Uppgifter
 
 ---
 
-## Task C5. Playwright: create article, list shows it (done 2026-09-19, SHA)
+## Task C5. Playwright: create article, list shows it (done 2026-09-19, 67cc938)
 
 **Files:** `frontend/apps/web/e2e/article-create.spec.ts`.
 
