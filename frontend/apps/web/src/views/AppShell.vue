@@ -32,9 +32,9 @@ async function logout() {
   <div class="min-h-screen">
     <header class="flex flex-wrap items-center gap-3 bg-foreground px-6 py-4 text-white">
       <img
-        src="/lagerkraft-logo.jpg"
+        src="/lagerkraft-logo.png"
         :alt="t('brand.name')"
-        class="h-12 w-auto rounded-sm bg-white object-contain p-0.5"
+        class="h-12 w-auto object-contain"
       />
       <nav class="flex flex-wrap gap-4" :aria-label="t('nav.tenant')">
         <RouterLink :class="navClass" to="/app/warehouses">{{ t("nav.warehouses") }}</RouterLink>
