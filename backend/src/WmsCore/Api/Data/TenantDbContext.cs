@@ -19,6 +19,11 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
     public DbSet<UnitOfMeasure> UnitsOfMeasure => Set<UnitOfMeasure>();
     public DbSet<Article> Articles => Set<Article>();
     public DbSet<PackagingLevel> PackagingLevels => Set<PackagingLevel>();
+    public DbSet<HandlingUnit> HandlingUnits => Set<HandlingUnit>();
+    public DbSet<HandlingUnitContent> HandlingUnitContents => Set<HandlingUnitContent>();
+    public DbSet<StockMovement> StockMovements => Set<StockMovement>();
+    public DbSet<StockBalance> StockBalances => Set<StockBalance>();
+    public DbSet<LocationReservation> LocationReservations => Set<LocationReservation>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -151,6 +156,54 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
             e.Property(x => x.QtyInBase).HasPrecision(18, 6);
             e.Property(x => x.Barcode).HasMaxLength(64);
             e.HasIndex(x => new { x.ArticleId, x.Rank }).IsUnique();
+        });
+
+        builder.Entity<HandlingUnit>(e =>
+        {
+            e.ToTable("handling_unit");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Lpn).HasMaxLength(32);
+            e.HasIndex(x => new { x.WarehouseId, x.Lpn }).IsUnique();
+        });
+
+        builder.Entity<HandlingUnitContent>(e =>
+        {
+            e.ToTable("handling_unit_content");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.QtyBase).HasPrecision(18, 6);
+            e.HasIndex(x => new { x.HandlingUnitId, x.ArticleId }).IsUnique();
+        });
+
+        builder.Entity<StockMovement>(e =>
+        {
+            e.ToTable("stock_movement");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.QtyBase).HasPrecision(18, 6);
+            e.Property(x => x.EnteredQty).HasPrecision(18, 6);
+            e.Property(x => x.SecondaryQty).HasPrecision(18, 6);
+            e.Property(x => x.ToleranceDeltaBase).HasPrecision(18, 6);
+            e.Property(x => x.BaseUomCode).HasMaxLength(16);
+            e.Property(x => x.Reason).HasMaxLength(32);
+            e.Property(x => x.ReferenceType).HasMaxLength(32);
+            e.HasIndex(x => x.CommandId);
+            e.HasIndex(x => x.OccurredAt);
+        });
+
+        builder.Entity<StockBalance>(e =>
+        {
+            e.ToTable("stock_balance");
+            e.HasKey(x => new { x.LocationId, x.ArticleId, x.HandlingUnitId });
+            e.Property(x => x.QtyBase).HasPrecision(18, 6);
+            e.Property(x => x.ReservedQtyBase).HasPrecision(18, 6);
+            e.Property(x => x.SecondaryQty).HasPrecision(18, 6);
+        });
+
+        builder.Entity<LocationReservation>(e =>
+        {
+            e.ToTable("location_reservation");
+            e.HasKey(x => x.LocationId);
+            e.HasIndex(x => x.TaskId);
+            e.HasIndex(x => x.ExpiresAt);
         });
     }
 
