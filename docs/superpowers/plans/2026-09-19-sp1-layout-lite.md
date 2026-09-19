@@ -110,7 +110,7 @@ Commit: `sp1: L4 - snapshot locations and real warehouse pick`.
 
 ---
 
-## Task L5. Floor mapping flow
+## Task L5. Floor mapping flow (done 2026-09-19, 7a1215a)
 
 Files: `frontend/packages/ui` — `FloorButton.vue` (min-h-12, primary min-h-16), `NumberStepper.vue`; `frontend/packages/i18n` sv+en keys under `map.*`; `frontend/apps/floor` views `MapAisleView.vue` (one question per screen: aisle letter, racks, levels, bins, same dims, confirm), router `/map`, home link **Kartlägg gång**; `sync/outbox.ts` apply `id_map` rewrite on `applied` (the spec exception to opaque payloads); optimistic locations in the same Dexie transaction as the outbox insert.
 
