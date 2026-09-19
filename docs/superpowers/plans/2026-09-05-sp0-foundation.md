@@ -319,7 +319,7 @@ Two developers: one takes B (platform), one takes C then D (core and gateway); w
 - `ponytail:` the gateway's in-flight-batch set and SSE registry are per instance, in memory; wms-core's advisory lock is the real guard, so this is correct but a second instance does not know about the first's `409`; fine until we scale out, then a shared set in Postgres or NATS KV.
 - `ponytail:` membership history is fetched from platform per batch and cached for the batch; a `membership_history` table in the tenant DB fed by events replaces it when latency shows.
 - `ponytail:` the periodic-job framework is a `BackgroundService` per job with no leader election; two replicas run every sweep twice, which is harmless for idempotent sweeps but wasteful; add a Postgres advisory-lock leader when replicas exceed one.
-- `ponytail:` `Warehouse` is a stub table; sub-project 1 adds the location tree, code pattern validation and the map.
+- `ponytail:` `Warehouse` is a stub table; sub-project 1 lite (`docs/superpowers/plans/2026-09-19-sp1-layout-lite.md`) adds the location tree, code pattern validation and the map.
 - `ponytail:` no `Backfill` framework yet; the first data backfill in a later sub-project brings it.
 - `ponytail:` platform publishes tenant events directly to NATS and relies on job/handler retry; a platform outbox matching wms-core's is the upgrade if a publish is lost in the wild.
 - `ponytail:` webhook tables live in the platform DB and integrations writes them; a platform-internal API in front of those tables is the upgrade if a second writer appears.
