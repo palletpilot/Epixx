@@ -141,3 +141,52 @@ export async function oldestPendingAt(db: FloorDb): Promise<string | null> {
 export async function syncIssues(db: FloorDb): Promise<OutboxRow[]> {
   return db.outbox.where("state").equals("rejected").toArray();
 }
+
+export type IdMapEntry = { from: string; to: string };
+
+function rewriteValue(value: unknown, map: Map<string, string>): unknown {
+  if (typeof value === "string") {
+    return map.get(value) ?? value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => rewriteValue(item, map));
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = rewriteValue(nested, map);
+    }
+    return out;
+  }
+  return value;
+}
+
+export async function applyIdMap(db: FloorDb, entries: IdMapEntry[]): Promise<void> {
+  if (entries.length === 0) {
+    return;
+  }
+  const map = new Map(entries.map((e) => [e.from, e.to]));
+  await db.transaction("rw", db.outbox, db.locations, async () => {
+    const rows = await db.outbox.toArray();
+    for (const row of rows) {
+      if (row.state === "confirmed" || row.state === "rejected") {
+        continue;
+      }
+      await db.outbox.update(row.id, { payload: rewriteValue(row.payload, map) });
+    }
+    for (const [from, to] of map) {
+      const loc = await db.locations.get(from);
+      if (!loc) {
+        continue;
+      }
+      await db.locations.delete(from);
+      await db.locations.put({ ...loc, id: to });
+    }
+    const all = await db.locations.toArray();
+    for (const loc of all) {
+      if (loc.parent_id && map.has(loc.parent_id)) {
+        await db.locations.update(loc.id, { parent_id: map.get(loc.parent_id) });
+      }
+    }
+  });
+}

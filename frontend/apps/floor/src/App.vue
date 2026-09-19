@@ -74,6 +74,7 @@ onUnmounted(() => {
   <div class="min-h-screen" @keydown="floor.touch()">
     <header v-if="floor.unlocked" class="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
       <RouterLink to="/tasks">{{ t("floor.tasks") }}</RouterLink>
+      <RouterLink to="/map">{{ t("map.start") }}</RouterLink>
       <RouterLink to="/sync-issues">{{ t("floor.issues") }}</RouterLink>
       <span class="ml-auto text-sm" role="status">{{ t("floor.unsynced", { count: pending }) }}</span>
       <button

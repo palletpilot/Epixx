@@ -134,5 +134,25 @@
     "handInBody": "This device is revoked. The outbox is kept. A manager logs in here to flush it.",
     "handInFlush": "Send pending commands",
     "error": "That did not work. Try again."
+  },
+  "map": {
+    "start": "Map aisle",
+    "aisle": "Which aisle?",
+    "racks": "How many racks?",
+    "levels": "How many levels?",
+    "bins": "How many bins per level?",
+    "sameDims": "Same size on every bin?",
+    "yes": "Yes",
+    "no": "No",
+    "levelDims": "Size for level {n}",
+    "height": "Height (mm)",
+    "width": "Width (mm)",
+    "depth": "Depth (mm)",
+    "weight": "Max weight (g)",
+    "confirm": "Confirm",
+    "summary": "{count} locations. First {first}. Last {last}.",
+    "next": "Next",
+    "back": "Back",
+    "done": "Mapped"
   }
 }

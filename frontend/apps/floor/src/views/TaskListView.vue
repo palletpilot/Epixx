@@ -20,6 +20,9 @@ onMounted(() => {
 <template>
   <section>
     <h1 class="mb-4 text-xl font-semibold">{{ t("floor.tasks") }}</h1>
+    <p v-if="floor.warehouseId" class="mb-4">
+      <RouterLink class="inline-flex min-h-12 items-center" to="/map">{{ t("map.start") }}</RouterLink>
+    </p>
     <p v-if="!floor.warehouseId">
       <RouterLink to="/warehouses">{{ t("floor.warehouseTitle") }}</RouterLink>
     </p>

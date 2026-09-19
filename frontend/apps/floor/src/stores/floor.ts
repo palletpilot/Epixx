@@ -14,6 +14,8 @@ import {
 import { getDb, type DeviceRow, type LocationRow, type SessionRow, type TaskRow, type WarehouseRow } from "../db";
 import { APP_VERSION, platformUrl, syncUrl } from "../env";
 import { applyFeedEntries, flushOutbox, flushState, webLock, type FlushHttpResult } from "../sync/flush";
+import { enqueueAisleMap } from "../map/enqueueAisle";
+import { DEFAULT_PATTERN, generateAisle, type Dims } from "../map/generateAisle";
 import { enqueueWithTask, logoutLeavesOutbox, oldestPendingAt, pendingCount } from "../sync/outbox";
 import { uuidv7 } from "../uuid";
 
@@ -456,6 +458,37 @@ export const useFloorStore = defineStore("floor", {
     async flush(): Promise<void> {
       await flushOutbox(this.flushDeps());
       await this.refreshBadge();
+    },
+    async mapAisle(input: {
+      aisle: string;
+      racks: number;
+      levels: number;
+      bins: number;
+      dimsByLevel: Dims[];
+    }): Promise<boolean> {
+      if (!this.device || !this.unlockedUserId || !this.warehouseId) {
+        return false;
+      }
+      const warehouse = this.warehouses.find((w) => w.id === this.warehouseId);
+      const built = generateAisle({
+        pattern: warehouse?.code_pattern || DEFAULT_PATTERN,
+        aisle: input.aisle,
+        racks: input.racks,
+        levels: input.levels,
+        bins: input.bins,
+      });
+      await enqueueAisleMap(getDb(), {
+        warehouseId: this.warehouseId,
+        deviceId: this.device.id,
+        userId: this.unlockedUserId,
+        built,
+        dimsByLevel: input.dimsByLevel,
+      });
+      await this.refreshBadge();
+      if (this.online) {
+        await this.flush();
+      }
+      return true;
     },
     async claimTask(task: TaskRow): Promise<void> {
       if (!this.device || !this.unlockedUserId) {

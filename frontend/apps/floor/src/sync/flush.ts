@@ -1,6 +1,7 @@
 import type { FloorDb } from "../db";
 import {
   ACKED_RETRY_MS,
+  applyIdMap,
   BATCH_SIZE,
   confirmCommand,
   markSent,
@@ -15,6 +16,7 @@ export type CommandResult = {
   commandId?: string;
   outcome: string;
   code?: string | null;
+  details?: { id_map?: Array<{ from: string; to: string }> } | null;
 };
 
 export type FlushHttpResult = {
@@ -86,6 +88,7 @@ export async function flushOutbox(deps: FlushDeps): Promise<void> {
   }
 
   await deps.lock("sync", async () => {
+    for (;;) {
     const now = deps.now();
     const online = deps.online ?? true;
     const rows = (await deps.db.outbox.toArray())
@@ -96,14 +99,21 @@ export async function flushOutbox(deps: FlushDeps): Promise<void> {
       return;
     }
 
+    const mapping =
+      rows[0]?.type === "CreateLocationBatch" || rows[0]?.type === "SetLocationDimensions";
+    const batchRows = rows.slice(0, mapping ? 1 : BATCH_SIZE);
+    if (batchRows.length === 0) {
+      return;
+    }
+
     const sentAt = now.toISOString();
-    await markSent(deps.db, rows.map((r) => r.id), sentAt);
+    await markSent(deps.db, batchRows.map((r) => r.id), sentAt);
 
     let http: FlushHttpResult;
     try {
       http = await deps.postCommands({
         now: sentAt,
-        commands: rows.map((row) => ({
+        commands: batchRows.map((row) => ({
           id: row.id,
           type: row.type,
           v: row.v,
@@ -123,7 +133,7 @@ export async function flushOutbox(deps: FlushDeps): Promise<void> {
     }
     if (http.status === 426) {
       flushState.upgradeRequired = true;
-      for (const row of rows) {
+      for (const row of batchRows) {
         await setOutboxState(deps.db, row.id, "pending", { sent_at: undefined });
       }
       deps.onUpgradeRequired?.();
@@ -133,8 +143,8 @@ export async function flushOutbox(deps: FlushDeps): Promise<void> {
     const results = http.results ?? [];
     let heldSeen = false;
     let unknownSeen = false;
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
+    for (let i = 0; i < batchRows.length; i++) {
+      const row = batchRows[i];
       if (!row) {
         continue;
       }
@@ -150,6 +160,10 @@ export async function flushOutbox(deps: FlushDeps): Promise<void> {
       }
       const outcome = outcomeOf(result);
       if (outcome === "applied") {
+        const idMap = result.details?.id_map;
+        if (idMap && idMap.length > 0) {
+          await applyIdMap(deps.db, idMap);
+        }
         await setOutboxState(deps.db, row.id, "acked");
         continue;
       }
@@ -174,6 +188,11 @@ export async function flushOutbox(deps: FlushDeps): Promise<void> {
       flushState.unknownBackoffUntil = now.getTime() + Math.max(UNKNOWN_BACKOFF_MIN, prev) + jitter;
     } else {
       flushState.unknownBackoffUntil = undefined;
+    }
+
+    if (!mapping || heldSeen || unknownSeen) {
+      return;
+    }
     }
   });
 }

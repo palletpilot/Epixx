@@ -134,5 +134,25 @@
     "handInBody": "Enheten är återkallad. Osparade kommandon finns kvar. En chef loggar in här för att skicka dem.",
     "handInFlush": "Skicka osparade kommandon",
     "error": "Det gick inte. Försök igen."
+  },
+  "map": {
+    "start": "Kartlägg gång",
+    "aisle": "Vilken gång?",
+    "racks": "Hur många hyllor?",
+    "levels": "Hur många hyllplan?",
+    "bins": "Hur många platser per hyllplan?",
+    "sameDims": "Samma mått på alla platser?",
+    "yes": "Ja",
+    "no": "Nej",
+    "levelDims": "Mått för hyllplan {n}",
+    "height": "Höjd (mm)",
+    "width": "Bredd (mm)",
+    "depth": "Djup (mm)",
+    "weight": "Maxvikt (g)",
+    "confirm": "Bekräfta",
+    "summary": "{count} platser. Första {first}. Sista {last}.",
+    "next": "Nästa",
+    "back": "Tillbaka",
+    "done": "Kartlagt"
   }
 }
