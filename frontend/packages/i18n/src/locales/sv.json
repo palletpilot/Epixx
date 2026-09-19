@@ -60,8 +60,17 @@
   "warehouses": {
     "title": "Lager",
     "name": "Namn",
+    "pattern": "Kodmönster",
+    "example": "Exempel {code}",
+    "more": "Mer",
+    "claimMinutes": "Lånetid (minuter)",
+    "nightShift": "Nattpass",
+    "blindCount": "Blindinventering",
+    "zonePicking": "Zonplock",
     "create": "Skapa lager",
     "empty": "Inga lager ännu.",
+    "emptyAction": "Skapa ett lager, sedan kartlägg en gång i golvappen.",
+    "mapEmpty": "Inga platser ännu. Kartlägg en gång i golvappen.",
     "list": "Lagerlista"
   },
   "tasks": {

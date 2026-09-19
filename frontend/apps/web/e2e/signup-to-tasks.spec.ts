@@ -85,6 +85,6 @@ test("signup to task list", async ({ page }) => {
   await page.getByLabel(/e-post|email/i).fill("anna@demo.local");
   await page.getByLabel(/lösenord|password/i).fill("Passw0rd!");
   await page.getByRole("button", { name: /^fortsätt$|^continue$/i }).click();
-  await expect(page).toHaveURL(/\/app\/tasks/);
-  await expect(page.getByRole("heading", { name: /uppgifter|tasks/i })).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/warehouses/);
+  await expect(page.getByRole("heading", { name: /lager|warehouses/i })).toBeVisible();
 });

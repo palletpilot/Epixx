@@ -16,7 +16,7 @@ export const router = createRouter({
       component: () => import("./views/AppShell.vue"),
       meta: { auth: true },
       children: [
-        { path: "", redirect: "/app/tasks" },
+        { path: "", redirect: "/app/warehouses" },
         { path: "warehouses", component: () => import("./views/WarehousesView.vue") },
         { path: "tasks", component: () => import("./views/TasksView.vue") },
         { path: "devices", component: () => import("./views/DevicesView.vue") },

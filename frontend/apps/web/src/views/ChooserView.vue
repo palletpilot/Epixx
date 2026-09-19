@@ -11,7 +11,7 @@ const router = useRouter();
 async function choose(tenantId: string) {
   const result = await auth.chooseTenant(tenantId);
   if (result === "authenticated") {
-    await router.push("/app/tasks");
+    await router.push("/app/warehouses");
   }
 }
 </script>

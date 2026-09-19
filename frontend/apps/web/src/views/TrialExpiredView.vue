@@ -21,7 +21,7 @@ async function convert() {
   });
   if (res.ok) {
     await tenant.refresh();
-    await router.push("/app/tasks");
+    await router.push("/app/warehouses");
   }
 }
 </script>

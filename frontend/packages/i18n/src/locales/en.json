@@ -60,8 +60,17 @@
   "warehouses": {
     "title": "Warehouses",
     "name": "Name",
+    "pattern": "Code pattern",
+    "example": "Example {code}",
+    "more": "More",
+    "claimMinutes": "Claim minutes",
+    "nightShift": "Night shift",
+    "blindCount": "Blind count",
+    "zonePicking": "Zone picking",
     "create": "Create warehouse",
     "empty": "No warehouses yet.",
+    "emptyAction": "Create a warehouse, then map an aisle on the floor app.",
+    "mapEmpty": "No bins yet. Map an aisle on the floor app.",
     "list": "Warehouse list"
   },
   "tasks": {

@@ -34,7 +34,7 @@ async function submit() {
     return;
   }
   if (result === "authenticated") {
-    await router.push("/app/tasks");
+    await router.push("/app/warehouses");
     return;
   }
   message.value = t("auth.error");

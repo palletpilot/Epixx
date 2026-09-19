@@ -36,4 +36,20 @@ describe("applyRealtimeEntries", () => {
     expect(second.tasks.size).toBe(2);
     expect(second.lastActivity?.actor).toBe("bo");
   });
+
+  it("upserts location bins onto the map", () => {
+    const applied = applyRealtimeEntries(new Map(), [
+      {
+        seq: 1,
+        entity: "location",
+        id: "b1",
+        op: "upsert",
+        payload: { id: "b1", warehouse_id: "wh", type: "bin", code: "A-01-01-01", parent_id: "lv1" },
+        occurred_at: "2026-09-19T08:00:00.000Z",
+        actor: "anna",
+      },
+    ]);
+    expect(applied.locations.get("b1")?.code).toBe("A-01-01-01");
+    expect(applied.tasks.size).toBe(0);
+  });
 });

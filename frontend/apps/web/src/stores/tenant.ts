@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { useAuthStore } from "./auth";
 import { platformUrl, wmsUrl } from "../env";
 
-export type Warehouse = { id: string; name: string };
+export type Warehouse = { id: string; name: string; code_pattern?: string | null; activated_at?: string | null };
 
 export type TenantContext = {
   lifecycle_state?: string;
@@ -55,7 +55,14 @@ export const useTenantStore = defineStore("tenant", {
         this.warehouses = Array.isArray(body) ? body : (body.items ?? []);
       }
     },
-    async createWarehouse(name: string): Promise<void> {
+    async createWarehouse(input: {
+      name: string;
+      code_pattern?: string;
+      claim_minutes?: number;
+      night_shift?: boolean;
+      blind_count?: boolean;
+      zone_picking?: boolean;
+    }): Promise<void> {
       const auth = useAuthStore();
       if (!auth.tenantId) {
         return;
@@ -69,16 +76,17 @@ export const useTenantStore = defineStore("tenant", {
         },
         body: JSON.stringify({
           id,
-          name,
-          code_pattern: "A-01-01",
-          claim_minutes: 30,
-          night_shift: false,
-          blind_count: false,
-          zone_picking: false,
+          name: input.name,
+          code_pattern: input.code_pattern || null,
+          claim_minutes: input.claim_minutes ?? 30,
+          night_shift: input.night_shift ?? false,
+          blind_count: input.blind_count ?? false,
+          zone_picking: input.zone_picking ?? false,
         }),
       });
       if (res.ok) {
-        this.warehouses = [...this.warehouses, { id, name }];
+        const body = (await res.json()) as Warehouse;
+        this.warehouses = [...this.warehouses, body];
       }
     },
   },
