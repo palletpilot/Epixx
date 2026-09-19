@@ -19,6 +19,7 @@
     <ProjectReference Include="..\..\src\WmsCore\Catalog\Lagerkraft.WmsCore.Catalog.csproj" />
     <ProjectReference Include="..\..\src\WmsCore\Inventory\Lagerkraft.WmsCore.Inventory.csproj" />
     <ProjectReference Include="..\..\src\WmsCore\Layout\Lagerkraft.WmsCore.Layout.csproj" />
+    <ProjectReference Include="..\..\src\WmsCore\Outbound\Lagerkraft.WmsCore.Outbound.csproj" />
     <ProjectReference Include="..\..\src\SyncGateway\Lagerkraft.SyncGateway.csproj" />
     <ProjectReference Include="..\..\src\Integrations\Lagerkraft.Integrations.csproj" />
   </ItemGroup>

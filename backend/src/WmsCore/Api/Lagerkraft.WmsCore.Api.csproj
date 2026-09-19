@@ -5,6 +5,7 @@
     <ProjectReference Include="..\Catalog\Lagerkraft.WmsCore.Catalog.csproj" />
     <ProjectReference Include="..\Inventory\Lagerkraft.WmsCore.Inventory.csproj" />
     <ProjectReference Include="..\Layout\Lagerkraft.WmsCore.Layout.csproj" />
+    <ProjectReference Include="..\Outbound\Lagerkraft.WmsCore.Outbound.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="EFCore.NamingConventions" />

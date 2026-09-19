@@ -66,7 +66,7 @@ Pick-check, CheckPick, pack station, Destination, waves, zone picking, multi-lin
 
 ---
 
-## Task O1. Order tables
+## Task O1. Order tables (done 2026-09-19, PENDINGSHA)
 
 **Files:** Outbound csproj + `Contracts/Dtos.cs`; `Entities.cs`, `TenantDbContext.cs`; migration `OutboundTables`; sln + Api + Architecture.Tests ProjectReferences; `OutboundModuleTests.cs`. Also snapshot_schema if the last migration name is asserted (LayoutCommandTests).
 
@@ -86,15 +86,15 @@ ShipmentHandlingUnit: shipment_id, handling_unit_id  (composite PK)
 
 Unique `(warehouse_id, source, external_ref)` on order.
 
-- [ ] **Step 1:** Write `OutboundModuleTests.Migrate_CreatesOutboundTables`. After migrate, `to_regclass` for the four table names is not null.
+- [x] **Step 1:** Write `OutboundModuleTests.Migrate_CreatesOutboundTables`. After migrate, `to_regclass` for the four table names is not null.
 
-- [ ] **Step 2:** Run `dotnet test ... --filter "FullyQualifiedName~Migrate_CreatesOutboundTables"`. Expected: FAIL (no table).
+- [x] **Step 2:** Run `dotnet test ... --filter "FullyQualifiedName~Migrate_CreatesOutboundTables"`. Expected: FAIL (no table).
 
-- [ ] **Step 3:** Module, entities, DbSets, indexes, `dotnet ef migrations add OutboundTables --project backend/src/WmsCore/Api --output-dir Data/Migrations`. Additive only.
+- [x] **Step 3:** Module, entities, DbSets, indexes, `dotnet ef migrations add OutboundTables --project backend/src/WmsCore/Api --output-dir Data/Migrations`. Additive only.
 
-- [ ] **Step 4:** Re-run the test. PASS. Update snapshot_schema assertion if it still expects `InventoryTables`.
+- [x] **Step 4:** Re-run the test. PASS. Update snapshot_schema assertion if it still expects `InventoryTables`.
 
-- [ ] **Step 5:** Break (rename a table in the test query); confirm fail; restore.
+- [x] **Step 5:** Break (rename a table in the test query); confirm fail; restore.
 
 **Tests:** `Migrate_CreatesOutboundTables`.
 
