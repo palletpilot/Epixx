@@ -209,7 +209,7 @@ Commit: `sp0: D2 - realtime SSE with catch-up-then-live`.
 
 ## Phase E: integrations service skeleton
 
-### Task E1. Event consumer and webhook delivery skeleton
+### Task E1. Event consumer and webhook delivery skeleton (done 2026-09-19, 359f2bb)
 
 Files under `backend/src/Integrations/`: durable JetStream consumer `integrations` on `lagerkraft.>`, `processed_events` dedupe against the platform DB table seeded in B1 (`consumer = integrations`), `Webhooks/` using the B1 tables (`WebhookEndpoint(tenant_id, url, secret, events[], active)`, `WebhookDelivery` with retry schedule 1m, 5m, 30m, 2h, 12h then dead-letter, HMAC-SHA256 signature header, `webhook.gap` event type defined), tenant admin CRUD for endpoints (HTTP in integrations, writes through platform DbContext or a thin platform internal API; pick the DbContext, it is fewer hops and the tables already live there). Import and export jobs are sub-project 1 and 2; only the `ImportJob` table already created in B1 exists. Integrations has no database of its own and no reference to `TenantDbContext`.
 

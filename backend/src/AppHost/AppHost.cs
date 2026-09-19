@@ -57,7 +57,10 @@ builder.AddProject<Projects.Lagerkraft_SyncGateway>("sync-gateway")
 builder.AddProject<Projects.Lagerkraft_Integrations>("integrations")
     .WithReference(platformDb, connectionName: "platform")
     .WithReference(nats)
+    .WithReference(platform)
+    .WithEnvironment("Jwt__JwksUrl", "https+http://platform/.well-known/jwks.json")
     .WaitFor(postgres)
-    .WaitFor(nats);
+    .WaitFor(nats)
+    .WaitFor(platform);
 
 builder.Build().Run();
