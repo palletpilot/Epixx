@@ -30,19 +30,23 @@ async function logout() {
 
 <template>
   <div class="min-h-screen">
-    <header class="flex flex-wrap items-center gap-3 border-b border-border px-6 py-4">
-      <p class="text-sm font-semibold tracking-wide">{{ t("brand.name") }}</p>
+    <header class="flex flex-wrap items-center gap-3 bg-foreground px-6 py-4 text-white">
+      <img
+        src="/lagerkraft-logo.jpg"
+        :alt="t('brand.name')"
+        class="h-12 w-auto rounded-sm bg-white object-contain p-0.5"
+      />
       <nav class="flex flex-wrap gap-4" :aria-label="t('nav.tenant')">
         <RouterLink :class="navClass" to="/app/warehouses">{{ t("nav.warehouses") }}</RouterLink>
         <RouterLink :class="navClass" to="/app/tasks">{{ t("nav.tasks") }}</RouterLink>
-        <RouterLink :class="[navClass, 'text-foreground/50']" to="/app/devices">{{ t("nav.devices") }}</RouterLink>
-        <RouterLink :class="[navClass, 'text-foreground/50']" to="/app/users">{{ t("nav.users") }}</RouterLink>
-        <RouterLink :class="[navClass, 'text-foreground/50']" to="/app/sso">{{ t("nav.sso") }}</RouterLink>
+        <RouterLink :class="[navClass, 'text-white/50']" to="/app/devices">{{ t("nav.devices") }}</RouterLink>
+        <RouterLink :class="[navClass, 'text-white/50']" to="/app/users">{{ t("nav.users") }}</RouterLink>
+        <RouterLink :class="[navClass, 'text-white/50']" to="/app/sso">{{ t("nav.sso") }}</RouterLink>
       </nav>
       <label class="ml-auto flex items-center gap-2 text-sm">
         <span>{{ t("nav.tenant") }}</span>
         <select
-          class="h-9 rounded-md border border-input bg-background px-2"
+          class="h-9 rounded-md border border-white/20 bg-white px-2 text-foreground"
           :aria-label="t('nav.tenant')"
           :value="auth.tenantId"
           @change="auth.switchTenant(($event.target as HTMLSelectElement).value)"

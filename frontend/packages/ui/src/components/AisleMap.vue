@@ -62,7 +62,7 @@ const aisles = computed(() => {
             <div
               v-for="bin in col.rows[rowIndex - 1]?.bins ?? []"
               :key="bin.id"
-              class="flex min-h-12 items-center justify-center rounded-md border border-border bg-foreground/[0.04] px-1 py-1 text-center font-mono text-xs"
+              class="flex min-h-12 items-center justify-center rounded-md border border-border bg-primary/15 px-1 py-1 text-center font-mono text-xs"
               :data-location-id="bin.id"
               :data-code="bin.code"
             >
