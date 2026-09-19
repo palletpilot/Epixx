@@ -2,6 +2,7 @@ using System.CommandLine;
 using System.Text.Json.Serialization;
 using FluentValidation;
 using Lagerkraft.Shared;
+using Lagerkraft.WmsCore.Api.Catalog;
 using Lagerkraft.WmsCore.Api.Commands;
 using Lagerkraft.WmsCore.Api.Commands.Probe;
 using Lagerkraft.WmsCore.Api.Commands.Layout;
@@ -170,6 +171,7 @@ static void ConfigureApp(WebApplication app)
     app.MapDefaultEndpoints("wms-core");
     app.MapInternalApi();
     app.MapWarehouseApi();
+    app.MapArticleApi();
 }
 
 public partial class Program;
