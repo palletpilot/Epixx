@@ -179,6 +179,115 @@ public sealed class InboundCommandTests : IAsyncLifetime
         (await db.StockMovements.CountAsync(m => m.CommandId == commandId)).ShouldBe(1);
     }
 
+    [Fact]
+    public async Task ConfirmPutaway_HuAlreadyMoved_Rejected()
+    {
+        var binId = Guid.CreateVersion7();
+        (await Apply("CreateLocationBatch", Bin(binId, "A-01-01-01"))).Outcome.ShouldBe("Applied");
+        var huId = Guid.CreateVersion7();
+        var taskId = Guid.CreateVersion7();
+        (await Apply("ReceiveHandlingUnit", ReceivePayload(huId, taskId, "LPN-MOVED"))).Outcome.ShouldBe("Applied");
+        await using (var db = OpenDb())
+        {
+            db.StockBalances.RemoveRange(db.StockBalances);
+            await db.SaveChangesAsync();
+        }
+
+        var result = await Apply("ConfirmPutaway", new
+        {
+            task_id = taskId,
+            location_id = binId,
+            qty = "1"
+        });
+        result.Outcome.ShouldBe("Rejected");
+        result.Code.ShouldBe("hu_moved");
+        await using var again = OpenDb();
+        (await again.Deviations.CountAsync(d => d.CommandId == result.CommandId && d.Kind == "rejected")).ShouldBe(1);
+        (await again.StockMovements.CountAsync(m => m.Reason == "putaway")).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task ConfirmPutaway_HappyPath_MovesToBin()
+    {
+        var binId = Guid.CreateVersion7();
+        (await Apply("CreateLocationBatch", Bin(binId, "A-01-01-01"))).Outcome.ShouldBe("Applied");
+        var huId = Guid.CreateVersion7();
+        var taskId = Guid.CreateVersion7();
+        (await Apply("ReceiveHandlingUnit", ReceivePayload(huId, taskId, "LPN-PUT"))).Outcome.ShouldBe("Applied");
+
+        var result = await Apply("ConfirmPutaway", new { task_id = taskId, location_id = binId, qty = "1" });
+        result.Outcome.ShouldBe("Applied");
+
+        await using var db = OpenDb();
+        var receiving = await db.Locations.SingleAsync(l => l.WarehouseId == _warehouseId && l.Code == "RECEIVING");
+        (await db.StockBalances.AnyAsync(b => b.LocationId == receiving.Id)).ShouldBeFalse();
+        var dest = await db.StockBalances.SingleAsync();
+        dest.LocationId.ShouldBe(binId);
+        dest.HandlingUnitId.ShouldBe(huId);
+        dest.QtyBase.ShouldBe(1m);
+        var move = await db.StockMovements.SingleAsync(m => m.Reason == "putaway");
+        move.FromLocationId.ShouldBe(receiving.Id);
+        move.ToLocationId.ShouldBe(binId);
+        (await db.Tasks.SingleAsync(t => t.Id == taskId)).Status.ShouldBe("done");
+        (await db.LocationReservations.CountAsync()).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task ConfirmPutaway_WrongBin_PolicyOverride()
+    {
+        var suggested = Guid.CreateVersion7();
+        var other = Guid.CreateVersion7();
+        (await Apply("CreateLocationBatch", Bin(suggested, "A-01-01-01"))).Outcome.ShouldBe("Applied");
+        (await Apply("CreateLocationBatch", Bin(other, "A-01-01-02"))).Outcome.ShouldBe("Applied");
+        var huId = Guid.CreateVersion7();
+        var taskId = Guid.CreateVersion7();
+        (await Apply("ReceiveHandlingUnit", ReceivePayload(huId, taskId, "LPN-OVR"))).Outcome.ShouldBe("Applied");
+
+        var result = await Apply("ConfirmPutaway", new { task_id = taskId, location_id = other, qty = "1" });
+        result.Outcome.ShouldBe("Applied");
+        await using var db = OpenDb();
+        (await db.Deviations.CountAsync(d => d.CommandId == result.CommandId && d.Kind == "policy_override")).ShouldBe(1);
+        (await db.StockBalances.SingleAsync()).LocationId.ShouldBe(other);
+    }
+
+    [Fact]
+    public async Task ConfirmPutaway_UnknownLocation_Rejected()
+    {
+        var binId = Guid.CreateVersion7();
+        (await Apply("CreateLocationBatch", Bin(binId, "A-01-01-01"))).Outcome.ShouldBe("Applied");
+        var huId = Guid.CreateVersion7();
+        var taskId = Guid.CreateVersion7();
+        (await Apply("ReceiveHandlingUnit", ReceivePayload(huId, taskId, "LPN-LOC"))).Outcome.ShouldBe("Applied");
+        var result = await Apply("ConfirmPutaway", new
+        {
+            task_id = taskId,
+            location_id = Guid.CreateVersion7(),
+            qty = "1"
+        });
+        result.Outcome.ShouldBe("Rejected");
+        result.Code.ShouldBe("unknown_location");
+        await using var db = OpenDb();
+        (await db.Tasks.SingleAsync(t => t.Id == taskId)).Status.ShouldBe("open");
+    }
+
+    [Fact]
+    public async Task ConfirmPutaway_IdempotentRetry()
+    {
+        var binId = Guid.CreateVersion7();
+        (await Apply("CreateLocationBatch", Bin(binId, "A-01-01-01"))).Outcome.ShouldBe("Applied");
+        var huId = Guid.CreateVersion7();
+        var taskId = Guid.CreateVersion7();
+        (await Apply("ReceiveHandlingUnit", ReceivePayload(huId, taskId, "LPN-IDM"))).Outcome.ShouldBe("Applied");
+        var commandId = Guid.CreateVersion7();
+        var payload = new { task_id = taskId, location_id = binId, qty = "1" };
+        var first = await Apply("ConfirmPutaway", payload, commandId: commandId);
+        var second = await Apply("ConfirmPutaway", payload, commandId: commandId);
+        first.Outcome.ShouldBe("Applied");
+        second.Outcome.ShouldBe("Applied");
+        await using var db = OpenDb();
+        (await db.StockMovements.CountAsync(m => m.CommandId == commandId)).ShouldBe(1);
+    }
+
     private object ReceivePayload(Guid huId, Guid taskId, string lpn) => new
     {
         warehouse_id = _warehouseId,

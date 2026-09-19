@@ -141,6 +141,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
         registry.Register(ActivatorUtilities.CreateInstance<CreateLocationBatchHandler>(sp));
         registry.Register(ActivatorUtilities.CreateInstance<SetLocationDimensionsHandler>(sp));
         registry.Register(ActivatorUtilities.CreateInstance<ReceiveHandlingUnitHandler>(sp));
+        registry.Register(ActivatorUtilities.CreateInstance<ConfirmPutawayHandler>(sp));
         return registry;
     });
     builder.Services.AddSingleton<CommandDispatcher>();

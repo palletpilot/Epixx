@@ -27,6 +27,7 @@ public sealed class CommandRegistryTests : IAsyncLifetime
         registry.TryGetHandler("CreateLocationBatch", out _).ShouldBeTrue();
         registry.TryGetHandler("SetLocationDimensions", out _).ShouldBeTrue();
         registry.TryGetHandler("ReceiveHandlingUnit", out _).ShouldBeTrue();
+        registry.TryGetHandler("ConfirmPutaway", out _).ShouldBeTrue();
     }
 
     [Fact]

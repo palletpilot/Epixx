@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lagerkraft:commands/ConfirmPutaway/v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["task_id", "location_id", "qty"],
+  "properties": {
+    "task_id": { "type": "string", "format": "uuid" },
+    "location_id": { "type": "string", "format": "uuid" },
+    "qty": { "type": "string", "minLength": 1 },
+    "new_hu_id": { "type": ["string", "null"], "format": "uuid" }
+  }
+}
