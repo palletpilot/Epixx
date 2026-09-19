@@ -249,7 +249,11 @@ export async function applyFeedEntries(
       }
       const task = asTask(entry);
       if (task) {
-        await db.tasks.put(task);
+        const prev = await db.tasks.get(task.id);
+        await db.tasks.put({
+          ...task,
+          requested_qty_base: task.requested_qty_base ?? prev?.requested_qty_base,
+        });
       }
     }
     await db.cursor.put({
@@ -279,6 +283,7 @@ function asTask(entry: {
     assigned_until: p.assigned_until == null ? null : String(p.assigned_until),
     suggested_location_id: p.suggested_location_id == null ? null : String(p.suggested_location_id),
     created_at: p.created_at == null ? undefined : String(p.created_at),
+    requested_qty_base: typeof p.requested_qty_base === "string" ? p.requested_qty_base : undefined,
   };
 }
 

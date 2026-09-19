@@ -10,6 +10,7 @@ export const router = createRouter({
     { path: "/hand-in", component: () => import("./views/HandInView.vue") },
     { path: "/warehouses", component: () => import("./views/WarehousePickView.vue"), meta: { auth: true, home: true } },
     { path: "/map", component: () => import("./views/MapAisleView.vue"), meta: { auth: true, home: true } },
+    { path: "/receive", component: () => import("./views/ReceiveView.vue"), meta: { auth: true, home: true } },
     { path: "/tasks", component: () => import("./views/TaskListView.vue"), meta: { auth: true, home: true } },
     { path: "/tasks/:id", component: () => import("./views/TaskDetailView.vue"), meta: { auth: true, task: true } },
     { path: "/sync-issues", component: () => import("./views/SyncIssuesView.vue"), meta: { auth: true } },

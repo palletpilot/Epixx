@@ -29,6 +29,7 @@ export type TaskRow = {
   assigned_until?: string | null;
   suggested_location_id?: string | null;
   created_at?: string;
+  requested_qty_base?: string;
 };
 
 export type CursorRow = {
