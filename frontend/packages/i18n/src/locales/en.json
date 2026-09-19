@@ -9,6 +9,7 @@
   "nav": {
     "warehouses": "Warehouses",
     "articles": "Articles",
+    "orders": "Orders",
     "tasks": "Tasks",
     "devices": "Devices",
     "users": "Users",
@@ -90,6 +91,17 @@
     "list": "Article list",
     "error": "Could not create the article."
   },
+  "orders": {
+    "title": "Orders",
+    "warehouse": "Warehouse",
+    "article": "Article",
+    "qty": "Quantity",
+    "create": "Create order",
+    "empty": "No orders yet.",
+    "emptyAction": "Create an order. Next you pick it on the floor app.",
+    "list": "Order list",
+    "error": "Could not create the order."
+  },
   "tasks": {
     "title": "Tasks",
     "list": "Task list",
@@ -169,6 +181,12 @@
   "putaway": {
     "confirm": "Confirm putaway",
     "suggested": "Suggested location"
+  },
+  "pick": {
+    "title": "Pick",
+    "confirm": "Pick",
+    "source": "Location",
+    "ship": "Ship"
   },
   "map": {
     "start": "Map aisle",

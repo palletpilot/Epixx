@@ -253,6 +253,9 @@ export async function applyFeedEntries(
         await db.tasks.put({
           ...task,
           requested_qty_base: task.requested_qty_base ?? prev?.requested_qty_base,
+          order_id: task.order_id ?? prev?.order_id,
+          tote_id: task.tote_id ?? prev?.tote_id,
+          shipped: task.shipped || prev?.shipped,
         });
       }
     }
@@ -284,6 +287,9 @@ function asTask(entry: {
     suggested_location_id: p.suggested_location_id == null ? null : String(p.suggested_location_id),
     created_at: p.created_at == null ? undefined : String(p.created_at),
     requested_qty_base: typeof p.requested_qty_base === "string" ? p.requested_qty_base : undefined,
+    order_id: typeof p.order_id === "string" ? p.order_id : undefined,
+    tote_id: typeof p.tote_id === "string" ? p.tote_id : undefined,
+    shipped: p.shipped === true,
   };
 }
 

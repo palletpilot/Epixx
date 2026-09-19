@@ -391,7 +391,12 @@ export const useFloorStore = defineStore("floor", {
         const qtyById = new Map(
           (await db.tasks.where("warehouse_id").equals(warehouseId).toArray()).map((row) => [
             row.id,
-            row.requested_qty_base,
+            {
+              requested_qty_base: row.requested_qty_base,
+              order_id: row.order_id,
+              tote_id: row.tote_id,
+              shipped: row.shipped,
+            },
           ]),
         );
         await db.tasks.where("warehouse_id").equals(warehouseId).delete();
@@ -399,9 +404,13 @@ export const useFloorStore = defineStore("floor", {
         await db.articles.clear();
         await db.units.clear();
         for (const item of taskBody.items ?? []) {
+          const prev = qtyById.get(item.id);
           await db.tasks.put({
             ...item,
-            requested_qty_base: item.requested_qty_base ?? qtyById.get(item.id),
+            requested_qty_base: item.requested_qty_base ?? prev?.requested_qty_base,
+            order_id: item.order_id ?? prev?.order_id,
+            tote_id: item.tote_id ?? prev?.tote_id,
+            shipped: item.shipped ?? prev?.shipped,
           });
         }
         for (const item of locBody.items ?? []) {
@@ -668,6 +677,58 @@ export const useFloorStore = defineStore("floor", {
         },
         task.id,
         { status: "done" },
+      );
+      await this.refreshBadge();
+      if (this.online) {
+        await this.flush();
+      }
+    },
+    async confirmPick(task: TaskRow): Promise<void> {
+      if (!this.device || !this.unlockedUserId) {
+        return;
+      }
+      const toteId = uuidv7();
+      const toteLpn = `TOTE-${toteId.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
+      await enqueueWithTask(
+        getDb(),
+        {
+          type: "ConfirmPick",
+          v: 1,
+          payload: {
+            task_id: task.id,
+            tote_id: toteId,
+            tote_lpn: toteLpn,
+            qty: task.requested_qty_base ?? "1",
+          },
+          device_id: this.device.id,
+          user_id: this.unlockedUserId,
+        },
+        task.id,
+        { status: "done", tote_id: toteId },
+      );
+      await this.refreshBadge();
+      if (this.online) {
+        await this.flush();
+      }
+    },
+    async shipAsPicked(task: TaskRow): Promise<void> {
+      if (!this.device || !this.unlockedUserId || !task.order_id || !task.tote_id) {
+        return;
+      }
+      await enqueueWithTask(
+        getDb(),
+        {
+          type: "ShipAsPicked",
+          v: 1,
+          payload: {
+            order_id: task.order_id,
+            tote_id: task.tote_id,
+          },
+          device_id: this.device.id,
+          user_id: this.unlockedUserId,
+        },
+        task.id,
+        { shipped: true },
       );
       await this.refreshBadge();
       if (this.online) {

@@ -31,6 +31,7 @@ onUnmounted(() => {
 });
 
 const isPutaway = computed(() => task.value?.type === "putaway");
+const isPick = computed(() => task.value?.type === "pick");
 
 const mappedBins = computed(() =>
   locations.value
@@ -53,6 +54,22 @@ const suggested = computed(() => {
   return mappedBins.value[0];
 });
 
+const heading = computed(() => {
+  if (isPick.value) {
+    return t("pick.title");
+  }
+  return task.value?.type ?? "";
+});
+
+const canShip = computed(
+  () =>
+    isPick.value &&
+    task.value?.status === "done" &&
+    !task.value.shipped &&
+    Boolean(task.value.order_id) &&
+    Boolean(task.value.tote_id),
+);
+
 async function claim() {
   if (task.value) {
     await floor.claimTask(task.value);
@@ -73,16 +90,30 @@ async function complete() {
     await floor.confirmPutaway(task.value, loc.id);
     return;
   }
+  if (isPick.value) {
+    await floor.confirmPick(task.value);
+    return;
+  }
   await floor.completeTask(task.value);
+}
+
+async function ship() {
+  error.value = null;
+  if (task.value) {
+    await floor.shipAsPicked(task.value);
+  }
 }
 </script>
 
 <template>
   <section v-if="task">
-    <h1 class="mb-2 text-xl font-semibold">{{ task.type }}</h1>
+    <h1 class="mb-2 text-xl font-semibold">{{ heading }}</h1>
     <p class="mb-4" data-testid="task-status">{{ task.status }}</p>
     <p v-if="isPutaway && suggested" class="mb-4">
       {{ t("putaway.suggested") }}: {{ suggested.code }}
+    </p>
+    <p v-if="isPick && suggested" class="mb-4">
+      {{ t("pick.source") }}: {{ suggested.code }}
     </p>
     <p v-if="error" role="alert" class="mb-4 text-destructive">{{ error }}</p>
     <div class="flex flex-col gap-2">
@@ -90,9 +121,13 @@ async function complete() {
       <Button v-if="task.status === 'claimed' && isPutaway" class="min-h-12" @click="complete">
         {{ t("putaway.confirm") }}
       </Button>
-      <Button v-if="task.status === 'claimed' && !isPutaway" class="min-h-12" @click="complete">
+      <Button v-if="task.status === 'claimed' && isPick" class="min-h-12" @click="complete">
+        {{ t("pick.confirm") }}
+      </Button>
+      <Button v-if="task.status === 'claimed' && !isPutaway && !isPick" class="min-h-12" @click="complete">
         {{ t("floor.complete") }}
       </Button>
+      <Button v-if="canShip" class="min-h-12" @click="ship">{{ t("pick.ship") }}</Button>
       <Button variant="outline" class="min-h-12" @click="router.push('/tasks')">{{ t("floor.back") }}</Button>
     </div>
   </section>

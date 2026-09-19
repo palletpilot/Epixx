@@ -207,7 +207,7 @@ Rules:
 
 ---
 
-## Task O5. Office orders, floor pick, Playwright
+## Task O5. Office orders, floor pick, Playwright (done 2026-09-19, pending)
 
 **Files:** `OrdersView.vue`, `AppShell.vue`, `router.ts`, i18n, `TaskDetailView.vue` pick path, `floor.ts` enqueue, snapshot `Order`, Playwright.
 
@@ -219,11 +219,11 @@ Snapshot `entity=Order` (lines nested, warehouse filter). Optional Dexie `orders
 
 Playwright (mock like inbound): after mocked session, office create is heavy — floor heading `/plocka|pick/i` on a pick task plus mocked ConfirmPick/ShipAsPicked POSTs is acceptable **plus** O2–O4 as ledger proof. Do not weaken `/plocka|pick/i` if that heading is used; if the task heading stays the type string `pick`, assert that plus the confirm button `/plocka|pick/i`.
 
-- [ ] **Step 1:** i18n + OrdersView + nav. `pnpm -C frontend lint ; typecheck`.
+- [x] **Step 1:** i18n + OrdersView + nav. `pnpm -C frontend lint ; typecheck`.
 
-- [ ] **Step 2:** Floor pick/ship enqueue.
+- [x] **Step 2:** Floor pick/ship enqueue.
 
-- [ ] **Step 3:** Playwright spec.
+- [x] **Step 3:** Playwright spec.
 
 **Tests:** Playwright.
 

@@ -19,6 +19,7 @@ export const router = createRouter({
         { path: "", redirect: "/app/warehouses" },
         { path: "warehouses", component: () => import("./views/WarehousesView.vue") },
         { path: "articles", component: () => import("./views/ArticlesView.vue") },
+        { path: "orders", component: () => import("./views/OrdersView.vue") },
         { path: "tasks", component: () => import("./views/TasksView.vue") },
         { path: "devices", component: () => import("./views/DevicesView.vue") },
         { path: "users", component: () => import("./views/UsersView.vue") },

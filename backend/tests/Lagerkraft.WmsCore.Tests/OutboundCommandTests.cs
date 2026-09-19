@@ -169,6 +169,21 @@ public sealed class OutboundCommandTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Snapshot_EntityOrder_ReturnsAllocatedStatus()
+    {
+        var seeded = await SeedAllocatedPickAsync();
+        using var client = InternalClient();
+        var response = await client.GetAsync(
+            $"/internal/snapshot?tenantId={_tenantId}&warehouse={_warehouseId}&entity=Order");
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(Json);
+        body.GetProperty("entity").GetString().ShouldBe("Order");
+        var item = body.GetProperty("items").EnumerateArray().Single(el => el.GetProperty("id").GetGuid() == seeded.OrderId);
+        item.GetProperty("status").GetString().ShouldBe("allocated");
+        item.GetProperty("lines").EnumerateArray().ShouldHaveSingleItem();
+    }
+
+    [Fact]
     public async Task ShipAsPicked_OrderNotPicked_Rejected()
     {
         var seeded = await SeedAllocatedPickAsync();
