@@ -257,6 +257,102 @@ public sealed class LayoutCommandTests : IAsyncLifetime
         result.Code.ShouldBe("structural_conflict");
     }
 
+    [Fact]
+    public async Task SetLocationDimensions_UnknownId_Rejected()
+    {
+        var missing = Guid.CreateVersion7();
+        var result = await Apply("SetLocationDimensions", new
+        {
+            ids = new[] { missing },
+            height_mm = 1200,
+            width_mm = 800,
+            depth_mm = 400,
+            max_weight_g = 500000
+        });
+        result.Outcome.ShouldBe("Rejected");
+        result.Code.ShouldBe("unknown_location");
+
+        await using var db = OpenDb();
+        (await db.Deviations.CountAsync(d => d.CommandId == result.CommandId && d.Kind == "rejected")).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task SetLocationDimensions_HappyPath_WritesDims()
+    {
+        var aisleId = Guid.CreateVersion7();
+        (await Apply("CreateLocationBatch", Aisle(aisleId, "G"))).Outcome.ShouldBe("Applied");
+        var result = await Apply("SetLocationDimensions", Dims(aisleId, 1200, 800, 400, 500000));
+        result.Outcome.ShouldBe("Applied");
+
+        await using var db = OpenDb();
+        var row = await db.Locations.SingleAsync(l => l.Id == aisleId);
+        row.HeightMm.ShouldBe(1200);
+        row.WidthMm.ShouldBe(800);
+        row.DepthMm.ShouldBe(400);
+        row.MaxWeightG.ShouldBe(500000);
+        (await db.ChangeLog.CountAsync(c => c.CommandId == result.CommandId && c.Entity == "location")).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task SetLocationDimensions_IdempotentRetry_ReturnsStoredResult()
+    {
+        var aisleId = Guid.CreateVersion7();
+        (await Apply("CreateLocationBatch", Aisle(aisleId, "H"))).Outcome.ShouldBe("Applied");
+        var commandId = Guid.CreateVersion7();
+        var payload = Dims(aisleId, 1100, 700, 350, 400000);
+        var first = await Apply("SetLocationDimensions", payload, commandId: commandId);
+        var second = await Apply("SetLocationDimensions", payload, commandId: commandId);
+        first.Outcome.ShouldBe("Applied");
+        second.Outcome.ShouldBe("Applied");
+        second.CommandId.ShouldBe(commandId);
+
+        await using var db = OpenDb();
+        (await db.ChangeLog.CountAsync(c => c.CommandId == commandId)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task SetLocationDimensions_LastWriteWins()
+    {
+        var aisleId = Guid.CreateVersion7();
+        (await Apply("CreateLocationBatch", Aisle(aisleId, "I"))).Outcome.ShouldBe("Applied");
+        (await Apply("SetLocationDimensions", Dims(aisleId, 1200, null, null, null))).Outcome.ShouldBe("Applied");
+        (await Apply("SetLocationDimensions", Dims(aisleId, 1400, null, null, null))).Outcome.ShouldBe("Applied");
+
+        await using var db = OpenDb();
+        (await db.Locations.SingleAsync(l => l.Id == aisleId)).HeightMm.ShouldBe(1400);
+    }
+
+    [Fact]
+    public async Task SetLocationDimensions_OccurredAtOutsideMembership_Rejected()
+    {
+        var aisleId = Guid.CreateVersion7();
+        (await Apply("CreateLocationBatch", Aisle(aisleId, "J"))).Outcome.ShouldBe("Applied");
+        var early = DateTimeOffset.Parse("2019-01-01Z");
+        var result = await Apply("SetLocationDimensions", Dims(aisleId, 1200, null, null, null), occurredAt: early);
+        result.Outcome.ShouldBe("Rejected");
+        result.Code.ShouldBe("forbidden");
+    }
+
+    [Fact]
+    public async Task SetLocationDimensions_SystemLocation_Applies()
+    {
+        await using var db = OpenDb();
+        var receiving = await db.Locations.SingleAsync(l => l.WarehouseId == _warehouseId && l.Code == "RECEIVING");
+        var result = await Apply("SetLocationDimensions", Dims(receiving.Id, 500, null, null, null));
+        result.Outcome.ShouldBe("Applied");
+        await using var again = OpenDb();
+        (await again.Locations.SingleAsync(l => l.Id == receiving.Id)).HeightMm.ShouldBe(500);
+    }
+
+    private static object Dims(Guid id, int? height, int? width, int? depth, int? weight) => new
+    {
+        ids = new[] { id },
+        height_mm = height,
+        width_mm = width,
+        depth_mm = depth,
+        max_weight_g = weight
+    };
+
     private object Aisle(Guid id, string code) => new
     {
         warehouse_id = _warehouseId,

@@ -137,6 +137,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
         registry.Register(ActivatorUtilities.CreateInstance<ReleaseTaskHandler>(sp));
         registry.Register(ActivatorUtilities.CreateInstance<CompleteTaskHandler>(sp));
         registry.Register(ActivatorUtilities.CreateInstance<CreateLocationBatchHandler>(sp));
+        registry.Register(ActivatorUtilities.CreateInstance<SetLocationDimensionsHandler>(sp));
         return registry;
     });
     builder.Services.AddSingleton<CommandDispatcher>();

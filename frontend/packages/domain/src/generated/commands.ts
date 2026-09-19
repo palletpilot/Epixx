@@ -47,3 +47,15 @@ export interface ReleaseTaskV1 {
   [k: string]: unknown;
 }
 
+export interface SetLocationDimensionsV1 {
+  /**
+   * @minItems 1
+   */
+  ids: [string, ...string[]];
+  height_mm?: number | null;
+  width_mm?: number | null;
+  depth_mm?: number | null;
+  max_weight_g?: number | null;
+  [k: string]: unknown;
+}
+

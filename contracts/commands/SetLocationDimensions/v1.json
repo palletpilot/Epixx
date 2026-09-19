@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lagerkraft:commands/SetLocationDimensions/v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["ids"],
+  "properties": {
+    "ids": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "format": "uuid" }
+    },
+    "height_mm": { "type": ["integer", "null"] },
+    "width_mm": { "type": ["integer", "null"] },
+    "depth_mm": { "type": ["integer", "null"] },
+    "max_weight_g": { "type": ["integer", "null"] }
+  }
+}
