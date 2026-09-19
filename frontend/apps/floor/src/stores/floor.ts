@@ -15,8 +15,10 @@ import {
   getDb,
   type ArticleRow,
   type DeviceRow,
+  type HandlingUnitRow,
   type LocationRow,
   type SessionRow,
+  type StockBalanceRow,
   type TaskRow,
   type UnitRow,
   type WarehouseRow,
@@ -330,13 +332,22 @@ export const useFloorStore = defineStore("floor", {
       this.warehouses = await db.warehouses.toArray();
     },
     async loadSnapshot(warehouseId: string): Promise<void> {
-      const [taskRes, locRes, articleRes, unitRes] = await Promise.all([
+      const [taskRes, locRes, articleRes, unitRes, huRes, balRes] = await Promise.all([
         this.authedFetch(`${syncUrl()}/sync/snapshot?warehouse=${warehouseId}&entity=Task`),
         this.authedFetch(`${syncUrl()}/sync/snapshot?warehouse=${warehouseId}&entity=Location`),
         this.authedFetch(`${syncUrl()}/sync/snapshot?warehouse=${warehouseId}&entity=Article`),
         this.authedFetch(`${syncUrl()}/sync/snapshot?warehouse=${warehouseId}&entity=UnitOfMeasure`),
+        this.authedFetch(`${syncUrl()}/sync/snapshot?warehouse=${warehouseId}&entity=HandlingUnit`),
+        this.authedFetch(`${syncUrl()}/sync/snapshot?warehouse=${warehouseId}&entity=StockBalance`),
       ]);
-      if (taskRes.status === 410 || locRes.status === 410 || articleRes.status === 410 || unitRes.status === 410) {
+      if (
+        taskRes.status === 410 ||
+        locRes.status === 410 ||
+        articleRes.status === 410 ||
+        unitRes.status === 410 ||
+        huRes.status === 410 ||
+        balRes.status === 410
+      ) {
         await this.markRevoked();
         return;
       }
@@ -358,8 +369,25 @@ export const useFloorStore = defineStore("floor", {
       const unitBody = unitRes.ok
         ? ((await unitRes.json()) as { items?: UnitRow[] })
         : { items: [] };
+      const huBody = huRes.ok
+        ? ((await huRes.json()) as { items?: HandlingUnitRow[] })
+        : { items: [] };
+      const balBody = balRes.ok
+        ? ((await balRes.json()) as { items?: Omit<StockBalanceRow, "warehouse_id">[] })
+        : { items: [] };
       const db = getDb();
-      await db.transaction("rw", db.tasks, db.locations, db.articles, db.units, db.cursor, async () => {
+      await db.transaction(
+        "rw",
+        [
+          db.tasks,
+          db.locations,
+          db.articles,
+          db.units,
+          db.handling_units,
+          db.stock_balances,
+          db.cursor,
+        ],
+        async () => {
         const qtyById = new Map(
           (await db.tasks.where("warehouse_id").equals(warehouseId).toArray()).map((row) => [
             row.id,
@@ -389,6 +417,18 @@ export const useFloorStore = defineStore("floor", {
         for (const item of unitBody.items ?? []) {
           if (item.id) {
             await db.units.put(item);
+          }
+        }
+        await db.handling_units.where("warehouse_id").equals(warehouseId).delete();
+        await db.stock_balances.where("warehouse_id").equals(warehouseId).delete();
+        for (const item of huBody.items ?? []) {
+          if (item.id) {
+            await db.handling_units.put(item);
+          }
+        }
+        for (const item of balBody.items ?? []) {
+          if (item.location_id && item.article_id && item.handling_unit_id) {
+            await db.stock_balances.put({ ...item, warehouse_id: warehouseId });
           }
         }
         await db.cursor.put({

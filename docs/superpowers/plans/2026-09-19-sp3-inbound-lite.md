@@ -230,7 +230,7 @@ Putaway detail: if `task.type === 'putaway'`, show suggested location code (from
 
 ---
 
-## Task I5. Snapshot + Dexie + Playwright
+## Task I5. Snapshot + Dexie + Playwright (done 2026-09-19, PENDINGSHA)
 
 **Files:** `InternalApi.cs` snapshot branches; `db.ts` v4; `floor.ts` `loadSnapshot`; `floor.snapshotStock.test.ts` optional; `frontend/apps/floor/e2e/receive-putaway.spec.ts`.
 
@@ -238,11 +238,11 @@ Snapshot: `entity=HandlingUnit` (content nested, warehouse filter); `entity=Stoc
 
 Playwright (floor app, mock sync like existing floor e2e): login/enroll as the existing specs do, or mock enough to open `/receive` if that is smaller — follow `frontend/apps/floor/e2e/` pattern. Flow: receive KAFFE-500 qty 1 → list has putaway task → confirm. If enroll is too heavy, a focused test that the receive heading `/ta emot|receive/i` renders after mock session is acceptable **plus** keep I2/I3 as the ledger proof. Prefer a mocked command POST that 200s.
 
-- [ ] **Step 1:** Snapshot tests in `InboundCommandTests`: `Snapshot_EntityHandlingUnit_ReturnsLpn`. Fail; implement.
+- [x] **Step 1:** Snapshot tests in `InboundCommandTests`: `Snapshot_EntityHandlingUnit_ReturnsLpn`. Fail; implement.
 
-- [ ] **Step 2:** Dexie + loadSnapshot. `pnpm -C frontend test`.
+- [x] **Step 2:** Dexie + loadSnapshot. `pnpm -C frontend test`.
 
-- [ ] **Step 3:** Playwright spec. Do not weaken `/ta emot|receive/i`.
+- [x] **Step 3:** Playwright spec. Do not weaken `/ta emot|receive/i`.
 
 **Tests:** snapshot integration + Playwright.
 
