@@ -98,7 +98,7 @@ Commit: `sp1: L3 - SetLocationDimensions last-write-wins`.
 
 ---
 
-## Task L4. Snapshot Location and Warehouse; kill the fake warehouse id (done 2026-09-19, pending)
+## Task L4. Snapshot Location and Warehouse; kill the fake warehouse id (done 2026-09-19, b9b6356)
 
 Files: `backend/src/WmsCore/Api/Internal/InternalApi.cs` `GetSnapshot` (today Task-only); floor `frontend/apps/floor/src/db.ts` Dexie v2 `locations` and `warehouses`; `stores/floor.ts` `loadSnapshot`; `WarehousePickView.vue` (no `01900000-…0001` fallback; show names); web `stores/tenant.ts` drop `DEV_WAREHOUSE_ID` fallback.
 
