@@ -161,3 +161,64 @@ public sealed class PackagingLevel
     public bool IsDefaultReceiving { get; set; }
     public bool IsDefaultShipping { get; set; }
 }
+
+public sealed class HandlingUnit
+{
+    public Guid Id { get; set; }
+    public Guid WarehouseId { get; set; }
+    public string Lpn { get; set; } = "";
+    public int? HeightMm { get; set; }
+    public DateTimeOffset ReceivedAt { get; set; }
+}
+
+public sealed class HandlingUnitContent
+{
+    public Guid Id { get; set; }
+    public Guid HandlingUnitId { get; set; }
+    public Guid ArticleId { get; set; }
+    public decimal QtyBase { get; set; }
+    public Guid PackagingLevelId { get; set; }
+}
+
+public sealed class StockMovement
+{
+    public Guid Id { get; set; }
+    public DateTimeOffset OccurredAt { get; set; }
+    public DateTimeOffset RecordedAt { get; set; }
+    public Guid ActorUserId { get; set; }
+    public Guid DeviceId { get; set; }
+    public Guid CommandId { get; set; }
+    public Guid ArticleId { get; set; }
+    public Guid? FromLocationId { get; set; }
+    public Guid? ToLocationId { get; set; }
+    public Guid? FromHandlingUnitId { get; set; }
+    public Guid? ToHandlingUnitId { get; set; }
+    public decimal QtyBase { get; set; }
+    public string BaseUomCode { get; set; } = "";
+    public decimal EnteredQty { get; set; }
+    public Guid? EnteredLevelId { get; set; }
+    public Guid? EnteredUomId { get; set; }
+    public decimal? SecondaryQty { get; set; }
+    public Guid? SecondaryUomId { get; set; }
+    public string Reason { get; set; } = "";
+    public string? ReferenceType { get; set; }
+    public Guid? ReferenceId { get; set; }
+    public decimal? ToleranceDeltaBase { get; set; }
+}
+
+public sealed class StockBalance
+{
+    public Guid LocationId { get; set; }
+    public Guid ArticleId { get; set; }
+    public Guid HandlingUnitId { get; set; }
+    public decimal QtyBase { get; set; }
+    public decimal ReservedQtyBase { get; set; }
+    public decimal? SecondaryQty { get; set; }
+}
+
+public sealed class LocationReservation
+{
+    public Guid LocationId { get; set; }
+    public Guid TaskId { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
+}
