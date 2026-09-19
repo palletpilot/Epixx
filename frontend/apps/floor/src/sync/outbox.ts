@@ -53,6 +53,22 @@ export async function enqueueWithTask(
   return row;
 }
 
+export async function enqueueReceive(
+  db: FloorDb,
+  draft: CommandDraft,
+  task: TaskRow,
+): Promise<OutboxRow> {
+  let row: OutboxRow | undefined;
+  await db.transaction("rw", db.outbox, db.tasks, async () => {
+    row = await enqueueCommand(db, draft);
+    await db.tasks.put(task);
+  });
+  if (!row) {
+    throw new Error("enqueue failed");
+  }
+  return row;
+}
+
 export function shouldResend(row: OutboxRow, now: Date, online: boolean): boolean {
   if (row.state === "pending") {
     return true;

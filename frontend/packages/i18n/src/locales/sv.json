@@ -159,7 +159,16 @@
     "handInTitle": "Lämna in enheten",
     "handInBody": "Enheten är återkallad. Osparade kommandon finns kvar. En chef loggar in här för att skicka dem.",
     "handInFlush": "Skicka osparade kommandon",
-    "error": "Det gick inte. Försök igen."
+    "error": "Det gick inte. Försök igen.",
+    "receive": "Ta emot",
+    "receiveTitle": "Ta emot",
+    "receiveQty": "Antal",
+    "receiveSubmit": "Ta emot",
+    "receiveLpn": "Kollinummer"
+  },
+  "putaway": {
+    "confirm": "Bekräfta inlagring",
+    "suggested": "Föreslagen plats"
   },
   "map": {
     "start": "Kartlägg gång",

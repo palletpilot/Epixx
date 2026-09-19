@@ -155,7 +155,7 @@ Create rules:
 
 ---
 
-## Task I3. ConfirmPutaway (done 2026-09-19, pending)
+## Task I3. ConfirmPutaway (done 2026-09-19, 074322a)
 
 **Files:** `contracts/commands/ConfirmPutaway/v1.json` + fixture; `ConfirmPutawayHandler.cs`; register; tests in `InboundCommandTests.cs`; gen:commands.
 
@@ -195,7 +195,7 @@ Rules:
 
 ---
 
-## Task I4. Floor receive and putaway
+## Task I4. Floor receive and putaway (done 2026-09-19, PENDINGSHA)
 
 **Files:** `ReceiveView.vue`, `TaskDetailView.vue`, `router.ts`, `floor.ts` enqueue, `TaskListView.vue` link, i18n sv/en.
 
@@ -220,9 +220,9 @@ Receive: article `<select>` from Dexie articles, qty default `1`, submit mints H
 
 Putaway detail: if `task.type === 'putaway'`, show suggested location code (from locations table), claim if open, confirm sends `ConfirmPutaway` with `location_id` = suggested (or first mapped bin if null) and `qty` from the line. Do not send `CompleteTask` for putaway. Other task types keep CompleteTask.
 
-- [ ] **Step 1:** No page unit test. Implement.
+- [x] **Step 1:** No page unit test. Implement.
 
-- [ ] **Step 2:** `pnpm -C frontend lint ; pnpm -C frontend typecheck`.
+- [x] **Step 2:** `pnpm -C frontend lint ; pnpm -C frontend typecheck`.
 
 **Tests:** Playwright in I5.
 

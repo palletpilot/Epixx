@@ -25,7 +25,7 @@ import { APP_VERSION, platformUrl, syncUrl } from "../env";
 import { applyFeedEntries, flushOutbox, flushState, webLock, type FlushHttpResult } from "../sync/flush";
 import { enqueueAisleMap } from "../map/enqueueAisle";
 import { DEFAULT_PATTERN, generateAisle, type Dims } from "../map/generateAisle";
-import { enqueueWithTask, logoutLeavesOutbox, oldestPendingAt, pendingCount } from "../sync/outbox";
+import { enqueueReceive, enqueueWithTask, logoutLeavesOutbox, oldestPendingAt, pendingCount } from "../sync/outbox";
 import { uuidv7 } from "../uuid";
 
 export type LoginResult = "authenticated" | "chooser" | "totp" | "error" | "set-pin";
@@ -360,12 +360,21 @@ export const useFloorStore = defineStore("floor", {
         : { items: [] };
       const db = getDb();
       await db.transaction("rw", db.tasks, db.locations, db.articles, db.units, db.cursor, async () => {
+        const qtyById = new Map(
+          (await db.tasks.where("warehouse_id").equals(warehouseId).toArray()).map((row) => [
+            row.id,
+            row.requested_qty_base,
+          ]),
+        );
         await db.tasks.where("warehouse_id").equals(warehouseId).delete();
         await db.locations.where("warehouse_id").equals(warehouseId).delete();
         await db.articles.clear();
         await db.units.clear();
         for (const item of taskBody.items ?? []) {
-          await db.tasks.put(item);
+          await db.tasks.put({
+            ...item,
+            requested_qty_base: item.requested_qty_base ?? qtyById.get(item.id),
+          });
         }
         for (const item of locBody.items ?? []) {
           if (item.id) {
@@ -550,6 +559,70 @@ export const useFloorStore = defineStore("floor", {
           type: "CompleteTask",
           v: 1,
           payload: { task_id: task.id },
+          device_id: this.device.id,
+          user_id: this.unlockedUserId,
+        },
+        task.id,
+        { status: "done" },
+      );
+      await this.refreshBadge();
+      if (this.online) {
+        await this.flush();
+      }
+    },
+    async receiveHandlingUnit(input: { articleId: string; qty: string; packagingLevelId?: string }): Promise<string | null> {
+      if (!this.device || !this.unlockedUserId || !this.warehouseId) {
+        return null;
+      }
+      const handlingUnitId = uuidv7();
+      const taskId = uuidv7();
+      const lpn = `LPN-${handlingUnitId.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
+      await enqueueReceive(
+        getDb(),
+        {
+          type: "ReceiveHandlingUnit",
+          v: 1,
+          payload: {
+            warehouse_id: this.warehouseId,
+            handling_unit_id: handlingUnitId,
+            task_id: taskId,
+            lpn,
+            article_id: input.articleId,
+            qty_base: input.qty,
+            packaging_level_id: input.packagingLevelId,
+          },
+          device_id: this.device.id,
+          user_id: this.unlockedUserId,
+        },
+        {
+          id: taskId,
+          warehouse_id: this.warehouseId,
+          type: "putaway",
+          status: "open",
+          created_at: new Date().toISOString(),
+          requested_qty_base: input.qty,
+        },
+      );
+      await this.refreshBadge();
+      if (this.online) {
+        await this.flush();
+      }
+      return taskId;
+    },
+    async confirmPutaway(task: TaskRow, locationId: string): Promise<void> {
+      if (!this.device || !this.unlockedUserId) {
+        return;
+      }
+      await enqueueWithTask(
+        getDb(),
+        {
+          type: "ConfirmPutaway",
+          v: 1,
+          payload: {
+            task_id: task.id,
+            location_id: locationId,
+            qty: task.requested_qty_base ?? "1",
+          },
           device_id: this.device.id,
           user_id: this.unlockedUserId,
         },

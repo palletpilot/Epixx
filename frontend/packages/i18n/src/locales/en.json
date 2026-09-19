@@ -159,7 +159,16 @@
     "handInTitle": "Hand in this device",
     "handInBody": "This device is revoked. The outbox is kept. A manager logs in here to flush it.",
     "handInFlush": "Send pending commands",
-    "error": "That did not work. Try again."
+    "error": "That did not work. Try again.",
+    "receive": "Receive",
+    "receiveTitle": "Receive",
+    "receiveQty": "Quantity",
+    "receiveSubmit": "Receive",
+    "receiveLpn": "LPN"
+  },
+  "putaway": {
+    "confirm": "Confirm putaway",
+    "suggested": "Suggested location"
   },
   "map": {
     "start": "Map aisle",

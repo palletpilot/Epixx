@@ -2,7 +2,7 @@ import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FloorDb } from "../db";
 import { applyFeedEntries, flushOutbox, type FlushHttpResult } from "./flush";
-import { enqueueCommand, enqueueWithTask, logoutLeavesOutbox } from "./outbox";
+import { enqueueCommand, enqueueReceive, enqueueWithTask, logoutLeavesOutbox } from "./outbox";
 
 const deviceId = "01900000-0000-7000-8000-000000000010";
 const userId = "01900000-0000-7000-8000-000000000011";
@@ -134,6 +134,84 @@ describe("outbox state machine", () => {
     );
     expect(result).toBe("regression");
     expect((await db.outbox.get("c4"))?.state).toBe("pending");
+  });
+
+  it("enqueueReceive writes outbox and putaway task together", async () => {
+    const receiveTaskId = "01900000-0000-7000-8000-000000000099";
+    const row = await enqueueReceive(
+      db,
+      {
+        id: "recv-1",
+        type: "ReceiveHandlingUnit",
+        v: 1,
+        payload: { task_id: receiveTaskId, qty_base: "2" },
+        device_id: deviceId,
+        user_id: userId,
+      },
+      {
+        id: receiveTaskId,
+        warehouse_id: warehouseId,
+        type: "putaway",
+        status: "open",
+        requested_qty_base: "2",
+      },
+    );
+    expect(row.state).toBe("pending");
+    expect(await db.outbox.get("recv-1")).toMatchObject({ type: "ReceiveHandlingUnit" });
+    expect(await db.tasks.get(receiveTaskId)).toMatchObject({
+      type: "putaway",
+      requested_qty_base: "2",
+    });
+  });
+
+  it("keeps requested_qty_base when the feed upserts the putaway task", async () => {
+    const receiveTaskId = "01900000-0000-7000-8000-000000000099";
+    await enqueueReceive(
+      db,
+      {
+        id: "recv-2",
+        type: "ReceiveHandlingUnit",
+        v: 1,
+        payload: { task_id: receiveTaskId, qty_base: "2" },
+        device_id: deviceId,
+        user_id: userId,
+      },
+      {
+        id: receiveTaskId,
+        warehouse_id: warehouseId,
+        type: "putaway",
+        status: "open",
+        requested_qty_base: "2",
+      },
+    );
+    await applyFeedEntries(
+      db,
+      warehouseId,
+      [
+        {
+          seq: 1,
+          entity: "task",
+          id: receiveTaskId,
+          op: "upsert",
+          payload: {
+            id: receiveTaskId,
+            warehouse_id: warehouseId,
+            type: "putaway",
+            status: "open",
+            suggested_location_id: "bin-1",
+          },
+          command_id: "recv-2",
+        },
+      ],
+      "epoch-1",
+      "1",
+      new Date("2026-09-13T09:00:11.000Z"),
+    );
+    expect(await db.tasks.get(receiveTaskId)).toMatchObject({
+      type: "putaway",
+      suggested_location_id: "bin-1",
+      requested_qty_base: "2",
+    });
   });
 
   it("leaves the outbox intact on logout", async () => {
