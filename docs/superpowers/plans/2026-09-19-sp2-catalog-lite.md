@@ -122,7 +122,7 @@ Must print none. Additive only (new tables).
 
 ---
 
-## Task C2. POST /articles, GET /articles, GET /units
+## Task C2. POST /articles, GET /articles, GET /units (done 2026-09-19, pending)
 
 **Files:** create `backend/src/WmsCore/Api/Catalog/ArticleApi.cs`; modify `Program.cs`; tests in `CatalogModuleTests.cs`; snapshot branch in `InternalApi.cs` `GetSnapshot`.
 
@@ -166,13 +166,13 @@ Create rules:
 
 Snapshot: `entity=Article` lists all articles with levels (ignore `warehouse`). `entity=UnitOfMeasure` lists units. Do not change the Task default.
 
-- [ ] **Step 1:** Write `CreateArticle_UnknownUom_400` first (must not insert). Run; fail.
+- [x] **Step 1:** Write `CreateArticle_UnknownUom_400` first (must not insert). Run; fail.
 
-- [ ] **Step 2:** Implement `ArticleApi` + `MapArticleApi()`. Register in `ConfigureApp` next to `MapWarehouseApi()`.
+- [x] **Step 2:** Implement `ArticleApi` + `MapArticleApi()`. Register in `ConfigureApp` next to `MapWarehouseApi()`.
 
-- [ ] **Step 3:** Remaining tests: `CreateArticle_SeedsOnePackagingLevelQtyOne` (sku `KAFFE-500`, name `Kaffe`, default st → one level `qty_in_base` `"1.000000"` or `"1"`, compare as decimal); `CreateArticle_DuplicateSku_409`; `ListArticles_ReturnsCreated`; `GetUnits_ReturnsSt`; `Snapshot_EntityArticle_ReturnsSkuAndLevel` (`GET /internal/snapshot?tenantId=&entity=Article`).
+- [x] **Step 3:** Remaining tests: `CreateArticle_SeedsOnePackagingLevelQtyOne` (sku `KAFFE-500`, name `Kaffe`, default st → one level `qty_in_base` `"1.000000"` or `"1"`, compare as decimal); `CreateArticle_DuplicateSku_409`; `ListArticles_ReturnsCreated`; `GetUnits_ReturnsSt`; `Snapshot_EntityArticle_ReturnsSkuAndLevel` (`GET /internal/snapshot?tenantId=&entity=Article`).
 
-- [ ] **Step 4:** Break uniqueness (allow second insert); confirm duplicate test fails; restore.
+- [x] **Step 4:** Break uniqueness (allow second insert); confirm duplicate test fails; restore.
 
 **Tests:** those six names.
 

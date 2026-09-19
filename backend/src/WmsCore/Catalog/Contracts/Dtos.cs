@@ -46,3 +46,10 @@ public sealed record ArticleDto(
     string QuantityStep,
     bool AllowLoosePick,
     PackagingLevelDto[] PackagingLevels);
+
+public sealed record CreateArticleRequest(
+    Guid Id,
+    string Sku,
+    string Name,
+    Guid? BaseUomId,
+    Guid? PackagingLevelId);

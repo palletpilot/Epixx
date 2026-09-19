@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Lagerkraft.WmsCore.Api.Catalog;
 using Lagerkraft.WmsCore.Api.Commands;
 using Lagerkraft.WmsCore.Layout.Contracts;
 using Lagerkraft.WmsCore.Api.Data;
@@ -183,6 +184,24 @@ public static class InternalApi
                 .Select(w => new WarehouseListDto(w.Id, w.Name, w.CodePattern, w.ActivatedAt))
                 .ToListAsync(ct);
             kind = "Warehouse";
+        }
+        else if (kind.Equals("Article", StringComparison.OrdinalIgnoreCase))
+        {
+            var articles = await db.Articles.AsNoTracking()
+                .OrderBy(a => a.Sku)
+                .Skip(skip).Take(pageSize)
+                .ToListAsync(ct);
+            items = await ArticleApi.WithLevelsAsync(db, articles, ct);
+            kind = "Article";
+        }
+        else if (kind.Equals("UnitOfMeasure", StringComparison.OrdinalIgnoreCase))
+        {
+            var units = await db.UnitsOfMeasure.AsNoTracking()
+                .OrderBy(u => u.Code)
+                .Skip(skip).Take(pageSize)
+                .ToListAsync(ct);
+            items = units.Select(ArticleApi.ToUnitDto).ToList();
+            kind = "UnitOfMeasure";
         }
         else
         {
