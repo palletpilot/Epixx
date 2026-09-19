@@ -132,7 +132,7 @@ Commit: `sp1: L6 - office live aisle map and warehouse create UX`.
 
 ---
 
-## Task L7. Playwright: map offline, office map fills
+## Task L7. Playwright: map offline, office map fills (done 2026-09-19, ebfff73)
 
 Files: `frontend/apps/floor/e2e/map-offline.spec.ts`; extend or add web e2e that watches the map (or one spec driving both origins like claim-offline).
 
