@@ -145,6 +145,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
         registry.Register(ActivatorUtilities.CreateInstance<ReceiveHandlingUnitHandler>(sp));
         registry.Register(ActivatorUtilities.CreateInstance<ConfirmPutawayHandler>(sp));
         registry.Register(ActivatorUtilities.CreateInstance<ConfirmPickHandler>(sp));
+        registry.Register(ActivatorUtilities.CreateInstance<ShipAsPickedHandler>(sp));
         return registry;
     });
     builder.Services.AddSingleton<CommandDispatcher>();
