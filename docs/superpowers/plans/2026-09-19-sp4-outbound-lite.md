@@ -138,7 +138,7 @@ Create rules:
 
 ---
 
-## Task O3. ConfirmPick (done 2026-09-19, pending)
+## Task O3. ConfirmPick (done 2026-09-19, 7b4b332)
 
 **Files:** `contracts/commands/ConfirmPick/v1.json` + fixture; `ConfirmPickHandler.cs`; register; `OutboundCommandTests.cs`; gen:commands.
 
