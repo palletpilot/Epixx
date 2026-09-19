@@ -42,6 +42,18 @@ export interface CreateTaskV1 {
   [k: string]: unknown;
 }
 
+export interface ReceiveHandlingUnitV1 {
+  warehouse_id: string;
+  handling_unit_id: string;
+  task_id: string;
+  lpn: string;
+  article_id: string;
+  qty_base: string;
+  packaging_level_id?: string | null;
+  height_mm?: number | null;
+  [k: string]: unknown;
+}
+
 export interface ReleaseTaskV1 {
   task_id: string;
   [k: string]: unknown;

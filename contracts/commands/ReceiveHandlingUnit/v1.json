@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lagerkraft:commands/ReceiveHandlingUnit/v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["warehouse_id", "handling_unit_id", "task_id", "lpn", "article_id", "qty_base"],
+  "properties": {
+    "warehouse_id": { "type": "string", "format": "uuid" },
+    "handling_unit_id": { "type": "string", "format": "uuid" },
+    "task_id": { "type": "string", "format": "uuid" },
+    "lpn": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "article_id": { "type": "string", "format": "uuid" },
+    "qty_base": { "type": "string", "minLength": 1 },
+    "packaging_level_id": { "type": ["string", "null"], "format": "uuid" },
+    "height_mm": { "type": ["integer", "null"], "minimum": 0 }
+  }
+}

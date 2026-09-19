@@ -6,6 +6,7 @@ using Lagerkraft.WmsCore.Api.Catalog;
 using Lagerkraft.WmsCore.Api.Commands;
 using Lagerkraft.WmsCore.Api.Commands.Probe;
 using Lagerkraft.WmsCore.Api.Commands.Layout;
+using Lagerkraft.WmsCore.Api.Commands.Inventory;
 using Lagerkraft.WmsCore.Api.Commands.Tasks;
 using Lagerkraft.WmsCore.Api.Internal;
 using Lagerkraft.WmsCore.Api.Jobs;
@@ -139,6 +140,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
         registry.Register(ActivatorUtilities.CreateInstance<CompleteTaskHandler>(sp));
         registry.Register(ActivatorUtilities.CreateInstance<CreateLocationBatchHandler>(sp));
         registry.Register(ActivatorUtilities.CreateInstance<SetLocationDimensionsHandler>(sp));
+        registry.Register(ActivatorUtilities.CreateInstance<ReceiveHandlingUnitHandler>(sp));
         return registry;
     });
     builder.Services.AddSingleton<CommandDispatcher>();

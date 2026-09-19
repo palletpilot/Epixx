@@ -112,7 +112,7 @@ Unique `(warehouse_id, lpn)` on handling_unit. Unique `(handling_unit_id, articl
 
 ---
 
-## Task I2. ReceiveHandlingUnit
+## Task I2. ReceiveHandlingUnit (done 2026-09-19, pending)
 
 **Files:** `contracts/commands/ReceiveHandlingUnit/v1.json` + fixture; `ReceiveHandlingUnitHandler.cs`; `Program.cs` register; `InboundCommandTests.cs`; `CommandRegistryTests` lists the type; `pnpm -C frontend gen:commands`.
 
@@ -141,13 +141,13 @@ Create rules:
 - `change_log` upserts: `handling_unit` (content nested), `stock_balance`, `task`. Outbox `inventory.received` with the HU payload.
 - Idempotent retry via `processed_commands`.
 
-- [ ] **Step 1:** Write `ReceiveHandlingUnit_UnknownArticle_Rejected` (must not insert HU). Run; fail.
+- [x] **Step 1:** Write `ReceiveHandlingUnit_UnknownArticle_Rejected` (must not insert HU). Run; fail.
 
-- [ ] **Step 2:** Schema, fixture, handler, register.
+- [x] **Step 2:** Schema, fixture, handler, register.
 
-- [ ] **Step 3:** Remaining tests: `ReceiveHandlingUnit_HappyPath_BalanceAtReceiving`; `ReceiveHandlingUnit_SuggestsFirstEmptyBin`; `ReceiveHandlingUnit_DuplicateLpn_Rejected`; `ReceiveHandlingUnit_Viewer_Forbidden`; `ReceiveHandlingUnit_IdempotentRetry`.
+- [x] **Step 3:** Remaining tests: `ReceiveHandlingUnit_HappyPath_BalanceAtReceiving`; `ReceiveHandlingUnit_SuggestsFirstEmptyBin`; `ReceiveHandlingUnit_DuplicateLpn_Rejected`; `ReceiveHandlingUnit_Viewer_Forbidden`; `ReceiveHandlingUnit_IdempotentRetry`.
 
-- [ ] **Step 4:** Break suggestion (always null); confirm empty-bin test fails; restore.
+- [x] **Step 4:** Break suggestion (always null); confirm empty-bin test fails; restore.
 
 **Tests:** those six names.
 
