@@ -4,22 +4,19 @@ import { computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useFloorStore } from "../stores/floor";
+import { warehousePickOptions } from "../stores/warehousePick";
 
 const { t } = useI18n();
 const floor = useFloorStore();
 const router = useRouter();
 
-const options = computed(() => {
-  const ids = floor.device?.warehouse_ids ?? [];
-  if (ids.length === 0) {
-    return ["01900000-0000-7000-8000-000000000001"];
-  }
-  return ids;
-});
+const options = computed(() => warehousePickOptions(floor.device?.warehouse_ids, floor.warehouses));
 
-onMounted(() => {
-  if (options.value[0] && !floor.warehouseId) {
-    floor.warehouseId = options.value[0];
+onMounted(async () => {
+  await floor.loadWarehouses();
+  const first = options.value[0];
+  if (first && !floor.warehouseId) {
+    floor.warehouseId = first.id;
   }
 });
 
@@ -34,8 +31,8 @@ async function pick(id: string) {
   <section>
     <h1 class="mb-4 text-xl font-semibold">{{ t("floor.warehouseTitle") }}</h1>
     <ul class="flex flex-col gap-2">
-      <li v-for="id in options" :key="id">
-        <Button class="min-h-12 w-full" @click="pick(id)">{{ id }}</Button>
+      <li v-for="w in options" :key="w.id">
+        <Button class="min-h-12 w-full" @click="pick(w.id)">{{ w.name }}</Button>
       </li>
     </ul>
   </section>

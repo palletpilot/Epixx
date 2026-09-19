@@ -90,6 +90,20 @@ async function mockApis(page: Page, state: { status: string }): Promise<void> {
       return;
     }
     if (url.includes("/snapshot")) {
+      const entity = new URL(url).searchParams.get("entity");
+      if (entity === "Warehouse") {
+        await route.fulfill({
+          json: {
+            feed_epoch: "epoch-1",
+            items: [{ id: warehouseId, name: "Dev warehouse" }],
+          },
+        });
+        return;
+      }
+      if (entity === "Location") {
+        await route.fulfill({ json: { feed_epoch: "epoch-1", items: [] } });
+        return;
+      }
       await route.fulfill({
         json: {
           feed_epoch: "epoch-1",
@@ -127,7 +141,7 @@ test("claim a task offline then see it applied in the back office", async ({ pag
   await page.getByLabel(/^pin$/i).fill("1234");
   await page.getByRole("button", { name: /^fortsätt$|^continue$/i }).click();
 
-  await page.getByRole("button", { name: warehouseId }).click();
+  await page.getByRole("button", { name: "Dev warehouse" }).click();
   await expect(page.getByRole("heading", { name: /uppgifter|tasks/i })).toBeVisible();
   await page.getByRole("link", { name: /pick/i }).click();
 

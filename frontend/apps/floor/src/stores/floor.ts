@@ -11,7 +11,7 @@ import {
   PIN_LOCK_MS,
   verifyPin,
 } from "../auth/pin";
-import { getDb, type DeviceRow, type SessionRow, type TaskRow } from "../db";
+import { getDb, type DeviceRow, type LocationRow, type SessionRow, type TaskRow, type WarehouseRow } from "../db";
 import { APP_VERSION, platformUrl, syncUrl } from "../env";
 import { applyFeedEntries, flushOutbox, flushState, webLock, type FlushHttpResult } from "../sync/flush";
 import { enqueueWithTask, logoutLeavesOutbox, oldestPendingAt, pendingCount } from "../sync/outbox";
@@ -37,6 +37,7 @@ export const useFloorStore = defineStore("floor", {
     accessToken: null as string | null,
     displayName: "",
     warehouseId: "",
+    warehouses: [] as WarehouseRow[],
     lastError: null as string | null,
     lastActivityAt: Date.now(),
     lastSyncAt: null as string | null,
@@ -90,6 +91,7 @@ export const useFloorStore = defineStore("floor", {
       const db = getDb();
       this.device = (await db.device.toArray())[0] ?? null;
       this.sessions = await db.sessions.toArray();
+      this.warehouses = await db.warehouses.toArray();
       await this.refreshBadge();
       this.loaded = true;
     },
@@ -295,10 +297,8 @@ export const useFloorStore = defineStore("floor", {
       headers.set("X-Lagerkraft-App-Version", APP_VERSION);
       return fetch(input, { ...init, headers });
     },
-    async loadSnapshot(warehouseId: string): Promise<void> {
-      const res = await this.authedFetch(
-        `${syncUrl()}/sync/snapshot?warehouse=${warehouseId}&entity=Task`,
-      );
+    async loadWarehouses(): Promise<void> {
+      const res = await this.authedFetch(`${syncUrl()}/sync/snapshot?entity=Warehouse`);
       if (res.status === 410) {
         await this.markRevoked();
         return;
@@ -306,23 +306,56 @@ export const useFloorStore = defineStore("floor", {
       if (!res.ok) {
         return;
       }
-      const epoch = res.headers.get("Lagerkraft-Feed-Epoch") ?? "";
-      const body = (await res.json()) as {
+      const body = (await res.json()) as { items?: WarehouseRow[] };
+      const db = getDb();
+      await db.transaction("rw", db.warehouses, async () => {
+        await db.warehouses.clear();
+        for (const item of body.items ?? []) {
+          if (item.id) {
+            await db.warehouses.put(item);
+          }
+        }
+      });
+      this.warehouses = await db.warehouses.toArray();
+    },
+    async loadSnapshot(warehouseId: string): Promise<void> {
+      const [taskRes, locRes] = await Promise.all([
+        this.authedFetch(`${syncUrl()}/sync/snapshot?warehouse=${warehouseId}&entity=Task`),
+        this.authedFetch(`${syncUrl()}/sync/snapshot?warehouse=${warehouseId}&entity=Location`),
+      ]);
+      if (taskRes.status === 410 || locRes.status === 410) {
+        await this.markRevoked();
+        return;
+      }
+      if (!taskRes.ok) {
+        return;
+      }
+      const epoch = taskRes.headers.get("Lagerkraft-Feed-Epoch") ?? "";
+      const taskBody = (await taskRes.json()) as {
         items?: TaskRow[];
         feed_epoch?: string;
         snapshot_schema?: string;
       };
+      const locBody = locRes.ok
+        ? ((await locRes.json()) as { items?: LocationRow[] })
+        : { items: [] };
       const db = getDb();
-      await db.transaction("rw", db.tasks, db.cursor, async () => {
+      await db.transaction("rw", db.tasks, db.locations, db.cursor, async () => {
         await db.tasks.where("warehouse_id").equals(warehouseId).delete();
-        for (const item of body.items ?? []) {
+        await db.locations.where("warehouse_id").equals(warehouseId).delete();
+        for (const item of taskBody.items ?? []) {
           await db.tasks.put(item);
+        }
+        for (const item of locBody.items ?? []) {
+          if (item.id) {
+            await db.locations.put(item);
+          }
         }
         await db.cursor.put({
           warehouse_id: warehouseId,
           seq: 0,
-          feed_epoch: body.feed_epoch ?? epoch,
-          snapshot_schema: body.snapshot_schema ?? "",
+          feed_epoch: taskBody.feed_epoch ?? epoch,
+          snapshot_schema: taskBody.snapshot_schema ?? "",
         });
       });
       this.warehouseId = warehouseId;

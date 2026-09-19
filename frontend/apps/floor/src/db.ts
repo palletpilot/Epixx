@@ -59,10 +59,35 @@ export type DeviceRow = {
   access_token?: string;
 };
 
+export type LocationRow = {
+  id: string;
+  warehouse_id: string;
+  parent_id?: string | null;
+  type: string;
+  code: string;
+  path?: string;
+  height_mm?: number | null;
+  width_mm?: number | null;
+  depth_mm?: number | null;
+  max_weight_g?: number | null;
+  barcode?: string;
+  status?: string;
+  is_system?: boolean;
+};
+
+export type WarehouseRow = {
+  id: string;
+  name: string;
+  code_pattern?: string | null;
+  activated_at?: string | null;
+};
+
 export class FloorDb extends Dexie {
   outbox!: Table<OutboxRow, string>;
   confirmed!: Table<ConfirmedRow, string>;
   tasks!: Table<TaskRow, string>;
+  locations!: Table<LocationRow, string>;
+  warehouses!: Table<WarehouseRow, string>;
   cursor!: Table<CursorRow, string>;
   sessions!: Table<SessionRow, string>;
   device!: Table<DeviceRow, string>;
@@ -76,6 +101,10 @@ export class FloorDb extends Dexie {
       cursor: "warehouse_id",
       sessions: "user_id",
       device: "id",
+    });
+    this.version(2).stores({
+      locations: "id, warehouse_id, parent_id, type, code",
+      warehouses: "id",
     });
   }
 }

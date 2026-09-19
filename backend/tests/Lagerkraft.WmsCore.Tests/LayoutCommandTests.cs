@@ -258,6 +258,26 @@ public sealed class LayoutCommandTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Snapshot_EntityLocation_ReturnsMappedAisle()
+    {
+        var aisleId = Guid.CreateVersion7();
+        (await Apply("CreateLocationBatch", Aisle(aisleId, "K"))).Outcome.ShouldBe("Applied");
+
+        using var client = InternalClient();
+        var response = await client.GetAsync(
+            $"/internal/snapshot?tenantId={_tenantId}&warehouse={_warehouseId}&entity=Location");
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(Json);
+        body.GetProperty("entity").GetString().ShouldBe("Location");
+        body.GetProperty("snapshot_schema").GetString()!.ShouldContain("LocationTree");
+        var items = body.GetProperty("items");
+        var aisle = items.EnumerateArray().Single(el => el.GetProperty("id").GetGuid() == aisleId);
+        aisle.GetProperty("code").GetString().ShouldBe("K");
+        aisle.GetProperty("type").GetString().ShouldBe("aisle");
+        aisle.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
+    }
+
+    [Fact]
     public async Task SetLocationDimensions_UnknownId_Rejected()
     {
         var missing = Guid.CreateVersion7();

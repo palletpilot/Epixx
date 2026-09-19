@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Lagerkraft.WmsCore.Api.Commands;
+using Lagerkraft.WmsCore.Layout.Contracts;
 using Lagerkraft.WmsCore.Api.Data;
 using Lagerkraft.WmsCore.Api.Migrations;
 using Lagerkraft.WmsCore.Api.Relay;
@@ -148,18 +149,58 @@ public static class InternalApi
         var meta = await db.TenantMeta.SingleOrDefaultAsync(ct);
         var pageSize = 100;
         var pageNum = page ?? 1;
-        var q = db.Tasks.AsNoTracking().AsQueryable();
-        if (warehouse is { } wh)
+        var skip = (pageNum - 1) * pageSize;
+        var kind = string.IsNullOrWhiteSpace(entity) ? "Task" : entity;
+
+        object items;
+        if (kind.Equals("Location", StringComparison.OrdinalIgnoreCase))
         {
-            q = q.Where(t => t.WarehouseId == wh);
+            var q = db.Locations.AsNoTracking().AsQueryable();
+            if (warehouse is { } wh)
+            {
+                q = q.Where(l => l.WarehouseId == wh);
+            }
+
+            items = await q.OrderBy(l => l.Path).ThenBy(l => l.Code)
+                .Skip(skip).Take(pageSize)
+                .Select(l => new LocationDto(
+                    l.Id, l.WarehouseId, l.ParentId, l.Type, l.Code, l.Path,
+                    l.HeightMm, l.WidthMm, l.DepthMm, l.MaxWeightG,
+                    l.Barcode, l.Status, l.IsSystem))
+                .ToListAsync(ct);
+            kind = "Location";
+        }
+        else if (kind.Equals("Warehouse", StringComparison.OrdinalIgnoreCase))
+        {
+            var q = db.Warehouses.AsNoTracking().AsQueryable();
+            if (warehouse is { } wh)
+            {
+                q = q.Where(w => w.Id == wh);
+            }
+
+            items = await q.OrderBy(w => w.Name)
+                .Skip(skip).Take(pageSize)
+                .Select(w => new WarehouseListDto(w.Id, w.Name, w.CodePattern, w.ActivatedAt))
+                .ToListAsync(ct);
+            kind = "Warehouse";
+        }
+        else
+        {
+            var q = db.Tasks.AsNoTracking().AsQueryable();
+            if (warehouse is { } wh)
+            {
+                q = q.Where(t => t.WarehouseId == wh);
+            }
+
+            items = await q.OrderBy(t => t.CreatedAt).Skip(skip).Take(pageSize).ToListAsync(ct);
+            kind = "Task";
         }
 
-        var items = await q.OrderBy(t => t.CreatedAt).Skip((pageNum - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         return Results.Ok(new
         {
             feed_epoch = meta?.FeedEpoch ?? Guid.Empty,
             warehouse,
-            entity = entity ?? "Task",
+            entity = kind,
             page = pageNum,
             snapshot_schema = SchemaVersions.RequiredFromAssembly(),
             items

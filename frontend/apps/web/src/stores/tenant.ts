@@ -12,8 +12,6 @@ export type TenantContext = {
   maintenance?: boolean;
 };
 
-const DEV_WAREHOUSE_ID = "01900000-0000-7000-8000-000000000001";
-
 export const useTenantStore = defineStore("tenant", {
   state: () => ({
     context: {} as TenantContext,
@@ -55,8 +53,6 @@ export const useTenantStore = defineStore("tenant", {
       if (list.ok) {
         const body = (await list.json()) as Warehouse[] | { items?: Warehouse[] };
         this.warehouses = Array.isArray(body) ? body : (body.items ?? []);
-      } else if (this.warehouses.length === 0) {
-        this.warehouses = [{ id: DEV_WAREHOUSE_ID, name: DEV_WAREHOUSE_ID }];
       }
     },
     async createWarehouse(name: string): Promise<void> {
