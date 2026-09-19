@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Lagerkraft.Shared;
@@ -286,6 +287,36 @@ public sealed class InboundCommandTests : IAsyncLifetime
         second.Outcome.ShouldBe("Applied");
         await using var db = OpenDb();
         (await db.StockMovements.CountAsync(m => m.CommandId == commandId)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Snapshot_EntityHandlingUnit_ReturnsLpn()
+    {
+        var huId = Guid.CreateVersion7();
+        var taskId = Guid.CreateVersion7();
+        (await Apply("ReceiveHandlingUnit", ReceivePayload(huId, taskId, "LPN-SNAP01"))).Outcome.ShouldBe("Applied");
+
+        using var client = InternalClient();
+        var response = await client.GetAsync(
+            $"/internal/snapshot?tenantId={_tenantId}&warehouse={_warehouseId}&entity=HandlingUnit");
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(Json);
+        body.GetProperty("entity").GetString().ShouldBe("HandlingUnit");
+        var item = body.GetProperty("items").EnumerateArray().Single(el => el.GetProperty("id").GetGuid() == huId);
+        item.GetProperty("lpn").GetString().ShouldBe("LPN-SNAP01");
+        item.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
+        var content = item.GetProperty("contents").EnumerateArray().ShouldHaveSingleItem();
+        content.GetProperty("article_id").GetGuid().ShouldBe(_articleId);
+        decimal.Parse(content.GetProperty("qty_base").GetString()!, CultureInfo.InvariantCulture).ShouldBe(1m);
+
+        var balances = await client.GetAsync(
+            $"/internal/snapshot?tenantId={_tenantId}&warehouse={_warehouseId}&entity=StockBalance");
+        balances.EnsureSuccessStatusCode();
+        var balBody = await balances.Content.ReadFromJsonAsync<JsonElement>(Json);
+        balBody.GetProperty("entity").GetString().ShouldBe("StockBalance");
+        var bal = balBody.GetProperty("items").EnumerateArray().ShouldHaveSingleItem();
+        bal.GetProperty("handling_unit_id").GetGuid().ShouldBe(huId);
+        decimal.Parse(bal.GetProperty("qty_base").GetString()!, CultureInfo.InvariantCulture).ShouldBe(1m);
     }
 
     private object ReceivePayload(Guid huId, Guid taskId, string lpn) => new

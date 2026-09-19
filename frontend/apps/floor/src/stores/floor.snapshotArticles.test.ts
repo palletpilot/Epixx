@@ -64,6 +64,9 @@ function mockSnapshot(articles: unknown[], units: unknown[]) {
     if (url.includes("entity=UnitOfMeasure")) {
       return jsonRes({ items: units });
     }
+    if (url.includes("entity=HandlingUnit") || url.includes("entity=StockBalance")) {
+      return jsonRes({ items: [] });
+    }
     throw new Error(url);
   });
   return floor;

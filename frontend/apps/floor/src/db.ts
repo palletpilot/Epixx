@@ -94,6 +94,30 @@ export type ArticleRow = {
   packaging_levels: { id: string; rank: number; name: string; qty_in_base: string }[];
 };
 
+export type HandlingUnitRow = {
+  id: string;
+  warehouse_id: string;
+  lpn: string;
+  height_mm?: number | null;
+  received_at?: string;
+  contents: {
+    id: string;
+    handling_unit_id: string;
+    article_id: string;
+    qty_base: string;
+    packaging_level_id: string;
+  }[];
+};
+
+export type StockBalanceRow = {
+  location_id: string;
+  article_id: string;
+  handling_unit_id: string;
+  qty_base: string;
+  reserved_qty_base: string;
+  warehouse_id: string;
+};
+
 export type UnitRow = {
   id: string;
   code: string;
@@ -111,6 +135,8 @@ export class FloorDb extends Dexie {
   warehouses!: Table<WarehouseRow, string>;
   articles!: Table<ArticleRow, string>;
   units!: Table<UnitRow, string>;
+  handling_units!: Table<HandlingUnitRow, string>;
+  stock_balances!: Table<StockBalanceRow, string>;
   cursor!: Table<CursorRow, string>;
   sessions!: Table<SessionRow, string>;
   device!: Table<DeviceRow, string>;
@@ -132,6 +158,10 @@ export class FloorDb extends Dexie {
     this.version(3).stores({
       articles: "id, sku, status",
       units: "id, code",
+    });
+    this.version(4).stores({
+      handling_units: "id, warehouse_id, lpn",
+      stock_balances: "[location_id+article_id+handling_unit_id], warehouse_id, location_id",
     });
   }
 }

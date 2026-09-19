@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Text.Json;
 using Lagerkraft.WmsCore.Api.Catalog;
 using Lagerkraft.WmsCore.Api.Commands;
 using Lagerkraft.WmsCore.Layout.Contracts;
+using Lagerkraft.WmsCore.Inventory.Contracts;
 using Lagerkraft.WmsCore.Api.Data;
 using Lagerkraft.WmsCore.Api.Migrations;
 using Lagerkraft.WmsCore.Api.Relay;
@@ -203,6 +205,54 @@ public static class InternalApi
             items = units.Select(ArticleApi.ToUnitDto).ToList();
             kind = "UnitOfMeasure";
         }
+        else if (kind.Equals("HandlingUnit", StringComparison.OrdinalIgnoreCase))
+        {
+            var q = db.HandlingUnits.AsNoTracking().AsQueryable();
+            if (warehouse is { } huWh)
+            {
+                q = q.Where(h => h.WarehouseId == huWh);
+            }
+
+            var hus = await q.OrderBy(h => h.Lpn).Skip(skip).Take(pageSize).ToListAsync(ct);
+            var ids = hus.Select(h => h.Id).ToList();
+            var contents = await db.HandlingUnitContents.AsNoTracking()
+                .Where(c => ids.Contains(c.HandlingUnitId))
+                .ToListAsync(ct);
+            var byHu = contents.GroupBy(c => c.HandlingUnitId)
+                .ToDictionary(g => g.Key, g => g.ToArray());
+            items = hus.Select(h => new HandlingUnitDto(
+                h.Id,
+                h.WarehouseId,
+                h.Lpn,
+                h.HeightMm,
+                h.ReceivedAt,
+                (byHu.GetValueOrDefault(h.Id) ?? [])
+                    .Select(c => new HandlingUnitContentDto(
+                        c.Id,
+                        c.HandlingUnitId,
+                        c.ArticleId,
+                        DecimalString(c.QtyBase),
+                        c.PackagingLevelId))
+                    .ToArray())).ToList();
+            kind = "HandlingUnit";
+        }
+        else if (kind.Equals("StockBalance", StringComparison.OrdinalIgnoreCase))
+        {
+            var q = db.StockBalances.AsNoTracking().AsQueryable();
+            if (warehouse is { } balWh)
+            {
+                q = q.Where(b => db.Locations.Any(l => l.Id == b.LocationId && l.WarehouseId == balWh));
+            }
+
+            var rows = await q.Skip(skip).Take(pageSize).ToListAsync(ct);
+            items = rows.Select(b => new StockBalanceDto(
+                b.LocationId,
+                b.ArticleId,
+                b.HandlingUnitId,
+                DecimalString(b.QtyBase),
+                DecimalString(b.ReservedQtyBase))).ToList();
+            kind = "StockBalance";
+        }
         else
         {
             var q = db.Tasks.AsNoTracking().AsQueryable();
@@ -235,6 +285,9 @@ public static class InternalApi
             latest_app_version = latest
         });
     }
+
+    private static string DecimalString(decimal value) =>
+        value.ToString(CultureInfo.InvariantCulture);
 }
 
 public sealed record CommandBatchRequest(
