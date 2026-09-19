@@ -115,3 +115,49 @@ public sealed class TaskLine
     public decimal? TolerancePct { get; set; }
     public string Status { get; set; } = "open";
 }
+
+public sealed class UnitOfMeasure
+{
+    public Guid Id { get; set; }
+    public string Code { get; set; } = "";
+    public string Dimension { get; set; } = "";
+    public decimal FactorToDimensionBase { get; set; }
+    public string DisplayNameSv { get; set; } = "";
+    public string DisplayNameEn { get; set; } = "";
+}
+
+public sealed class Article
+{
+    public Guid Id { get; set; }
+    public string Sku { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Gtin { get; set; }
+    public string Status { get; set; } = "";
+    public Guid BaseUomId { get; set; }
+    public int QuantityPrecision { get; set; }
+    public decimal QuantityStep { get; set; }
+    public bool AllowLoosePick { get; set; }
+    public Guid? OrderMultipleLevelId { get; set; }
+    public int? WeightPerBaseUnitG { get; set; }
+    public string? PickInstruction { get; set; }
+    public bool CatchWeight { get; set; }
+    public Guid? CatchWeightUomId { get; set; }
+}
+
+public sealed class PackagingLevel
+{
+    public Guid Id { get; set; }
+    public Guid ArticleId { get; set; }
+    public int Rank { get; set; }
+    public string Name { get; set; } = "";
+    public decimal QtyInBase { get; set; }
+    public int HeightMm { get; set; }
+    public int WidthMm { get; set; }
+    public int DepthMm { get; set; }
+    public int GrossWeightG { get; set; }
+    public string? Barcode { get; set; }
+    public Guid? PalletTypeId { get; set; }
+    public bool IsBreakable { get; set; }
+    public bool IsDefaultReceiving { get; set; }
+    public bool IsDefaultShipping { get; set; }
+}
