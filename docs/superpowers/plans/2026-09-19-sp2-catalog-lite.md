@@ -218,7 +218,7 @@ export type ArticleRow = {
 
 ---
 
-## Task C4. Office Artiklar page (done 2026-09-19, PENDING)
+## Task C4. Office Artiklar page (done 2026-09-19, 6dfba2f)
 
 **Files:** `ArticlesView.vue`, `AppShell.vue`, `router.ts`, `sv.json`, `en.json`.
 
