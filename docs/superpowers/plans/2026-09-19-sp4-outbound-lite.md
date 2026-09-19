@@ -102,7 +102,7 @@ Unique `(warehouse_id, source, external_ref)` on order.
 
 ---
 
-## Task O2. Create order and allocate
+## Task O2. Create order and allocate (done 2026-09-19, PENDINGSHA)
 
 **Files:** `OrderApi.cs`; `Program.cs`; tests in `OutboundModuleTests.cs`.
 
@@ -124,13 +124,13 @@ Create rules:
 - Shortage: order stays `released`, line `short`, no task, 200 with that body.
 - `GET /orders?warehouse=` lists newest first.
 
-- [ ] **Step 1:** `CreateOrder_UnknownArticle_400`. Run; fail.
+- [x] **Step 1:** `CreateOrder_UnknownArticle_400`. Run; fail.
 
-- [ ] **Step 2:** OrderApi + allocate helper (same transaction as insert).
+- [x] **Step 2:** OrderApi + allocate helper (same transaction as insert).
 
-- [ ] **Step 3:** `CreateOrder_HappyPath_PickTaskFromFifoHu`; `CreateOrder_Shortage_LineShort`; `CreateOrder_DuplicateExternalRef_409`.
+- [x] **Step 3:** `CreateOrder_HappyPath_PickTaskFromFifoHu`; `CreateOrder_Shortage_LineShort`; `CreateOrder_DuplicateExternalRef_409`.
 
-- [ ] **Step 4:** Break FIFO (always last HU); confirm fail; restore.
+- [x] **Step 4:** Break FIFO (always last HU); confirm fail; restore.
 
 **Tests:** those four names.
 

@@ -13,6 +13,7 @@ using Lagerkraft.WmsCore.Api.Jobs;
 using Lagerkraft.WmsCore.Api.Migrations;
 using Lagerkraft.WmsCore.Api.Relay;
 using Lagerkraft.WmsCore.Api.Tenancy;
+using Lagerkraft.WmsCore.Api.Outbound;
 using Lagerkraft.WmsCore.Api.Warehouses;
 using NATS.Client.Core;
 
@@ -175,6 +176,7 @@ static void ConfigureApp(WebApplication app)
     app.MapInternalApi();
     app.MapWarehouseApi();
     app.MapArticleApi();
+    app.MapOrderApi();
 }
 
 public partial class Program;

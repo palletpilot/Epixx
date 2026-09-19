@@ -29,3 +29,12 @@ public sealed record ShipmentDto(
     string? ConfirmationCode,
     DateTimeOffset ShippedAt,
     Guid[] HandlingUnitIds);
+
+public sealed record CreateOrderRequest(
+    Guid Id,
+    Guid WarehouseId,
+    Guid ArticleId,
+    string QtyBase,
+    string? ExternalRef,
+    string? DestinationName,
+    Guid? RequestedLevelId);
