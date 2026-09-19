@@ -1,10 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const warehouseId = "01900000-0000-7000-8000-000000000001";
-const taskId = "01900000-0000-7000-8000-000000000012";
 const deviceId = "01900000-0000-7000-8000-000000000010";
 
-function jwt(dev = true): string {
+function jwt(): string {
   const payload = {
     sub: "11111111-1111-7111-8111-111111111111",
     tid: "22222222-2222-7222-8222-222222222222",
@@ -12,9 +11,49 @@ function jwt(dev = true): string {
     ra: JSON.stringify([{ r: "tenant_admin", w: "*" }]),
     sv: 1,
     amr: "pwd",
-    ...(dev ? { dev: deviceId } : {}),
+    dev: deviceId,
   };
   return `eyJhbGciOiJub25lIn0.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.sig`;
+}
+
+type Loc = {
+  id: string;
+  warehouse_id: string;
+  parent_id: string | null;
+  type: string;
+  code: string;
+};
+
+function aisleTree(): Loc[] {
+  const wh = warehouseId;
+  const rows: Loc[] = [];
+  const aisleId = "aisle-a";
+  rows.push({ id: aisleId, warehouse_id: wh, parent_id: null, type: "aisle", code: "A" });
+  for (let r = 1; r <= 2; r++) {
+    const rackId = `rack-${r}`;
+    const rackCode = `A-0${r}`;
+    rows.push({ id: rackId, warehouse_id: wh, parent_id: aisleId, type: "rack", code: rackCode });
+    for (let lv = 1; lv <= 3; lv++) {
+      const levelId = `level-${r}-${lv}`;
+      rows.push({
+        id: levelId,
+        warehouse_id: wh,
+        parent_id: rackId,
+        type: "level",
+        code: `${rackCode}-0${lv}`,
+      });
+      for (let b = 1; b <= 2; b++) {
+        rows.push({
+          id: `bin-${r}-${lv}-${b}`,
+          warehouse_id: wh,
+          parent_id: levelId,
+          type: "bin",
+          code: `${rackCode}-0${lv}-0${b}`,
+        });
+      }
+    }
+  }
+  return rows;
 }
 
 async function mockStandalone(page: Page): Promise<void> {
@@ -43,9 +82,14 @@ async function mockStandalone(page: Page): Promise<void> {
   });
 }
 
-async function mockApis(page: Page, state: { status: string }): Promise<void> {
+async function mockApis(page: Page, state: { mapped: boolean }): Promise<void> {
   const token = jwt();
-  await page.route("http://localhost:5101/**", async (route) => {
+  const warehouse = {
+    id: warehouseId,
+    name: "Huvudlager",
+    code_pattern: "{aisle}-{rack:2}-{level:2}-{bin:2}",
+  };
+  await page.route(/:5101\//, async (route) => {
     const url = route.request().url();
     if (url.includes("/devices/enroll")) {
       await route.fulfill({
@@ -70,18 +114,18 @@ async function mockApis(page: Page, state: { status: string }): Promise<void> {
     }
     await route.fulfill({ status: 204, body: "" });
   });
-  await page.route("http://localhost:5102/**", async (route) => {
+  await page.route(/:5102\//, async (route) => {
     if (route.request().url().includes("/warehouses") && route.request().method() === "GET") {
-      await route.fulfill({ json: [{ id: warehouseId, name: "Dev warehouse" }] });
+      await route.fulfill({ json: [warehouse] });
       return;
     }
-    await route.fulfill({ status: 201, json: { id: warehouseId } });
+    await route.fulfill({ status: 201, json: warehouse });
   });
-  await page.route("http://localhost:5103/**", async (route) => {
+  await page.route(/:5103\//, async (route) => {
     const url = route.request().url();
     if (url.includes("/sync/commands") && route.request().method() === "POST") {
+      state.mapped = true;
       const body = route.request().postDataJSON() as { commands?: Array<{ id: string }> };
-      state.status = "claimed";
       await route.fulfill({
         json: {
           results: (body.commands ?? []).map((c) => ({ command_id: c.id, outcome: "Applied" })),
@@ -92,40 +136,24 @@ async function mockApis(page: Page, state: { status: string }): Promise<void> {
     if (url.includes("/snapshot")) {
       const entity = new URL(url).searchParams.get("entity");
       if (entity === "Warehouse") {
-        await route.fulfill({
-          json: {
-            feed_epoch: "epoch-1",
-            items: [{ id: warehouseId, name: "Dev warehouse" }],
-          },
-        });
+        await route.fulfill({ json: { feed_epoch: "epoch-1", items: [warehouse] } });
         return;
       }
       if (entity === "Location") {
-        await route.fulfill({ json: { feed_epoch: "epoch-1", items: [] } });
+        await route.fulfill({
+          json: { feed_epoch: "epoch-1", items: state.mapped ? aisleTree() : [] },
+        });
         return;
       }
-      await route.fulfill({
-        json: {
-          feed_epoch: "epoch-1",
-          items: [
-            {
-              id: taskId,
-              warehouse_id: warehouseId,
-              type: "pick",
-              status: state.status,
-              created_at: "2026-09-13T08:00:00.000Z",
-            },
-          ],
-        },
-      });
+      await route.fulfill({ json: { feed_epoch: "epoch-1", items: [] } });
       return;
     }
     await route.fulfill({ status: 204, body: "" });
   });
 }
 
-test("claim a task offline then see it applied in the back office", async ({ page, context, browser }) => {
-  const state = { status: "open" };
+test("map an aisle offline then see 12 bins on the office schematic", async ({ page, context, browser }) => {
+  const state = { mapped: false };
   await mockStandalone(page);
   await mockApis(page, state);
 
@@ -141,13 +169,19 @@ test("claim a task offline then see it applied in the back office", async ({ pag
   await page.getByLabel(/^pin$/i).fill("1234");
   await page.getByRole("button", { name: /^fortsätt$|^continue$/i }).click();
 
-  await page.getByRole("button", { name: "Dev warehouse" }).click();
+  await page.getByRole("button", { name: "Huvudlager" }).click();
   await expect(page.getByRole("heading", { name: /uppgifter|tasks/i })).toBeVisible();
-  await page.getByRole("link", { name: /pick/i }).click();
-
+  await page.getByRole("link", { name: /kartlägg gång|map aisle/i }).first().click();
+  await expect(page.getByLabel(/vilken gång|which aisle/i)).toBeVisible();
   await context.setOffline(true);
-  await page.getByRole("button", { name: /ta uppgift|claim task/i }).click();
-  await expect(page.getByTestId("task-status")).toHaveText("claimed");
+  await page.getByRole("button", { name: /nästa|next/i }).click();
+  await page.getByRole("button", { name: /nästa|next/i }).click();
+  await page.getByRole("button", { name: /nästa|next/i }).click();
+  await page.getByRole("button", { name: /nästa|next/i }).click();
+  await page.getByRole("button", { name: /^ja$|^yes$/i }).click();
+  await expect(page.getByText(/A-01-01-01/)).toBeVisible();
+  await page.getByRole("button", { name: /bekräfta|confirm/i }).click();
+  await expect(page.getByRole("heading", { name: /uppgifter|tasks/i })).toBeVisible();
 
   const posted = page.waitForRequest(
     (req) => req.url().includes("/sync/commands") && req.method() === "POST",
@@ -162,7 +196,7 @@ test("claim a task offline then see it applied in the back office", async ({ pag
   await web.getByLabel(/lösenord|password/i).fill("Passw0rd!");
   await web.getByRole("button", { name: /^fortsätt$|^continue$/i }).click();
   await expect(web).toHaveURL(/\/app\/warehouses/);
-  await web.getByRole("link", { name: /uppgifter|tasks/i }).click();
-  await expect(web.getByRole("listitem")).toContainText(/claimed/i);
+  await web.getByRole("button", { name: "Huvudlager" }).click();
+  await expect(web.locator("[data-code]")).toHaveCount(12);
   await web.close();
 });
