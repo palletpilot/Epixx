@@ -60,7 +60,7 @@ Attribute engine, CSV import, PalletType, pick-instruction UI, GTIN UI, CreateAr
 
 ---
 
-## Task C1. Catalog module, UoM seed, Article and PackagingLevel tables (done 2026-09-19, 4ec4f0f)
+## Task C1. Catalog module, UoM seed, Article and PackagingLevel tables (done 2026-09-19, 92f0fa3)
 
 **Files:** create Catalog csproj + `Contracts/Dtos.cs`; modify `Entities.cs`, `TenantDbContext.cs`; new migration `CatalogTables`; sln + Api + Architecture.Tests ProjectReferences; test `CatalogModuleTests.cs`.
 
