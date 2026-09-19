@@ -86,7 +86,7 @@ Commit: `sp1: L2 - CreateLocationBatch with client ids and idempotent codes`.
 
 ---
 
-## Task L3. SetLocationDimensions (done 2026-09-19, pending)
+## Task L3. SetLocationDimensions (done 2026-09-19, cc0879a)
 
 Files: `contracts/commands/SetLocationDimensions/v1.json` + fixture; handler; register; tests in `LayoutCommandTests.cs`.
 
