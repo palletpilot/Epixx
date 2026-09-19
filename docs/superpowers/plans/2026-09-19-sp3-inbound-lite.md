@@ -230,7 +230,7 @@ Putaway detail: if `task.type === 'putaway'`, show suggested location code (from
 
 ---
 
-## Task I5. Snapshot + Dexie + Playwright (done 2026-09-19, PENDINGSHA)
+## Task I5. Snapshot + Dexie + Playwright (done 2026-09-19, fc0adcb)
 
 **Files:** `InternalApi.cs` snapshot branches; `db.ts` v4; `floor.ts` `loadSnapshot`; `floor.snapshotStock.test.ts` optional; `frontend/apps/floor/e2e/receive-putaway.spec.ts`.
 
