@@ -30,6 +30,9 @@ export type TaskRow = {
   suggested_location_id?: string | null;
   created_at?: string;
   requested_qty_base?: string;
+  order_id?: string;
+  tote_id?: string;
+  shipped?: boolean;
 };
 
 export type CursorRow = {

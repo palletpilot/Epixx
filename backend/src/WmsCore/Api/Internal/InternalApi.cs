@@ -4,6 +4,7 @@ using Lagerkraft.WmsCore.Api.Catalog;
 using Lagerkraft.WmsCore.Api.Commands;
 using Lagerkraft.WmsCore.Layout.Contracts;
 using Lagerkraft.WmsCore.Inventory.Contracts;
+using Lagerkraft.WmsCore.Outbound.Contracts;
 using Lagerkraft.WmsCore.Api.Data;
 using Lagerkraft.WmsCore.Api.Migrations;
 using Lagerkraft.WmsCore.Api.Relay;
@@ -253,6 +254,42 @@ public static class InternalApi
                 DecimalString(b.ReservedQtyBase))).ToList();
             kind = "StockBalance";
         }
+        else if (kind.Equals("Order", StringComparison.OrdinalIgnoreCase))
+        {
+            var q = db.OutboundOrders.AsNoTracking().AsQueryable();
+            if (warehouse is { } orderWh)
+            {
+                q = q.Where(o => o.WarehouseId == orderWh);
+            }
+
+            var orders = await q.OrderByDescending(o => o.Id).Skip(skip).Take(pageSize).ToListAsync(ct);
+            var ids = orders.Select(o => o.Id).ToList();
+            var lines = ids.Count == 0
+                ? []
+                : await db.OutboundOrderLines.AsNoTracking()
+                    .Where(l => ids.Contains(l.OrderId))
+                    .ToListAsync(ct);
+            var byOrder = lines.ToLookup(l => l.OrderId);
+            items = orders.Select(o => new OrderDto(
+                o.Id,
+                o.WarehouseId,
+                o.Source,
+                o.ExternalRef,
+                o.DestinationName,
+                o.RequestedShipDate,
+                o.Status,
+                o.Notes,
+                byOrder[o.Id].Select(l => new OrderLineDto(
+                    l.Id,
+                    l.OrderId,
+                    l.ArticleId,
+                    DecimalString(l.RequestedQtyBase),
+                    l.RequestedLevelId,
+                    DecimalString(l.AllocatedQtyBase),
+                    DecimalString(l.TolerancePct),
+                    l.Status)).ToArray())).ToList();
+            kind = "Order";
+        }
         else
         {
             var q = db.Tasks.AsNoTracking().AsQueryable();
@@ -261,7 +298,48 @@ public static class InternalApi
                 q = q.Where(t => t.WarehouseId == wh);
             }
 
-            items = await q.OrderBy(t => t.CreatedAt).Skip(skip).Take(pageSize).ToListAsync(ct);
+            var tasks = await q.OrderBy(t => t.CreatedAt).Skip(skip).Take(pageSize).ToListAsync(ct);
+            var taskIds = tasks.Select(t => t.Id).ToList();
+            var lines = taskIds.Count == 0
+                ? []
+                : await db.TaskLines.AsNoTracking()
+                    .Where(l => taskIds.Contains(l.TaskId))
+                    .ToListAsync(ct);
+            var lineByTask = lines.ToLookup(l => l.TaskId);
+            items = tasks.Select(t =>
+            {
+                var line = lineByTask[t.Id].FirstOrDefault();
+                Guid? orderId = null;
+                if (line?.SuggestedBreakdown is { Length: > 0 } raw)
+                {
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(raw);
+                        if (doc.RootElement.TryGetProperty("order_id", out var prop)
+                            && Guid.TryParse(prop.GetString(), out var parsed))
+                        {
+                            orderId = parsed;
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                    }
+                }
+
+                return new
+                {
+                    id = t.Id,
+                    warehouse_id = t.WarehouseId,
+                    type = t.Type,
+                    status = t.Status,
+                    assignee_user_id = t.AssigneeUserId,
+                    assigned_until = t.AssignedUntil,
+                    suggested_location_id = t.SuggestedLocationId,
+                    created_at = t.CreatedAt,
+                    requested_qty_base = line is null ? null : DecimalString(line.RequestedQtyBase),
+                    order_id = orderId
+                };
+            }).ToList();
             kind = "Task";
         }
 

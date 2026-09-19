@@ -163,6 +163,7 @@ public static class OrderApi
                     RequestedQtyBase = qty,
                     FromLocationId = pick.LocationId,
                     FromHandlingUnitId = pick.HandlingUnitId,
+                    SuggestedBreakdown = JsonSerializer.Serialize(new { order_id = order.Id }, Json),
                     Status = "open"
                 });
             }

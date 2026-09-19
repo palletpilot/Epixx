@@ -9,6 +9,7 @@
   "nav": {
     "warehouses": "Lager",
     "articles": "Artiklar",
+    "orders": "Ordrar",
     "tasks": "Uppgifter",
     "devices": "Enheter",
     "users": "Användare",
@@ -90,6 +91,17 @@
     "list": "Artikellista",
     "error": "Kunde inte skapa artikeln."
   },
+  "orders": {
+    "title": "Ordrar",
+    "warehouse": "Lager",
+    "article": "Artikel",
+    "qty": "Antal",
+    "create": "Skapa order",
+    "empty": "Inga ordrar ännu.",
+    "emptyAction": "Skapa en order. Nästa steg är att plocka den på golvet.",
+    "list": "Orderlista",
+    "error": "Kunde inte skapa ordern."
+  },
   "tasks": {
     "title": "Uppgifter",
     "list": "Uppgiftslista",
@@ -169,6 +181,12 @@
   "putaway": {
     "confirm": "Bekräfta inlagring",
     "suggested": "Föreslagen plats"
+  },
+  "pick": {
+    "title": "Plocka",
+    "confirm": "Plocka",
+    "source": "Plats",
+    "ship": "Skicka"
   },
   "map": {
     "start": "Kartlägg gång",
