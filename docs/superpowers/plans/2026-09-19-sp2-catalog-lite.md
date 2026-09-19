@@ -180,7 +180,7 @@ Snapshot: `entity=Article` lists all articles with levels (ignore `warehouse`). 
 
 ---
 
-## Task C3. Floor snapshot stores articles and units (done 2026-09-19, PENDING)
+## Task C3. Floor snapshot stores articles and units (done 2026-09-19, 5122228)
 
 **Files:** `frontend/apps/floor/src/db.ts`, `frontend/apps/floor/src/stores/floor.ts`. Optional small Vitest if `loadSnapshot` is already tested; otherwise the C2 snapshot integration test is the backend proof and C5 covers the office. Add a focused store test only if one already exists for locations — there is `warehousePick.test.ts`; add `floor.snapshotArticles.test.ts` that mocks `authedFetch` and asserts Dexie rows. If Dexie in Vitest is painful, skip the unit test and keep C5 + C2.
 
