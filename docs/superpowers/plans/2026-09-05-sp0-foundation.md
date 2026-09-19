@@ -75,7 +75,7 @@ Rules: services do not reference each other (only `Shared` and `ServiceDefaults`
 
 Commit: `sp0: A3 - architecture tests`.
 
-### Task A4. Permission `outbound.check` (spec 2026-09-13) (done 2026-09-19, PLACEHOLDER)
+### Task A4. Permission `outbound.check` (spec 2026-09-13) (done 2026-09-19, 3620c50)
 
 Files: `backend/src/Shared/Permissions.cs`, `backend/tests/Lagerkraft.Shared.Tests/PermissionMapTests.cs`, `frontend/packages/domain/src/generated/permissions.ts` (regenerate via `frontend/tools/gen-permissions`). Bump `Permissions.MapVersion` because the static map changed.
 
