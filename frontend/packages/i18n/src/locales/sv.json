@@ -78,6 +78,10 @@
     "empty": "Inga lager ännu.",
     "emptyAction": "Skapa ett lager, sedan kartlägg en gång i golvappen.",
     "mapEmpty": "Inga platser ännu. Kartlägg en gång i golvappen.",
+    "mapAisle": "Gång",
+    "mapRack": "Hylla",
+    "mapLevel": "Hyllplan",
+    "mapLegend": "Kolumner är hyllor. Rader är hyllplan, nederst mot golvet. Varje ruta är en plats.",
     "list": "Lagerlista"
   },
   "articles": {

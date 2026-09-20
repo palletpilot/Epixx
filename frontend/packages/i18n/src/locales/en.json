@@ -78,6 +78,10 @@
     "empty": "No warehouses yet.",
     "emptyAction": "Create a warehouse, then map an aisle on the floor app.",
     "mapEmpty": "No bins yet. Map an aisle on the floor app.",
+    "mapAisle": "Aisle",
+    "mapRack": "Rack",
+    "mapLevel": "Level",
+    "mapLegend": "Columns are racks. Rows are shelf levels, floor at the bottom. Each cell is a bin.",
     "list": "Warehouse list"
   },
   "articles": {
