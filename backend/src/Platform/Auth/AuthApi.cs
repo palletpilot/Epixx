@@ -114,6 +114,36 @@ public static class AuthApi
         await db.SaveChangesAsync(ct);
 
         var amr = user.TwoFactorEnabled ? "mfa" : "pwd";
+        if (body.DeviceId is { } deviceId && deviceId != Guid.Empty)
+        {
+            var device = await db.Devices.FirstOrDefaultAsync(d => d.Id == deviceId, ct);
+            if (device is null || device.RevokedAt is not null)
+            {
+                return Unauthorized("invalid_device");
+            }
+
+            var membership = memberships.FirstOrDefault(m => m.TenantId == device.TenantId);
+            if (membership is null)
+            {
+                return Unauthorized("invalid_device");
+            }
+
+            if (!await db.DeviceSessions.AnyAsync(
+                    s => s.DeviceId == device.Id && s.MembershipId == membership.Id, ct))
+            {
+                db.DeviceSessions.Add(new DeviceSession
+                {
+                    Id = Ids.New(),
+                    DeviceId = device.Id,
+                    MembershipId = membership.Id,
+                    CreatedAt = clock.UtcNow
+                });
+                await db.SaveChangesAsync(ct);
+            }
+
+            return Results.Ok(await IssueAsync(jwt, refresh, membership, amr, device.Id, ct));
+        }
+
         if (memberships.Count == 1)
         {
             return Results.Ok(await IssueAsync(jwt, refresh, memberships[0], amr, deviceId: null, ct));

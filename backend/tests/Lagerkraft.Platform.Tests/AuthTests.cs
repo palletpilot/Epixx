@@ -60,6 +60,47 @@ public sealed class AuthTests : IAsyncLifetime
         row.GetProperty("r").GetString().ShouldBe(Permissions.WarehouseManager);
         var warehouses = row.GetProperty("w").EnumerateArray().Select(v => Guid.Parse(v.GetString()!)).ToArray();
         warehouses.ShouldBe([seeded.Warehouse1, seeded.Warehouse2], ignoreOrder: true);
+        jwt.TryGetProperty(LagerkraftClaims.DeviceId, out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Login_WithEnrolledDevice_SkipsChooserAndPutsDevClaim()
+    {
+        var seeded = await SeedManagerAsync();
+        using var client = _factory.CreateClient();
+        var login = await client.PostAsJsonAsync("/auth/login", new
+        {
+            email = seeded.Email,
+            password = Password,
+            totp = (string?)null,
+            device_id = seeded.DeviceId
+        });
+        login.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var tokens = await login.Content.ReadFromJsonAsync<TokenResponse>();
+        tokens.ShouldNotBeNull();
+        tokens.AccessToken.ShouldNotBeNullOrEmpty();
+
+        var jwt = Payload(tokens.AccessToken);
+        jwt.GetProperty("sub").GetString().ShouldBe(seeded.UserId.ToString());
+        jwt.GetProperty(LagerkraftClaims.TenantId).GetString().ShouldBe(seeded.TenantA.ToString());
+        jwt.GetProperty(LagerkraftClaims.DeviceId).GetString().ShouldBe(seeded.DeviceId.ToString());
+        jwt.GetProperty("dev").GetString().ShouldBe(seeded.DeviceId.ToString());
+        jwt.GetProperty(LagerkraftClaims.AuthMethod).GetString().ShouldBe("pwd");
+    }
+
+    [Fact]
+    public async Task Login_UnknownDevice_Unauthorized()
+    {
+        var seeded = await SeedManagerAsync();
+        using var client = _factory.CreateClient();
+        var login = await client.PostAsJsonAsync("/auth/login", new
+        {
+            email = seeded.Email,
+            password = Password,
+            totp = (string?)null,
+            device_id = Ids.New()
+        });
+        login.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Fact]

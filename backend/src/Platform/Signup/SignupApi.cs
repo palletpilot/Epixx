@@ -150,8 +150,8 @@ public static class SignupApi
         db.SignupRequests.Add(request);
         await db.SaveChangesAsync(ct);
 
-        var publicBase = configuration["PublicBaseUrl"] ?? "http://localhost:5100";
-        var link = $"{publicBase.TrimEnd('/')}/signup/verify?token={token}";
+        var publicBase = configuration["FrontendPublicUrl"] ?? "http://localhost:5173";
+        var link = $"{publicBase.TrimEnd('/')}/verify?token={token}";
         await email.SendAsync(
             emailAddr,
             "Verify your Lagerkraft signup",

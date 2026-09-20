@@ -13,7 +13,7 @@ Prerequisites: .NET 10 SDK 10.0.400, Docker, Node 24 (`corepack enable pnpm`).
 ./scripts/dev.ps1
 ```
 
-Or from Cursor: Terminal → Run Task → **Start Lagerkraft**. Either one is `dotnet run --project backend/src/AppHost`: Postgres (`platform` and `tenant_migrate`), NATS with JetStream, Mailpit, and the four services. The Aspire dashboard lists them. Stop with Ctrl+C.
+Or from Cursor: Terminal → Run Task → **Start Lagerkraft**. Either one starts AppHost (Postgres `platform` and `tenant_migrate`, NATS with JetStream, Mailpit, four services) plus the office app on http://localhost:5173 and the floor app on http://localhost:5174. The Aspire dashboard lists the services. Stop with Ctrl+C.
 
 Without Aspire, `docker compose up -d` starts the same infrastructure; run each service with `dotnet run` against the fake connection strings in `appsettings.Development.json`. Do not run compose and AppHost at the same time.
 

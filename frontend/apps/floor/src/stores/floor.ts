@@ -153,7 +153,12 @@ export const useFloorStore = defineStore("floor", {
       const res = await fetch(`${platformUrl()}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, totp: totp || null }),
+        body: JSON.stringify({
+          email,
+          password,
+          totp: totp || null,
+          device_id: this.device?.id ?? null,
+        }),
       });
       if (res.status === 401) {
         const code = await readErrorCode(res);

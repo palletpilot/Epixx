@@ -8,6 +8,7 @@ using Lagerkraft.Platform.Dev;
 using Lagerkraft.Shared;
 using Lagerkraft.Shared.Auth;
 using Lagerkraft.Shared.Tenancy;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

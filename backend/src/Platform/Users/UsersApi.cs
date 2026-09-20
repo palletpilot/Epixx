@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using System.Text.Json.Serialization;
 using Lagerkraft.Platform.Auth;
 using Lagerkraft.Platform.Data;
@@ -100,7 +100,7 @@ public static class UsersApi
         db.Invitations.Add(invitation);
         await db.SaveChangesAsync(ct);
 
-        var publicBase = (configuration["PublicBaseUrl"] ?? "http://localhost:5100").TrimEnd('/');
+        var publicBase = (configuration["FrontendPublicUrl"] ?? "http://localhost:5173").TrimEnd('/');
         await email.SendAsync(
             normalized,
             "You're invited to Lagerkraft",

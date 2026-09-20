@@ -43,7 +43,10 @@ public sealed class SignupTests : IAsyncLifetime
         accepted.Slug.ShouldNotBeNullOrEmpty();
 
         _factory.Email.Sent.ShouldContain(e => e.To == email);
-        var token = ExtractToken(_factory.Email.Sent.Last(e => e.To == email).Body);
+        var mail = _factory.Email.Sent.Last(e => e.To == email).Body;
+        mail.ShouldContain("http://localhost:5173/verify?token=");
+        mail.ShouldNotContain("/signup/verify");
+        var token = ExtractToken(mail);
 
         var verify = await client.PostAsJsonAsync("/signup/verify", new VerifySignupRequest(token));
         verify.StatusCode.ShouldBe(HttpStatusCode.NoContent);

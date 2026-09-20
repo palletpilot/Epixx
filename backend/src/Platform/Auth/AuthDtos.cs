@@ -5,7 +5,8 @@ namespace Lagerkraft.Platform.Auth;
 public sealed record LoginRequest(
     [property: JsonPropertyName("email")] string Email,
     [property: JsonPropertyName("password")] string Password,
-    [property: JsonPropertyName("totp")] string? Totp);
+    [property: JsonPropertyName("totp")] string? Totp,
+    [property: JsonPropertyName("device_id")] Guid? DeviceId = null);
 
 public sealed record TokenResponse(
     [property: JsonPropertyName("access_token")] string AccessToken,

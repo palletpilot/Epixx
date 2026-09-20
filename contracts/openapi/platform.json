@@ -1144,6 +1144,13 @@
               "null",
               "string"
             ]
+          },
+          "device_id": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
