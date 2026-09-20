@@ -1,75 +1,87 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import {
+  formatMapLabel,
+  groupAisleMap,
+  lastSegment,
+  type AisleBlock,
+  type AisleRackColumn,
+  type MapLocation,
+} from "./aisleMapLayout";
 
-export type MapLocation = {
-  id: string;
-  code: string;
-  type: string;
-  parent_id?: string | null;
-};
+export type { MapLocation };
 
 const props = defineProps<{
   locations: MapLocation[];
   empty?: string;
+  aisleLabel?: string;
+  rackLabel?: string;
+  levelLabel?: string;
+  legend?: string;
 }>();
 
-function byCode(a: MapLocation, b: MapLocation): number {
-  return a.code.localeCompare(b.code);
+const aisles = computed(() => groupAisleMap(props.locations));
+
+function binsAt(col: AisleRackColumn, rowIndex: number): MapLocation[] {
+  return col.rows[rowIndex]?.bins ?? [];
 }
 
-const aisles = computed(() => {
-  const list = props.locations;
-  const aisleRows = list.filter((l) => l.type === "aisle").sort(byCode);
-  const racks = list.filter((l) => l.type === "rack");
-  const levels = list.filter((l) => l.type === "level");
-  const bins = list.filter((l) => l.type === "bin");
-  return aisleRows.map((aisle) => {
-    const aisleRacks = racks.filter((r) => r.parent_id === aisle.id).sort(byCode);
-    const columns = aisleRacks.map((rack) => {
-      const rackLevels = levels.filter((lv) => lv.parent_id === rack.id).sort(byCode);
-      return {
-        rack,
-        rows: rackLevels.map((level) => ({
-          level,
-          bins: bins.filter((b) => b.parent_id === level.id).sort(byCode),
-        })),
-      };
-    });
-    const rowCount = Math.max(0, ...columns.map((c) => c.rows.length));
-    return { aisle, columns, rowCount };
-  });
-});
+function levelHeading(block: AisleBlock, rowIndex: number): string {
+  for (const col of block.columns) {
+    const row = col.rows[rowIndex];
+    if (row) {
+      return formatMapLabel(props.levelLabel, lastSegment(row.level.code));
+    }
+  }
+  return "";
+}
 </script>
 
 <template>
   <div v-if="aisles.length === 0" class="text-sm text-foreground/70">{{ empty }}</div>
   <div v-else class="flex flex-col gap-8">
+    <p v-if="legend" class="text-sm text-foreground/70">{{ legend }}</p>
     <section v-for="block in aisles" :key="block.aisle.id">
-      <h2 class="mb-3 text-sm font-medium">{{ block.aisle.code }}</h2>
-      <div
-        class="grid gap-3"
-        :style="{ gridTemplateColumns: `repeat(${Math.max(block.columns.length, 1)}, minmax(5rem, 1fr))` }"
-      >
-        <div
-          v-for="col in block.columns"
-          :key="col.rack.id"
-          class="text-center font-mono text-xs font-medium text-foreground/70"
-        >
-          {{ col.rack.code }}
-        </div>
-        <template v-for="rowIndex in block.rowCount" :key="`${block.aisle.id}-${rowIndex}`">
-          <div v-for="col in block.columns" :key="`${col.rack.id}-${rowIndex}`" class="flex flex-col gap-1">
-            <div
-              v-for="bin in col.rows[rowIndex - 1]?.bins ?? []"
-              :key="bin.id"
-              class="flex min-h-12 items-center justify-center rounded-md border border-border bg-primary/15 px-1 py-1 text-center font-mono text-xs"
-              :data-location-id="bin.id"
-              :data-code="bin.code"
+      <h2 class="mb-3 text-sm font-medium">
+        {{ formatMapLabel(aisleLabel, block.aisle.code) }}
+      </h2>
+      <div class="overflow-x-auto">
+        <table class="border-separate border-spacing-2">
+        <thead>
+          <tr>
+            <th class="w-0"></th>
+            <th
+              v-for="col in block.columns"
+              :key="col.rack.id"
+              class="text-center text-xs font-medium text-foreground/70"
             >
-              {{ bin.code }}
-            </div>
-          </div>
-        </template>
+              {{ formatMapLabel(rackLabel, lastSegment(col.rack.code)) }}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="rowIndex in block.rowCount" :key="`${block.aisle.id}-${rowIndex}`">
+            <th class="whitespace-nowrap pr-2 text-left text-xs font-medium text-foreground/70" scope="row">
+              {{ levelHeading(block, rowIndex - 1) }}
+            </th>
+            <td v-for="col in block.columns" :key="`${col.rack.id}-${rowIndex}`">
+              <div class="flex flex-nowrap justify-center gap-1">
+                <div
+                  v-for="bin in binsAt(col, rowIndex - 1)"
+                  :key="bin.id"
+                  class="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-border bg-primary/15 font-mono text-xs"
+                  :data-location-id="bin.id"
+                  :data-code="bin.code"
+                  :title="bin.code"
+                  :aria-label="bin.code"
+                >
+                  {{ lastSegment(bin.code) }}
+                </div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+        </table>
       </div>
     </section>
   </div>

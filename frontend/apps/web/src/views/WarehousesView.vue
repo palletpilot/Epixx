@@ -162,7 +162,15 @@ async function create() {
       </div>
 
       <div class="rounded-lg border border-border p-4 sm:p-6">
-        <AisleMap v-if="selected" :locations="mapLocations" :empty="t('warehouses.mapEmpty')" />
+        <AisleMap
+          v-if="selected"
+          :locations="mapLocations"
+          :empty="t('warehouses.mapEmpty')"
+          :aisle-label="t('warehouses.mapAisle')"
+          :rack-label="t('warehouses.mapRack')"
+          :level-label="t('warehouses.mapLevel')"
+          :legend="t('warehouses.mapLegend')"
+        />
       </div>
 
       <details class="mt-8 max-w-md rounded-lg border border-border p-4">
