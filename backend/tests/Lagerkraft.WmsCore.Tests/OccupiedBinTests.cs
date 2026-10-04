@@ -446,7 +446,133 @@ public sealed class OccupiedBinTests : IAsyncLifetime
         var stockDelete = await db.ChangeLog
             .FirstOrDefaultAsync(c => c.Entity == "stock" && c.Id == existingStockId && c.Op == "delete");
         stockDelete.ShouldNotBeNull();
+        stockDelete.WarehouseId.ShouldBe(_warehouseId);
         deviationChange.CommandId.ShouldBe(stockDelete.CommandId);
+    }
+
+    [Fact]
+    public async Task ConfirmPutaway_OccupiedBin_ChangesFeedFiltersByWarehouse()
+    {
+        var locationId = Guid.CreateVersion7();
+        var taskId = Guid.CreateVersion7();
+        var existingHuId = Guid.CreateVersion7();
+        var incomingHuId = Guid.CreateVersion7();
+        var otherWarehouseId = Guid.CreateVersion7();
+        var otherChangeId = Guid.CreateVersion7();
+        var nullWarehouseChangeId = Guid.CreateVersion7();
+
+        var options = new DbContextOptionsBuilder<TenantDbContext>()
+            .UseNpgsql(_cs).UseSnakeCaseNamingConvention().Options;
+        await using var db = new TenantDbContext(options);
+
+        db.Locations.Add(new Location
+        {
+            Id = locationId,
+            WarehouseId = _warehouseId,
+            Code = "A-01-01",
+            Type = "bin"
+        });
+
+        db.HandlingUnits.Add(new HandlingUnit
+        {
+            Id = existingHuId,
+            WarehouseId = _warehouseId,
+            Lpn = "PALLET001",
+            LocationId = locationId
+        });
+
+        var existingStockId = Ids.New();
+        db.Stock.Add(new Stock
+        {
+            Id = existingStockId,
+            WarehouseId = _warehouseId,
+            LocationId = locationId,
+            HandlingUnitId = existingHuId,
+            ArticleId = null,
+            QtyBase = 1m,
+            CreatedAt = _clock.UtcNow
+        });
+
+        db.Tasks.Add(new WarehouseTask
+        {
+            Id = taskId,
+            WarehouseId = _warehouseId,
+            Type = "putaway",
+            Status = "open",
+            CreatedAt = _clock.UtcNow
+        });
+
+        await db.SaveChangesAsync();
+
+        using var client = InternalClient();
+        var response = await client.PostAsJsonAsync(
+            "/internal/commands",
+            CommandBody("ConfirmPutaway", 1, new
+            {
+                task_id = taskId,
+                location_id = locationId,
+                handling_unit_id = incomingHuId,
+                lpn = "PALLET002"
+            }, _clock.UtcNow, _userId),
+            Json);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        db.ChangeLog.Add(new ChangeLogRow
+        {
+            Entity = "stock",
+            Id = otherChangeId,
+            Op = "upsert",
+            Payload = "{}",
+            WarehouseId = otherWarehouseId,
+            OccurredAt = _clock.UtcNow,
+            RecordedAt = _clock.UtcNow
+        });
+        db.ChangeLog.Add(new ChangeLogRow
+        {
+            Entity = "probe",
+            Id = nullWarehouseChangeId,
+            Op = "upsert",
+            Payload = "{}",
+            WarehouseId = null,
+            OccurredAt = _clock.UtcNow,
+            RecordedAt = _clock.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var feed = await client.GetAsync(
+            $"/internal/changes?tenantId={_tenantId}&warehouse={_warehouseId}");
+        feed.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var body = await feed.Content.ReadFromJsonAsync<JsonDocument>(Json);
+        var entries = body!.RootElement.GetProperty("entries").EnumerateArray().ToList();
+
+        entries.ShouldNotBeEmpty();
+        foreach (var entry in entries)
+        {
+            entry.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
+            entry.GetProperty("id").GetGuid().ShouldNotBe(otherChangeId);
+            entry.GetProperty("id").GetGuid().ShouldNotBe(nullWarehouseChangeId);
+        }
+
+        var stockDeleteEntry = entries.Single(e =>
+            e.GetProperty("entity").GetString() == "stock"
+            && e.GetProperty("id").GetGuid() == existingStockId
+            && e.GetProperty("op").GetString() == "delete");
+        stockDeleteEntry.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
+        stockDeleteEntry.GetProperty("payload").GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
+
+        var deviationChanges = await db.ChangeLog
+            .Where(c => c.Entity == "deviation" && c.Op == "insert")
+            .ToListAsync();
+        deviationChanges.Count.ShouldBe(1);
+        var payload = JsonDocument.Parse(deviationChanges[0].Payload);
+        payload.RootElement.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
+
+        var stockDelete = await db.ChangeLog
+            .FirstOrDefaultAsync(c => c.Entity == "stock" && c.Id == existingStockId && c.Op == "delete");
+        stockDelete.ShouldNotBeNull();
+        stockDelete.WarehouseId.ShouldBe(_warehouseId);
+        deviationChanges[0].CommandId.ShouldBe(stockDelete.CommandId);
     }
 
     [Fact]

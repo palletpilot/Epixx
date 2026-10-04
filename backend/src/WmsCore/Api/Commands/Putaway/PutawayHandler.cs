@@ -107,6 +107,7 @@ public sealed class ConfirmPutawayHandler(IClock clock, IValidator<ConfirmPutawa
                 Payload = deviationJson,
                 CommandId = command.Id,
                 Actor = context.UserId,
+                WarehouseId = deviation.WarehouseId,
                 OccurredAt = context.OccurredAt,
                 RecordedAt = now
             });
@@ -130,6 +131,7 @@ public sealed class ConfirmPutawayHandler(IClock clock, IValidator<ConfirmPutawa
                 Payload = removedStockJson,
                 CommandId = command.Id,
                 Actor = context.UserId,
+                WarehouseId = existingOccupant.WarehouseId,
                 OccurredAt = context.OccurredAt,
                 RecordedAt = now
             });
@@ -211,6 +213,7 @@ public sealed class ConfirmPutawayHandler(IClock clock, IValidator<ConfirmPutawa
             Payload = taskJson,
             CommandId = command.Id,
             Actor = context.UserId,
+            WarehouseId = task.WarehouseId,
             OccurredAt = context.OccurredAt,
             RecordedAt = now
         });
@@ -234,6 +237,7 @@ public sealed class ConfirmPutawayHandler(IClock clock, IValidator<ConfirmPutawa
             Payload = stockJson,
             CommandId = command.Id,
             Actor = context.UserId,
+            WarehouseId = stock.WarehouseId,
             OccurredAt = context.OccurredAt,
             RecordedAt = now
         });

@@ -18,6 +18,7 @@ public sealed class ChangeLogRow
     public string Payload { get; set; } = "{}";
     public Guid? CommandId { get; set; }
     public Guid? Actor { get; set; }
+    public Guid? WarehouseId { get; set; }
     public DateTimeOffset OccurredAt { get; set; }
     public DateTimeOffset RecordedAt { get; set; }
 }

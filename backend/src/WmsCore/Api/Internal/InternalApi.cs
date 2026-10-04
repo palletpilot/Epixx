@@ -108,6 +108,10 @@ public static class InternalApi
         {
             query = query.Where(c => c.Seq > sinceSeq);
         }
+        if (warehouse is { } wh)
+        {
+            query = query.Where(c => c.WarehouseId == wh);
+        }
 
         var rows = await query.Take(500).ToListAsync(ct);
         return Results.Ok(new
@@ -123,6 +127,7 @@ public static class InternalApi
                 payload = JsonDocument.Parse(r.Payload).RootElement,
                 r.CommandId,
                 r.Actor,
+                r.WarehouseId,
                 r.OccurredAt,
                 r.RecordedAt
             })
