@@ -39,6 +39,7 @@ public sealed class FakeWmsCoreSyncClient : IWmsCoreSyncClient
     public Func<CommandBatchPayload, WmsCommandResponse>? OnCommands { get; set; }
     public Guid FeedEpoch { get; set; } = Guid.CreateVersion7();
     public Func<JsonElement>? OnGetChanges { get; set; }
+    public Func<Guid, Guid?, string?, int?, JsonElement>? OnGetSnapshot { get; set; }
 
     public Task<WmsCommandResponse> PostCommandsAsync(CommandBatchPayload batch, CancellationToken ct)
     {
@@ -83,6 +84,11 @@ public sealed class FakeWmsCoreSyncClient : IWmsCoreSyncClient
 
     public Task<JsonElement> GetSnapshotAsync(Guid tenantId, Guid? warehouse, string? entity, int? page, CancellationToken ct)
     {
+        if (OnGetSnapshot is not null)
+        {
+            return Task.FromResult(OnGetSnapshot(tenantId, warehouse, entity, page));
+        }
+
         var body = JsonSerializer.SerializeToElement(new
         {
             feed_epoch = FeedEpoch,
