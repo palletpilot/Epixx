@@ -393,14 +393,15 @@ public sealed class PassThroughTests : IAsyncLifetime
     [Fact]
     public async Task Changes_WarehouseQuery_PassesThroughToWmsCore()
     {
-        var capturedWarehouse = Guid.Empty;
+        Guid? capturedWarehouse = null;
 
-        _factory.Wms.OnGetChanges = () =>
+        _factory.Wms.OnGetChangesWithParams = (tid, wh, since) =>
         {
+            capturedWarehouse = wh;
             return JsonSerializer.SerializeToElement(new
             {
                 feed_epoch = _factory.Wms.FeedEpoch,
-                warehouse = capturedWarehouse,
+                warehouse = wh,
                 entries = Array.Empty<object>()
             });
         };
@@ -410,10 +411,11 @@ public sealed class PassThroughTests : IAsyncLifetime
         testClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var warehouseToQuery = Guid.CreateVersion7();
-        capturedWarehouse = warehouseToQuery;
 
         var response = await testClient.GetAsync($"/sync/changes?warehouse={warehouseToQuery}&since=0");
         response.EnsureSuccessStatusCode();
+
+        capturedWarehouse.ShouldBe(warehouseToQuery);
 
         var actualBody = await response.Content.ReadFromJsonAsync<JsonElement>();
         actualBody.GetProperty("warehouse").GetGuid().ShouldBe(warehouseToQuery);
