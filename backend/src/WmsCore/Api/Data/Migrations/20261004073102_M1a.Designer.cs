@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Lagerkraft.WmsCore.Api.Data.Migrations
 {
     [DbContext(typeof(TenantDbContext))]
-    [Migration("20261004072654_M1aWithWarehouseIdOnDeviation")]
-    partial class M1aWithWarehouseIdOnDeviation
+    [Migration("20261004073102_M1a")]
+    partial class M1a
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
