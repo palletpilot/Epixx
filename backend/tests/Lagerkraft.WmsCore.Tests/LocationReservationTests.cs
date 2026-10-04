@@ -92,6 +92,7 @@ public sealed class LocationReservationTests : IAsyncLifetime
         var sweep = _factory.Services.GetRequiredService<LocationReservationSweepJob>();
         await sweep.SweepTenantAsync(_tenantId, CancellationToken.None);
 
+        db.ChangeTracker.Clear();
         var reservation = await db.LocationReservations.SingleOrDefaultAsync(
             r => r.LocationId == locationId && r.TaskId == taskId);
         reservation.ShouldNotBeNull();
@@ -130,6 +131,7 @@ public sealed class LocationReservationTests : IAsyncLifetime
         var sweep = _factory.Services.GetRequiredService<LocationReservationSweepJob>();
         await sweep.SweepTenantAsync(_tenantId, CancellationToken.None);
 
+        db.ChangeTracker.Clear();
         var reservation = await db.LocationReservations.SingleOrDefaultAsync(
             r => r.LocationId == locationId && r.TaskId == taskId);
         reservation.ShouldNotBeNull();
@@ -167,6 +169,7 @@ public sealed class LocationReservationTests : IAsyncLifetime
         var sweep = _factory.Services.GetRequiredService<LocationReservationSweepJob>();
         await sweep.SweepTenantAsync(_tenantId, CancellationToken.None);
         
+        db.ChangeTracker.Clear();
         var reservation = await db.LocationReservations.SingleOrDefaultAsync(
             r => r.LocationId == locationId && r.TaskId == taskId);
         reservation.ShouldNotBeNull();
@@ -174,6 +177,7 @@ public sealed class LocationReservationTests : IAsyncLifetime
 
         await sweep.SweepTenantAsync(_tenantId, CancellationToken.None);
 
+        db.ChangeTracker.Clear();
         var reservationAfterSecond = await db.LocationReservations.SingleOrDefaultAsync(
             r => r.LocationId == locationId && r.TaskId == taskId);
         reservationAfterSecond.ShouldNotBeNull();

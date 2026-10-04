@@ -233,9 +233,10 @@ public sealed class OccupiedBinTests : IAsyncLifetime
             LocationId = locationId
         });
 
+        var existingStockId = Ids.New();
         db.Stock.Add(new Stock
         {
-            Id = Ids.New(),
+            Id = existingStockId,
             WarehouseId = _warehouseId,
             LocationId = locationId,
             HandlingUnitId = existingHuId,
@@ -277,9 +278,18 @@ public sealed class OccupiedBinTests : IAsyncLifetime
         var deviationCount = await db.Deviations.CountAsync(d => d.Kind == "occupied_bin");
         deviationCount.ShouldBe(1);
 
-        var changeLogCount = await db.ChangeLog.CountAsync(
-            c => c.Entity == "stock" || c.Entity == "deviation");
-        changeLogCount.ShouldBeGreaterThanOrEqualTo(2);
+        var stockDelete = await db.ChangeLog
+            .FirstOrDefaultAsync(c => c.Entity == "stock" && c.Id == existingStockId && c.Op == "delete");
+        stockDelete.ShouldNotBeNull();
+
+        var deviationInsert = await db.ChangeLog
+            .FirstOrDefaultAsync(c => c.Entity == "deviation" && c.Op == "insert");
+        deviationInsert.ShouldNotBeNull();
+        deviationInsert.CommandId.ShouldBe(stockDelete.CommandId);
+
+        var previousHu = await db.HandlingUnits.FirstOrDefaultAsync(h => h.Id == existingHuId);
+        previousHu.ShouldNotBeNull();
+        previousHu.LocationId.ShouldBeNull();
     }
 
     [Fact]

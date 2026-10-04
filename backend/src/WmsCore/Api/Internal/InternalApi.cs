@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Lagerkraft.WmsCore.Api.Commands;
 using Lagerkraft.WmsCore.Api.Data;
+using Lagerkraft.WmsCore.Api.Jobs;
 using Lagerkraft.WmsCore.Api.Migrations;
 using Lagerkraft.WmsCore.Api.Relay;
 using Lagerkraft.WmsCore.Api.Tenancy;

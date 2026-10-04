@@ -62,8 +62,16 @@ public sealed class ConfirmPutawayHandler(IClock clock, IValidator<ConfirmPutawa
             .FirstOrDefaultAsync(ct);
 
         Deviation? deviation = null;
+        HandlingUnit? previousHu = null;
         if (existingOccupant is not null)
         {
+            previousHu = await db.Db.HandlingUnits
+                .FirstOrDefaultAsync(h => h.Id == existingOccupant.HandlingUnitId, ct);
+            if (previousHu is not null)
+            {
+                previousHu.LocationId = null;
+            }
+
             deviation = new Deviation
             {
                 Id = Ids.New(),

@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Lagerkraft.WmsCore.Api.Data.Migrations
 {
-    /// <inheritdoc />
+    [Migration("20261004063800_LocationReservationAndStock")]
     public partial class LocationReservationAndStock : Migration
     {
         /// <inheritdoc />

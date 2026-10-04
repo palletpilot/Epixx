@@ -3,6 +3,7 @@ using Lagerkraft.Shared.Jobs;
 using Lagerkraft.WmsCore.Api.Data;
 using Lagerkraft.WmsCore.Api.Tenancy;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Lagerkraft.WmsCore.Api.Jobs;
 
@@ -10,6 +11,7 @@ public sealed class LocationReservationSweepJob : PeriodicJob
 {
     private readonly ITenantConnectionCache _connections;
     private readonly IClock _clock;
+    private readonly ILogger<LocationReservationSweepJob> _log;
     private readonly List<Guid> _tenants = [];
 
     public LocationReservationSweepJob(
@@ -19,6 +21,7 @@ public sealed class LocationReservationSweepJob : PeriodicJob
     {
         _connections = connections;
         _clock = clock;
+        _log = log;
     }
 
     protected override TimeSpan Interval => TimeSpan.FromSeconds(60);
@@ -78,7 +81,7 @@ public sealed class LocationReservationSweepJob : PeriodicJob
 
         if (expired > 0)
         {
-            Log.Information("Released {Count} expired location reservations for tenant {TenantId}",
+            _log.LogInformation("Released {Count} expired location reservations for tenant {TenantId}",
                 expired, tenantId);
         }
     }
