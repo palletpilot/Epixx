@@ -167,71 +167,7 @@ public sealed class PassThroughTests : IAsyncLifetime
     [Fact]
     public async Task Changes_StockAndDeviation_PassesThroughWmsCoreBodyUnchanged()
     {
-        var commandId = Guid.CreateVersion7();
-        var expectedBody = JsonSerializer.SerializeToElement(new
-        {
-            feed_epoch = _factory.Wms.FeedEpoch,
-            warehouse = _warehouseId,
-            entries = new[]
-            {
-                new
-                {
-                    seq = 100L,
-                    entity = "Stock",
-                    id = Guid.CreateVersion7(),
-                    op = "Delete",
-                    payload = JsonSerializer.SerializeToElement(new
-                    {
-                        id = Guid.CreateVersion7(),
-                        warehouse_id = _warehouseId,
-                        location_id = Guid.CreateVersion7(),
-                        article_id = Guid.CreateVersion7(),
-                        qty_base = 50
-                    }),
-                    command_id = commandId,
-                    actor = _userId,
-                    occurred_at = DateTimeOffset.UtcNow,
-                    recorded_at = DateTimeOffset.UtcNow
-                },
-                new
-                {
-                    seq = 101L,
-                    entity = "Stock",
-                    id = Guid.CreateVersion7(),
-                    op = "Upsert",
-                    payload = JsonSerializer.SerializeToElement(new
-                    {
-                        id = Guid.CreateVersion7(),
-                        warehouse_id = _warehouseId,
-                        location_id = Guid.CreateVersion7(),
-                        article_id = Guid.CreateVersion7(),
-                        qty_base = 45.5
-                    }),
-                    command_id = commandId,
-                    actor = _userId,
-                    occurred_at = DateTimeOffset.UtcNow,
-                    recorded_at = DateTimeOffset.UtcNow
-                },
-                new
-                {
-                    seq = 102L,
-                    entity = "Deviation",
-                    id = Guid.CreateVersion7(),
-                    op = "Insert",
-                    payload = JsonSerializer.SerializeToElement(new
-                    {
-                        id = Guid.CreateVersion7(),
-                        warehouse_id = _warehouseId,
-                        kind = "adjustment",
-                        detail = JsonSerializer.SerializeToElement(new { reason = "physical_count" })
-                    }),
-                    command_id = commandId,
-                    actor = _userId,
-                    occurred_at = DateTimeOffset.UtcNow,
-                    recorded_at = DateTimeOffset.UtcNow
-                }
-            }
-        });
+        var expectedBody = OccupiedBinChangesBody();
 
         _factory.Wms.OnGetChanges = () => expectedBody;
 
@@ -244,6 +180,40 @@ public sealed class PassThroughTests : IAsyncLifetime
         var expectedJson = JsonSerializer.Serialize(expectedBody, new JsonSerializerOptions { WriteIndented = false });
 
         actualJson.ShouldBe(expectedJson);
+    }
+
+    [Fact]
+    public async Task Changes_RowWarehouseId_UnchangedOnDeleteUpsertInsert()
+    {
+        var expectedBody = OccupiedBinChangesBody();
+        _factory.Wms.OnGetChanges = () => expectedBody;
+
+        using var client = Authed();
+        var response = await client.GetAsync($"/sync/changes?warehouse={_warehouseId}&since=99");
+        response.EnsureSuccessStatusCode();
+
+        var actualBody = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var expectedEntries = expectedBody.GetProperty("entries").EnumerateArray().ToArray();
+        var actualEntries = actualBody.GetProperty("entries").EnumerateArray().ToArray();
+
+        actualEntries.Length.ShouldBe(3);
+        actualEntries.Length.ShouldBe(expectedEntries.Length);
+
+        for (var i = 0; i < expectedEntries.Length; i++)
+        {
+            expectedEntries[i].TryGetProperty("warehouse_id", out var expectedWarehouse).ShouldBeTrue();
+            actualEntries[i].TryGetProperty("warehouse_id", out var actualWarehouse).ShouldBeTrue(
+                $"warehouse_id missing on public change row {i} ({actualEntries[i].GetProperty("entity").GetString()} {actualEntries[i].GetProperty("op").GetString()})");
+            actualWarehouse.ValueKind.ShouldBe(JsonValueKind.String);
+            actualWarehouse.GetGuid().ShouldBe(expectedWarehouse.GetGuid());
+        }
+
+        var stockDelete = actualEntries.Single(e =>
+            e.GetProperty("entity").GetString() == "stock"
+            && e.GetProperty("op").GetString() == "delete");
+        stockDelete.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
+        stockDelete.GetProperty("warehouse_id").GetGuid()
+            .ShouldBe(expectedEntries[0].GetProperty("warehouse_id").GetGuid());
     }
 
     [Fact]
@@ -461,6 +431,81 @@ public sealed class PassThroughTests : IAsyncLifetime
         var warehouseIdInPayload = entry.GetProperty("payload").GetProperty("warehouse_id").GetGuid();
 
         warehouseIdInPayload.ShouldBe(_warehouseId);
+    }
+
+    private JsonElement OccupiedBinChangesBody()
+    {
+        var commandId = Guid.CreateVersion7();
+        var deletedStockId = Guid.CreateVersion7();
+        var upsertedStockId = Guid.CreateVersion7();
+        var deviationId = Guid.CreateVersion7();
+        return JsonSerializer.SerializeToElement(new
+        {
+            feed_epoch = _factory.Wms.FeedEpoch,
+            warehouse = _warehouseId,
+            entries = new[]
+            {
+                new
+                {
+                    seq = 100L,
+                    entity = "stock",
+                    id = deletedStockId,
+                    op = "delete",
+                    payload = JsonSerializer.SerializeToElement(new
+                    {
+                        id = deletedStockId,
+                        warehouse_id = _warehouseId,
+                        location_id = Guid.CreateVersion7(),
+                        article_id = Guid.CreateVersion7(),
+                        qty_base = 50
+                    }),
+                    command_id = commandId,
+                    actor = _userId,
+                    warehouse_id = _warehouseId,
+                    occurred_at = DateTimeOffset.UtcNow,
+                    recorded_at = DateTimeOffset.UtcNow
+                },
+                new
+                {
+                    seq = 101L,
+                    entity = "stock",
+                    id = upsertedStockId,
+                    op = "upsert",
+                    payload = JsonSerializer.SerializeToElement(new
+                    {
+                        id = upsertedStockId,
+                        warehouse_id = _warehouseId,
+                        location_id = Guid.CreateVersion7(),
+                        article_id = Guid.CreateVersion7(),
+                        qty_base = 45.5
+                    }),
+                    command_id = commandId,
+                    actor = _userId,
+                    warehouse_id = _warehouseId,
+                    occurred_at = DateTimeOffset.UtcNow,
+                    recorded_at = DateTimeOffset.UtcNow
+                },
+                new
+                {
+                    seq = 102L,
+                    entity = "deviation",
+                    id = deviationId,
+                    op = "insert",
+                    payload = JsonSerializer.SerializeToElement(new
+                    {
+                        id = deviationId,
+                        warehouse_id = _warehouseId,
+                        kind = "occupied_bin",
+                        detail = JsonSerializer.SerializeToElement(new { reason = "physical_count" })
+                    }),
+                    command_id = commandId,
+                    actor = _userId,
+                    warehouse_id = _warehouseId,
+                    occurred_at = DateTimeOffset.UtcNow,
+                    recorded_at = DateTimeOffset.UtcNow
+                }
+            }
+        });
     }
 
     private HttpClient Authed()
