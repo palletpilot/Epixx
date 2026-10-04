@@ -134,5 +134,31 @@
     "handInBody": "This device is revoked. The outbox is kept. A manager logs in here to flush it.",
     "handInFlush": "Send pending commands",
     "error": "That did not work. Try again."
+  },
+  "stock": {
+    "title": "Stock",
+    "location": "Location",
+    "handlingUnit": "HU",
+    "article": "Article",
+    "huSku": "HU / SKU",
+    "quantity": "Quantity",
+    "reserved": "Reserved",
+    "search": "Search",
+    "empty": "No stock.",
+    "caption": "Stock rows",
+    "warehouse": "Warehouse",
+    "sections": "Stock sections",
+    "none": "–"
+  },
+  "deviations": {
+    "title": "Deviations",
+    "location": "Location",
+    "kind": "Kind",
+    "detail": "Detail",
+    "createdAt": "Created",
+    "search": "Search",
+    "empty": "No deviations.",
+    "occupiedBin": "Occupied bin",
+    "caption": "Deviations"
   }
 }

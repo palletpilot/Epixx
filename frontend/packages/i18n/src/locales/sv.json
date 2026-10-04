@@ -134,5 +134,31 @@
     "handInBody": "Enheten är återkallad. Osparade kommandon finns kvar. En chef loggar in här för att skicka dem.",
     "handInFlush": "Skicka osparade kommandon",
     "error": "Det gick inte. Försök igen."
+  },
+  "stock": {
+    "title": "Lager",
+    "location": "Plats",
+    "handlingUnit": "HU",
+    "article": "Artikel",
+    "huSku": "HU / SKU",
+    "quantity": "Antal",
+    "reserved": "Reserverat",
+    "search": "Sök",
+    "empty": "Inga lagerposter.",
+    "caption": "Lagerposter",
+    "warehouse": "Lagerställe",
+    "sections": "Lagersektioner",
+    "none": "–"
+  },
+  "deviations": {
+    "title": "Avvikelser",
+    "location": "Plats",
+    "kind": "Typ",
+    "detail": "Detalj",
+    "createdAt": "Skapad",
+    "search": "Sök",
+    "empty": "Inga avvikelser.",
+    "occupiedBin": "Upptagen plats",
+    "caption": "Avvikelser"
   }
 }
