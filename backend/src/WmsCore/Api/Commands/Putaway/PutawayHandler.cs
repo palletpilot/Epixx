@@ -75,6 +75,7 @@ public sealed class ConfirmPutawayHandler(IClock clock, IValidator<ConfirmPutawa
             deviation = new Deviation
             {
                 Id = Ids.New(),
+                WarehouseId = task.WarehouseId,
                 Kind = "occupied_bin",
                 CommandId = command.Id,
                 Detail = JsonSerializer.Serialize(new
@@ -87,6 +88,28 @@ public sealed class ConfirmPutawayHandler(IClock clock, IValidator<ConfirmPutawa
                 CreatedAt = now
             };
             db.Db.Deviations.Add(deviation);
+
+            var deviationJson = JsonSerializer.Serialize(new
+            {
+                id = deviation.Id,
+                warehouse_id = deviation.WarehouseId,
+                kind = deviation.Kind,
+                command_id = deviation.CommandId,
+                detail = JsonDocument.Parse(deviation.Detail).RootElement,
+                created_at = deviation.CreatedAt
+            }, PutawayJson.Options);
+
+            db.Db.ChangeLog.Add(new ChangeLogRow
+            {
+                Entity = "deviation",
+                Id = deviation.Id,
+                Op = "insert",
+                Payload = deviationJson,
+                CommandId = command.Id,
+                Actor = context.UserId,
+                OccurredAt = context.OccurredAt,
+                RecordedAt = now
+            });
 
             var removedStockJson = JsonSerializer.Serialize(new
             {

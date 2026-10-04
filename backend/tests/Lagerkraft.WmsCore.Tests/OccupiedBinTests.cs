@@ -368,6 +368,52 @@ public sealed class OccupiedBinTests : IAsyncLifetime
         upsertEntry.ShouldNotBeNull();
     }
 
+    [Fact]
+    public async Task DeviationSnapshot_FiltersByWarehouse()
+    {
+        var warehouse1 = Guid.CreateVersion7();
+        var warehouse2 = Guid.CreateVersion7();
+        var deviation1 = Guid.CreateVersion7();
+        var deviation2 = Guid.CreateVersion7();
+
+        var options = new DbContextOptionsBuilder<TenantDbContext>()
+            .UseNpgsql(_cs).UseSnakeCaseNamingConvention().Options;
+        await using var db = new TenantDbContext(options);
+
+        db.Deviations.Add(new Deviation
+        {
+            Id = deviation1,
+            WarehouseId = warehouse1,
+            Kind = "occupied_bin",
+            CommandId = Guid.CreateVersion7(),
+            Detail = "{}",
+            CreatedAt = _clock.UtcNow
+        });
+
+        db.Deviations.Add(new Deviation
+        {
+            Id = deviation2,
+            WarehouseId = warehouse2,
+            Kind = "occupied_bin",
+            CommandId = Guid.CreateVersion7(),
+            Detail = "{}",
+            CreatedAt = _clock.UtcNow
+        });
+
+        await db.SaveChangesAsync();
+
+        using var client = InternalClient();
+        var response = await client.GetAsync($"/internal/snapshot?entity=deviation&warehouse={warehouse1}");
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonDocument>(Json);
+        var items = body!.RootElement.GetProperty("items").EnumerateArray().ToList();
+
+        items.Count.ShouldBe(1);
+        items[0].GetProperty("id").GetGuid().ShouldBe(deviation1);
+        items[0].GetProperty("warehouse_id").GetGuid().ShouldBe(warehouse1);
+    }
+
     private object CommandBody(
         string type,
         int v,

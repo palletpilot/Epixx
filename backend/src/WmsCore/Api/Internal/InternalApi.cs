@@ -186,6 +186,10 @@ public static class InternalApi
         if (entity == "deviation" || entity == "Deviation")
         {
             var deviationQuery = db.Deviations.AsNoTracking().AsQueryable();
+            if (warehouse is { } whDev)
+            {
+                deviationQuery = deviationQuery.Where(d => d.WarehouseId == whDev);
+            }
             var deviationItems = await deviationQuery.OrderBy(d => d.CreatedAt)
                 .Skip((pageNum - 1) * pageSize).Take(pageSize).ToListAsync(ct);
             return Results.Ok(new
@@ -198,6 +202,7 @@ public static class InternalApi
                 items = deviationItems.Select(d => new
                 {
                     d.Id,
+                    d.WarehouseId,
                     d.Kind,
                     d.CommandId,
                     detail = JsonDocument.Parse(d.Detail).RootElement,

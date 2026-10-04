@@ -100,6 +100,10 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("kind");
 
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
                     b.HasKey("Id")
                         .HasName("pk_deviation");
 
@@ -188,9 +192,7 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                         .HasColumnName("expires_at");
 
                     b.Property<bool>("Released")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
-                        .HasDefaultValue(false)
                         .HasColumnName("released");
 
                     b.HasKey("LocationId", "TaskId")

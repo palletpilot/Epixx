@@ -48,6 +48,7 @@ public sealed class ProcessedEvent
 public sealed class Deviation
 {
     public Guid Id { get; set; }
+    public Guid WarehouseId { get; set; }
     public string Kind { get; set; } = "";
     public Guid? CommandId { get; set; }
     public string Detail { get; set; } = "{}";
