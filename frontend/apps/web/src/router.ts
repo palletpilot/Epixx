@@ -19,6 +19,16 @@ export const router = createRouter({
         { path: "", redirect: "/app/tasks" },
         { path: "warehouses", component: () => import("./views/WarehousesView.vue") },
         { path: "tasks", component: () => import("./views/TasksView.vue") },
+        {
+          path: "stock",
+          component: () => import("./views/OfficeListsChrome.vue"),
+          children: [{ path: "", component: () => import("./views/StockView.vue") }],
+        },
+        {
+          path: "deviations",
+          component: () => import("./views/OfficeListsChrome.vue"),
+          children: [{ path: "", component: () => import("./views/DeviationsView.vue") }],
+        },
         { path: "devices", component: () => import("./views/DevicesView.vue") },
         { path: "users", component: () => import("./views/UsersView.vue") },
         { path: "sso", component: () => import("./views/SsoView.vue") },

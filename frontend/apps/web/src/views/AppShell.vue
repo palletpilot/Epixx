@@ -24,6 +24,8 @@ async function logout() {
       <nav class="flex flex-wrap gap-3" :aria-label="t('nav.tenant')">
         <RouterLink to="/app/warehouses">{{ t("nav.warehouses") }}</RouterLink>
         <RouterLink to="/app/tasks">{{ t("nav.tasks") }}</RouterLink>
+        <RouterLink to="/app/stock">{{ t("stock.title") }}</RouterLink>
+        <RouterLink to="/app/deviations">{{ t("deviations.title") }}</RouterLink>
         <RouterLink to="/app/devices">{{ t("nav.devices") }}</RouterLink>
         <RouterLink to="/app/users">{{ t("nav.users") }}</RouterLink>
         <RouterLink to="/app/sso">{{ t("nav.sso") }}</RouterLink>
