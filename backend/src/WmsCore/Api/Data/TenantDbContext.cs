@@ -13,6 +13,10 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
     public DbSet<WarehouseTask> Tasks => Set<WarehouseTask>();
     public DbSet<TaskLine> TaskLines => Set<TaskLine>();
+    public DbSet<LocationReservation> LocationReservations => Set<LocationReservation>();
+    public DbSet<Location> Locations => Set<Location>();
+    public DbSet<HandlingUnit> HandlingUnits => Set<HandlingUnit>();
+    public DbSet<Stock> Stock => Set<Stock>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -95,6 +99,44 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
             e.Property(x => x.SuggestedBreakdown).HasColumnType("jsonb");
             e.Property(x => x.Status).HasMaxLength(32);
             e.HasIndex(x => x.TaskId);
+        });
+
+        builder.Entity<LocationReservation>(e =>
+        {
+            e.ToTable("location_reservation");
+            e.HasKey(x => new { x.LocationId, x.TaskId });
+            e.HasIndex(x => x.ExpiresAt);
+            e.HasIndex(x => x.LocationId)
+                .IsUnique()
+                .HasFilter("released = false");
+        });
+
+        builder.Entity<Location>(e =>
+        {
+            e.ToTable("location");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Code).HasMaxLength(64);
+            e.Property(x => x.Type).HasMaxLength(32);
+            e.HasIndex(x => new { x.WarehouseId, x.Code }).IsUnique();
+        });
+
+        builder.Entity<HandlingUnit>(e =>
+        {
+            e.ToTable("handling_unit");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Lpn).HasMaxLength(64);
+            e.HasIndex(x => new { x.WarehouseId, x.Lpn }).IsUnique();
+            e.HasIndex(x => x.LocationId);
+        });
+
+        builder.Entity<Stock>(e =>
+        {
+            e.ToTable("stock");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.QtyBase).HasPrecision(18, 6);
+            e.HasIndex(x => x.LocationId)
+                .IsUnique()
+                .HasFilter("handling_unit_id is not null");
         });
     }
 }

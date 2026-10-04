@@ -5,6 +5,7 @@ using Lagerkraft.Shared;
 using Lagerkraft.WmsCore.Api.Commands;
 using Lagerkraft.WmsCore.Api.Commands.Probe;
 using Lagerkraft.WmsCore.Api.Commands.Tasks;
+using Lagerkraft.WmsCore.Api.Commands.Putaway;
 using Lagerkraft.WmsCore.Api.Internal;
 using Lagerkraft.WmsCore.Api.Jobs;
 using Lagerkraft.WmsCore.Api.Migrations;
@@ -55,8 +56,10 @@ static async Task<int> RunCliAsync(string[] args)
         await migrator.MigrateTenantAsync(tenant.Value, ct);
         var relaySvc = host.Services.GetRequiredService<OutboxRelay>();
         var retentionSvc = host.Services.GetRequiredService<OutboxRetentionJob>();
+        var reservationSweep = host.Services.GetRequiredService<LocationReservationSweepJob>();
         relaySvc.TrackTenant(tenant.Value);
         retentionSvc.TrackTenant(tenant.Value);
+        reservationSweep.TrackTenant(tenant.Value);
     });
     root.Subcommands.Add(migrateCommand);
 
@@ -135,11 +138,14 @@ static void ConfigureServices(WebApplicationBuilder builder)
         registry.Register(ActivatorUtilities.CreateInstance<ClaimTaskHandler>(sp));
         registry.Register(ActivatorUtilities.CreateInstance<ReleaseTaskHandler>(sp));
         registry.Register(ActivatorUtilities.CreateInstance<CompleteTaskHandler>(sp));
+        registry.Register(ActivatorUtilities.CreateInstance<ConfirmPutawayHandler>(sp));
         return registry;
     });
     builder.Services.AddSingleton<CommandDispatcher>();
     builder.Services.AddSingleton<AssignmentSweepJob>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<AssignmentSweepJob>());
+    builder.Services.AddSingleton<LocationReservationSweepJob>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<LocationReservationSweepJob>());
 
     var natsUrl = builder.Configuration.GetConnectionString("nats")
         ?? builder.Configuration["NATS_URL"];

@@ -66,6 +66,7 @@ public sealed class AssignmentSweepJob : PeriodicJob
                 Id = task.Id,
                 Op = "upsert",
                 Payload = json,
+                WarehouseId = task.WarehouseId,
                 OccurredAt = now,
                 RecordedAt = now
             });

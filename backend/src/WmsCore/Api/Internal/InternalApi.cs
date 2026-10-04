@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Lagerkraft.WmsCore.Api.Commands;
 using Lagerkraft.WmsCore.Api.Data;
+using Lagerkraft.WmsCore.Api.Jobs;
 using Lagerkraft.WmsCore.Api.Migrations;
 using Lagerkraft.WmsCore.Api.Relay;
 using Lagerkraft.WmsCore.Api.Tenancy;
@@ -26,6 +27,7 @@ public static class InternalApi
         ITenantMigrator migrator,
         OutboxRelay relay,
         OutboxRetentionJob retention,
+        LocationReservationSweepJob reservationSweep,
         ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
@@ -35,6 +37,7 @@ public static class InternalApi
             await migrator.MigrateTenantAsync(id, ct);
             relay.TrackTenant(id);
             retention.TrackTenant(id);
+            reservationSweep.TrackTenant(id);
             return Results.Ok();
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("connection not found", StringComparison.OrdinalIgnoreCase))
@@ -105,6 +108,10 @@ public static class InternalApi
         {
             query = query.Where(c => c.Seq > sinceSeq);
         }
+        if (warehouse is { } wh)
+        {
+            query = query.Where(c => c.WarehouseId == wh);
+        }
 
         var rows = await query.Take(500).ToListAsync(ct);
         return Results.Ok(new
@@ -120,6 +127,7 @@ public static class InternalApi
                 payload = JsonDocument.Parse(r.Payload).RootElement,
                 r.CommandId,
                 r.Actor,
+                r.WarehouseId,
                 r.OccurredAt,
                 r.RecordedAt
             })
@@ -148,10 +156,70 @@ public static class InternalApi
         var meta = await db.TenantMeta.SingleOrDefaultAsync(ct);
         var pageSize = 100;
         var pageNum = page ?? 1;
-        var q = db.Tasks.AsNoTracking().AsQueryable();
-        if (warehouse is { } wh)
+        var schemaVersion = SchemaVersions.RequiredFromAssembly();
+
+        if (entity == "stock" || entity == "Stock")
         {
-            q = q.Where(t => t.WarehouseId == wh);
+            var stockQuery = db.Stock.AsNoTracking().AsQueryable();
+            if (warehouse is { } wh)
+            {
+                stockQuery = stockQuery.Where(s => s.WarehouseId == wh);
+            }
+
+            var stockItems = await stockQuery.OrderBy(s => s.CreatedAt)
+                .Skip((pageNum - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+            return Results.Ok(new
+            {
+                feed_epoch = meta?.FeedEpoch ?? Guid.Empty,
+                warehouse,
+                entity = "stock",
+                page = pageNum,
+                snapshot_schema = schemaVersion,
+                items = stockItems.Select(s => new
+                {
+                    s.Id,
+                    s.WarehouseId,
+                    s.LocationId,
+                    s.HandlingUnitId,
+                    s.ArticleId,
+                    s.QtyBase,
+                    s.CreatedAt
+                })
+            });
+        }
+
+        if (entity == "deviation" || entity == "Deviation")
+        {
+            var deviationQuery = db.Deviations.AsNoTracking().AsQueryable();
+            if (warehouse is { } whDev)
+            {
+                deviationQuery = deviationQuery.Where(d => d.WarehouseId == whDev);
+            }
+            var deviationItems = await deviationQuery.OrderBy(d => d.CreatedAt)
+                .Skip((pageNum - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+            return Results.Ok(new
+            {
+                feed_epoch = meta?.FeedEpoch ?? Guid.Empty,
+                warehouse,
+                entity = "deviation",
+                page = pageNum,
+                snapshot_schema = schemaVersion,
+                items = deviationItems.Select(d => new
+                {
+                    d.Id,
+                    d.WarehouseId,
+                    d.Kind,
+                    d.CommandId,
+                    detail = JsonDocument.Parse(d.Detail).RootElement,
+                    d.CreatedAt
+                })
+            });
+        }
+
+        var q = db.Tasks.AsNoTracking().AsQueryable();
+        if (warehouse is { } whTask)
+        {
+            q = q.Where(t => t.WarehouseId == whTask);
         }
 
         var items = await q.OrderBy(t => t.CreatedAt).Skip((pageNum - 1) * pageSize).Take(pageSize).ToListAsync(ct);
@@ -161,7 +229,7 @@ public static class InternalApi
             warehouse,
             entity = entity ?? "Task",
             page = pageNum,
-            snapshot_schema = SchemaVersions.RequiredFromAssembly(),
+            snapshot_schema = schemaVersion,
             items
         });
     }
