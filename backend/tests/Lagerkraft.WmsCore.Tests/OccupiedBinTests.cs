@@ -199,6 +199,7 @@ public sealed class OccupiedBinTests : IAsyncLifetime
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
+        db.ChangeTracker.Clear();
         var handlingUnits = await db.HandlingUnits.Where(hu => hu.LocationId == locationId).ToListAsync();
         handlingUnits.Count.ShouldBe(1);
         handlingUnits[0].Id.ShouldBe(incomingHuId);
