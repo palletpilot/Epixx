@@ -287,6 +287,7 @@ public sealed class OccupiedBinTests : IAsyncLifetime
         deviationInsert.ShouldNotBeNull();
         deviationInsert.CommandId.ShouldBe(stockDelete.CommandId);
 
+        db.ChangeTracker.Clear();
         var previousHu = await db.HandlingUnits.FirstOrDefaultAsync(h => h.Id == existingHuId);
         previousHu.ShouldNotBeNull();
         previousHu.LocationId.ShouldBeNull();

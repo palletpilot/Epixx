@@ -106,6 +106,107 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                     b.ToTable("deviation", (string)null);
                 });
 
+            modelBuilder.Entity("Lagerkraft.WmsCore.Api.Data.HandlingUnit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("LocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("location_id");
+
+                    b.Property<string>("Lpn")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("lpn");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_handling_unit");
+
+                    b.HasIndex("LocationId")
+                        .HasDatabaseName("ix_handling_unit_location_id");
+
+                    b.HasIndex("WarehouseId", "Lpn")
+                        .IsUnique()
+                        .HasDatabaseName("ix_handling_unit_warehouse_id_lpn");
+
+                    b.ToTable("handling_unit", (string)null);
+                });
+
+            modelBuilder.Entity("Lagerkraft.WmsCore.Api.Data.Location", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("type");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_location");
+
+                    b.HasIndex("WarehouseId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_location_warehouse_id_code");
+
+                    b.ToTable("location", (string)null);
+                });
+
+            modelBuilder.Entity("Lagerkraft.WmsCore.Api.Data.LocationReservation", b =>
+                {
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("location_id");
+
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<bool>("Released")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("released");
+
+                    b.HasKey("LocationId", "TaskId")
+                        .HasName("pk_location_reservation");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_location_reservation_expires_at");
+
+                    b.HasIndex("LocationId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_location_reservation_location_id")
+                        .HasFilter("released = false");
+
+                    b.ToTable("location_reservation", (string)null);
+                });
+
             modelBuilder.Entity("Lagerkraft.WmsCore.Api.Data.OutboxRow", b =>
                 {
                     b.Property<Guid>("Id")
@@ -182,6 +283,49 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                         .HasName("pk_processed_events");
 
                     b.ToTable("processed_events", (string)null);
+                });
+
+            modelBuilder.Entity("Lagerkraft.WmsCore.Api.Data.Stock", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ArticleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("article_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("HandlingUnitId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("handling_unit_id");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("location_id");
+
+                    b.Property<decimal>("QtyBase")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)")
+                        .HasColumnName("qty_base");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_stock");
+
+                    b.HasIndex("LocationId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_stock_location_id")
+                        .HasFilter("handling_unit_id is not null");
+
+                    b.ToTable("stock", (string)null);
                 });
 
             modelBuilder.Entity("Lagerkraft.WmsCore.Api.Data.TaskLine", b =>
