@@ -93,3 +93,37 @@ public sealed class TaskLine
     public decimal? TolerancePct { get; set; }
     public string Status { get; set; } = "open";
 }
+
+public sealed class LocationReservation
+{
+    public Guid LocationId { get; set; }
+    public Guid TaskId { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
+}
+
+public sealed class Location
+{
+    public Guid Id { get; set; }
+    public Guid WarehouseId { get; set; }
+    public string Code { get; set; } = "";
+    public string Type { get; set; } = "bin";
+}
+
+public sealed class HandlingUnit
+{
+    public Guid Id { get; set; }
+    public Guid WarehouseId { get; set; }
+    public string Lpn { get; set; } = "";
+    public Guid? LocationId { get; set; }
+}
+
+public sealed class Stock
+{
+    public Guid Id { get; set; }
+    public Guid WarehouseId { get; set; }
+    public Guid LocationId { get; set; }
+    public Guid? HandlingUnitId { get; set; }
+    public Guid? ArticleId { get; set; }
+    public decimal QtyBase { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
