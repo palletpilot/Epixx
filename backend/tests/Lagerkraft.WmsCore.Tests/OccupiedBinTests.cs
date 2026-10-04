@@ -282,6 +282,80 @@ public sealed class OccupiedBinTests : IAsyncLifetime
         changeLogCount.ShouldBeGreaterThanOrEqualTo(2);
     }
 
+    [Fact]
+    public async Task ConfirmPutaway_OccupiedBin_PreviousOccupantInChangeFeed()
+    {
+        var locationId = Guid.CreateVersion7();
+        var taskId = Guid.CreateVersion7();
+        var existingHuId = Guid.CreateVersion7();
+        var incomingHuId = Guid.CreateVersion7();
+
+        var options = new DbContextOptionsBuilder<TenantDbContext>()
+            .UseNpgsql(_cs).UseSnakeCaseNamingConvention().Options;
+        await using var db = new TenantDbContext(options);
+
+        db.Locations.Add(new Location
+        {
+            Id = locationId,
+            WarehouseId = _warehouseId,
+            Code = "A-01-01",
+            Type = "bin"
+        });
+
+        db.HandlingUnits.Add(new HandlingUnit
+        {
+            Id = existingHuId,
+            WarehouseId = _warehouseId,
+            Lpn = "PALLET001",
+            LocationId = locationId
+        });
+
+        var existingStockId = Ids.New();
+        db.Stock.Add(new Stock
+        {
+            Id = existingStockId,
+            WarehouseId = _warehouseId,
+            LocationId = locationId,
+            HandlingUnitId = existingHuId,
+            ArticleId = null,
+            QtyBase = 1m,
+            CreatedAt = _clock.UtcNow
+        });
+
+        db.Tasks.Add(new WarehouseTask
+        {
+            Id = taskId,
+            WarehouseId = _warehouseId,
+            Type = "putaway",
+            Status = "open",
+            CreatedAt = _clock.UtcNow
+        });
+
+        await db.SaveChangesAsync();
+
+        using var client = InternalClient();
+        var response = await client.PostAsJsonAsync(
+            "/internal/commands",
+            CommandBody("ConfirmPutaway", 1, new
+            {
+                task_id = taskId,
+                location_id = locationId,
+                handling_unit_id = incomingHuId,
+                lpn = "PALLET002"
+            }, _clock.UtcNow, _userId),
+            Json);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var deleteEntry = await db.ChangeLog
+            .FirstOrDefaultAsync(c => c.Entity == "stock" && c.Id == existingStockId && c.Op == "delete");
+        deleteEntry.ShouldNotBeNull();
+
+        var upsertEntry = await db.ChangeLog
+            .FirstOrDefaultAsync(c => c.Entity == "stock" && c.Id != existingStockId && c.Op == "upsert");
+        upsertEntry.ShouldNotBeNull();
+    }
+
     private object CommandBody(
         string type,
         int v,

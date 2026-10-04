@@ -26,6 +26,7 @@ public static class InternalApi
         ITenantMigrator migrator,
         OutboxRelay relay,
         OutboxRetentionJob retention,
+        LocationReservationSweepJob reservationSweep,
         ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
@@ -35,6 +36,7 @@ public static class InternalApi
             await migrator.MigrateTenantAsync(id, ct);
             relay.TrackTenant(id);
             retention.TrackTenant(id);
+            reservationSweep.TrackTenant(id);
             return Results.Ok();
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("connection not found", StringComparison.OrdinalIgnoreCase))

@@ -10,6 +10,7 @@ public sealed class LocationReservationSweepJob : PeriodicJob
 {
     private readonly ITenantConnectionCache _connections;
     private readonly IClock _clock;
+    private readonly List<Guid> _tenants = [];
 
     public LocationReservationSweepJob(
         ITenantConnectionCache connections,
@@ -22,7 +23,30 @@ public sealed class LocationReservationSweepJob : PeriodicJob
 
     protected override TimeSpan Interval => TimeSpan.FromSeconds(60);
 
-    protected override Task RunOnceAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public void TrackTenant(Guid tenantId)
+    {
+        lock (_tenants)
+        {
+            if (!_tenants.Contains(tenantId))
+            {
+                _tenants.Add(tenantId);
+            }
+        }
+    }
+
+    protected override async Task RunOnceAsync(CancellationToken cancellationToken)
+    {
+        List<Guid> snapshot;
+        lock (_tenants)
+        {
+            snapshot = [.. _tenants];
+        }
+
+        foreach (var tenantId in snapshot)
+        {
+            await SweepAsync(tenantId, cancellationToken);
+        }
+    }
 
     public Task SweepTenantAsync(Guid tenantId, CancellationToken ct) => SweepAsync(tenantId, ct);
 
@@ -41,20 +65,21 @@ public sealed class LocationReservationSweepJob : PeriodicJob
         await using var db = new TenantDbContext(options);
         var now = _clock.UtcNow;
 
-        var releasedCount = await db.Database.ExecuteSqlRawAsync(
-            @"DELETE FROM location_reservation
-              WHERE (location_id, task_id) IN (
-                  SELECT location_id, task_id
-                  FROM location_reservation
-                  WHERE expires_at < {0}
-                  FOR UPDATE SKIP LOCKED
-                  LIMIT 100
-              )", now, cancellationToken: ct);
+        var expired = await db.Database.ExecuteSqlInterpolatedAsync(
+            $@"UPDATE location_reservation
+               SET released = true
+               WHERE (location_id, task_id) IN (
+                   SELECT location_id, task_id
+                   FROM location_reservation
+                   WHERE released = false AND expires_at < {now}
+                   FOR UPDATE SKIP LOCKED
+                   LIMIT 100
+               )", cancellationToken: ct);
 
-        if (releasedCount > 0)
+        if (expired > 0)
         {
             Log.Information("Released {Count} expired location reservations for tenant {TenantId}",
-                releasedCount, tenantId);
+                expired, tenantId);
         }
     }
 }

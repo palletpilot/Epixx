@@ -61,9 +61,10 @@ public sealed class ConfirmPutawayHandler(IClock clock, IValidator<ConfirmPutawa
             .Where(s => s.LocationId == payload.LocationId && s.HandlingUnitId != null)
             .FirstOrDefaultAsync(ct);
 
+        Deviation? deviation = null;
         if (existingOccupant is not null)
         {
-            var deviation = new Deviation
+            deviation = new Deviation
             {
                 Id = Ids.New(),
                 Kind = "occupied_bin",
@@ -78,6 +79,37 @@ public sealed class ConfirmPutawayHandler(IClock clock, IValidator<ConfirmPutawa
                 CreatedAt = now
             };
             db.Db.Deviations.Add(deviation);
+
+            var removedStockJson = JsonSerializer.Serialize(new
+            {
+                id = existingOccupant.Id,
+                warehouse_id = existingOccupant.WarehouseId,
+                location_id = existingOccupant.LocationId,
+                handling_unit_id = existingOccupant.HandlingUnitId,
+                article_id = existingOccupant.ArticleId,
+                qty_base = existingOccupant.QtyBase,
+                created_at = existingOccupant.CreatedAt
+            }, PutawayJson.Options);
+
+            db.Db.ChangeLog.Add(new ChangeLogRow
+            {
+                Entity = "stock",
+                Id = existingOccupant.Id,
+                Op = "delete",
+                Payload = removedStockJson,
+                CommandId = command.Id,
+                Actor = context.UserId,
+                OccurredAt = context.OccurredAt,
+                RecordedAt = now
+            });
+
+            db.Db.Outbox.Add(new OutboxRow
+            {
+                Id = Ids.New(),
+                Type = "inventory.stock.removed",
+                Payload = removedStockJson,
+                OccurredAt = context.OccurredAt
+            });
 
             db.Db.Stock.Remove(existingOccupant);
         }
@@ -103,14 +135,17 @@ public sealed class ConfirmPutawayHandler(IClock clock, IValidator<ConfirmPutawa
         };
         db.Db.Stock.Add(stock);
 
-        await db.Db.Database.ExecuteSqlRawAsync(
-            "DELETE FROM location_reservation WHERE location_id = {0} AND task_id = {1}",
-            payload.LocationId, payload.TaskId, cancellationToken: ct);
+        var reservation = await db.Db.LocationReservations
+            .FirstOrDefaultAsync(r => r.LocationId == payload.LocationId && r.TaskId == payload.TaskId, ct);
+        if (reservation is not null)
+        {
+            reservation.Released = true;
+        }
 
         task.Status = "done";
         task.AssignedUntil = null;
 
-        await WriteSideEffects(db, command, context, task, stock, existingOccupant, now, ct);
+        await WriteSideEffects(db, command, context, task, stock, deviation, now, ct);
 
         return new CommandResult(command.Id, CommandOutcome.Applied);
     }
@@ -121,7 +156,7 @@ public sealed class ConfirmPutawayHandler(IClock clock, IValidator<ConfirmPutawa
         CommandContext context,
         WarehouseTask task,
         Stock stock,
-        Stock? existingOccupant,
+        Deviation? deviation,
         DateTimeOffset now,
         CancellationToken ct)
     {
@@ -188,20 +223,21 @@ public sealed class ConfirmPutawayHandler(IClock clock, IValidator<ConfirmPutawa
             OccurredAt = context.OccurredAt
         });
 
-        if (existingOccupant is not null)
+        if (deviation is not null)
         {
             var deviationPayload = JsonSerializer.Serialize(new
             {
-                kind = "occupied_bin",
-                location_id = stock.LocationId,
-                existing_handling_unit_id = existingOccupant.HandlingUnitId,
-                incoming_handling_unit_id = stock.HandlingUnitId
+                id = deviation.Id,
+                kind = deviation.Kind,
+                command_id = deviation.CommandId,
+                detail = JsonDocument.Parse(deviation.Detail).RootElement,
+                created_at = deviation.CreatedAt
             }, PutawayJson.Options);
 
             db.Db.ChangeLog.Add(new ChangeLogRow
             {
                 Entity = "deviation",
-                Id = db.Db.Deviations.Local.First(d => d.Kind == "occupied_bin" && d.CommandId == command.Id).Id,
+                Id = deviation.Id,
                 Op = "insert",
                 Payload = deviationPayload,
                 CommandId = command.Id,

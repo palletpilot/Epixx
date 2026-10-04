@@ -84,7 +84,8 @@ public sealed class LocationReservationTests : IAsyncLifetime
         {
             LocationId = locationId,
             TaskId = taskId,
-            ExpiresAt = expiresAt
+            ExpiresAt = expiresAt,
+            Released = false
         });
         await db.SaveChangesAsync();
 
@@ -95,6 +96,7 @@ public sealed class LocationReservationTests : IAsyncLifetime
             r => r.LocationId == locationId && r.TaskId == taskId);
         reservation.ShouldNotBeNull();
         reservation.ExpiresAt.ShouldBe(expiresAt);
+        reservation.Released.ShouldBeFalse();
     }
 
     [Fact]
@@ -120,7 +122,8 @@ public sealed class LocationReservationTests : IAsyncLifetime
         {
             LocationId = locationId,
             TaskId = taskId,
-            ExpiresAt = expiresAt
+            ExpiresAt = expiresAt,
+            Released = false
         });
         await db.SaveChangesAsync();
 
@@ -129,7 +132,8 @@ public sealed class LocationReservationTests : IAsyncLifetime
 
         var reservation = await db.LocationReservations.SingleOrDefaultAsync(
             r => r.LocationId == locationId && r.TaskId == taskId);
-        reservation.ShouldBeNull();
+        reservation.ShouldNotBeNull();
+        reservation.Released.ShouldBeTrue();
     }
 
     [Fact]
@@ -155,17 +159,25 @@ public sealed class LocationReservationTests : IAsyncLifetime
         {
             LocationId = locationId,
             TaskId = taskId,
-            ExpiresAt = expiresAt
+            ExpiresAt = expiresAt,
+            Released = false
         });
         await db.SaveChangesAsync();
 
         var sweep = _factory.Services.GetRequiredService<LocationReservationSweepJob>();
         await sweep.SweepTenantAsync(_tenantId, CancellationToken.None);
-        await sweep.SweepTenantAsync(_tenantId, CancellationToken.None);
-
+        
         var reservation = await db.LocationReservations.SingleOrDefaultAsync(
             r => r.LocationId == locationId && r.TaskId == taskId);
-        reservation.ShouldBeNull();
+        reservation.ShouldNotBeNull();
+        reservation.Released.ShouldBeTrue();
+
+        await sweep.SweepTenantAsync(_tenantId, CancellationToken.None);
+
+        var reservationAfterSecond = await db.LocationReservations.SingleOrDefaultAsync(
+            r => r.LocationId == locationId && r.TaskId == taskId);
+        reservationAfterSecond.ShouldNotBeNull();
+        reservationAfterSecond.Released.ShouldBeTrue();
     }
 
     private HttpClient InternalClient()

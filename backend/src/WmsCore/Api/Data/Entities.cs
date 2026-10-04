@@ -99,6 +99,7 @@ public sealed class LocationReservation
     public Guid LocationId { get; set; }
     public Guid TaskId { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }
+    public bool Released { get; set; }
 }
 
 public sealed class Location

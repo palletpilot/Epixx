@@ -56,8 +56,10 @@ static async Task<int> RunCliAsync(string[] args)
         await migrator.MigrateTenantAsync(tenant.Value, ct);
         var relaySvc = host.Services.GetRequiredService<OutboxRelay>();
         var retentionSvc = host.Services.GetRequiredService<OutboxRetentionJob>();
+        var reservationSweep = host.Services.GetRequiredService<LocationReservationSweepJob>();
         relaySvc.TrackTenant(tenant.Value);
         retentionSvc.TrackTenant(tenant.Value);
+        reservationSweep.TrackTenant(tenant.Value);
     });
     root.Subcommands.Add(migrateCommand);
 

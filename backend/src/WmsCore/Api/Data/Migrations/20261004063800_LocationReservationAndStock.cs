@@ -65,7 +65,8 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                 {
                     location_id = table.Column<Guid>(type: "uuid", nullable: false),
                     task_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    expires_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                    expires_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    released = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false)
                 },
                 constraints: table =>
                 {
@@ -90,9 +91,9 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                 column: "location_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix_stock_location_id_handling_unit_id",
+                name: "ix_stock_location_id",
                 table: "stock",
-                columns: new[] { "location_id", "handling_unit_id" },
+                column: "location_id",
                 unique: true,
                 filter: "handling_unit_id is not null");
 
@@ -102,10 +103,11 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                 column: "expires_at");
 
             migrationBuilder.CreateIndex(
-                name: "ix_location_reservation_location_id_expires_at",
+                name: "ix_location_reservation_location_id",
                 table: "location_reservation",
-                columns: new[] { "location_id", "expires_at" },
-                filter: "expires_at > now()");
+                column: "location_id",
+                unique: true,
+                filter: "released = false");
         }
 
         /// <inheritdoc />

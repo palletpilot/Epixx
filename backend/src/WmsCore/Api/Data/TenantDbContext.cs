@@ -106,8 +106,9 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
             e.ToTable("location_reservation");
             e.HasKey(x => new { x.LocationId, x.TaskId });
             e.HasIndex(x => x.ExpiresAt);
-            e.HasIndex(x => new { x.LocationId, x.ExpiresAt })
-                .HasFilter("expires_at > now()");
+            e.HasIndex(x => x.LocationId)
+                .IsUnique()
+                .HasFilter("released = false");
         });
 
         builder.Entity<Location>(e =>
@@ -133,7 +134,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
             e.ToTable("stock");
             e.HasKey(x => x.Id);
             e.Property(x => x.QtyBase).HasPrecision(18, 6);
-            e.HasIndex(x => new { x.LocationId, x.HandlingUnitId })
+            e.HasIndex(x => x.LocationId)
                 .IsUnique()
                 .HasFilter("handling_unit_id is not null");
         });
