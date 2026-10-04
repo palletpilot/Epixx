@@ -259,23 +259,12 @@ public sealed class ConfirmPutawayHandler(IClock clock, IValidator<ConfirmPutawa
             var deviationPayload = JsonSerializer.Serialize(new
             {
                 id = deviation.Id,
+                warehouse_id = deviation.WarehouseId,
                 kind = deviation.Kind,
                 command_id = deviation.CommandId,
                 detail = JsonDocument.Parse(deviation.Detail).RootElement,
                 created_at = deviation.CreatedAt
             }, PutawayJson.Options);
-
-            db.Db.ChangeLog.Add(new ChangeLogRow
-            {
-                Entity = "deviation",
-                Id = deviation.Id,
-                Op = "insert",
-                Payload = deviationPayload,
-                CommandId = command.Id,
-                Actor = context.UserId,
-                OccurredAt = context.OccurredAt,
-                RecordedAt = now
-            });
 
             db.Db.Outbox.Add(new OutboxRow
             {
