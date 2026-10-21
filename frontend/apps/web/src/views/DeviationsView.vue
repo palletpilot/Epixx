@@ -8,7 +8,7 @@ import { useTableCursor } from "../composables/useTableCursor";
 const { t, locale } = useI18n();
 const searchRef = ref<HTMLInputElement | null>(null);
 const searchText = ref("");
-const { deviationRows } = useOfficeLists();
+const { deviationRows, loadError } = useOfficeLists();
 
 const rows = computed(() => {
   const query = searchText.value.trim().toLowerCase();
@@ -81,6 +81,8 @@ onUnmounted(() => {
 
 <template>
   <section>
+    <p v-if="loadError" role="alert">{{ t("deviations.loadError") }}</p>
+    <template v-else>
     <label class="mb-3 block max-w-xs text-sm">
       <span class="sr-only">{{ t("deviations.search") }}</span>
       <input
@@ -134,5 +136,6 @@ onUnmounted(() => {
         </tbody>
       </table>
     </div>
+    </template>
   </section>
 </template>

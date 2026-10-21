@@ -9,7 +9,7 @@ import { useSessionStore } from "../stores/session";
 const { t } = useI18n();
 const session = useSessionStore();
 const { selectedWarehouseId, warehouses } = storeToRefs(session);
-const { openDeviationCount, refresh } = useOfficeLists();
+const { deviationCount, refresh } = useOfficeLists();
 
 onMounted(async () => {
   await session.ensureWarehouse();
@@ -49,10 +49,11 @@ onMounted(async () => {
       >
         {{ t("deviations.title") }}
         <span
-          v-if="openDeviationCount > 0"
+          v-if="deviationCount > 0"
           class="inline-flex min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground"
+          :aria-label="t('deviations.count', { count: deviationCount })"
         >
-          {{ openDeviationCount }}
+          {{ deviationCount }}
         </span>
       </RouterLink>
     </nav>

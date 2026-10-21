@@ -148,7 +148,8 @@
     "caption": "Stock rows",
     "warehouse": "Warehouse",
     "sections": "Stock sections",
-    "none": "–"
+    "none": "–",
+    "loadError": "Could not load the stock list."
   },
   "deviations": {
     "title": "Deviations",
@@ -159,6 +160,8 @@
     "search": "Search",
     "empty": "No deviations.",
     "occupiedBin": "Occupied bin",
-    "caption": "Deviations"
+    "caption": "Deviations",
+    "count": "{count} deviations",
+    "loadError": "Could not load the deviations list."
   }
 }

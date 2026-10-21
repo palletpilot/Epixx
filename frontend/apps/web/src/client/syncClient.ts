@@ -44,6 +44,16 @@ export type OfficeLists = {
 
 export type SyncGetJson = (url: string) => Promise<unknown>;
 
+export class SyncLoadError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`http_${status}`);
+    this.name = "SyncLoadError";
+    this.status = status;
+  }
+}
+
 export function emptyLists(): OfficeLists {
   return { stock: new Map(), deviations: new Map() };
 }
@@ -94,7 +104,7 @@ export function mapChangeRows(body: unknown): ChangeRow[] {
     return [];
   }
   const raw = body as Record<string, unknown>;
-  const list = raw.entries ?? raw.items;
+  const list = raw.entries;
   if (!Array.isArray(list)) {
     return [];
   }
@@ -134,12 +144,25 @@ export async function loadOfficeLists(
   baseUrl: string,
   warehouseId: string,
 ): Promise<OfficeLists> {
-  const [stockBody, deviationBody, changeBody] = await Promise.all([
+  const [stockBody, deviationBody] = await Promise.all([
     getJson(snapshotUrl(baseUrl, warehouseId, "stock")),
     getJson(snapshotUrl(baseUrl, warehouseId, "deviation")),
-    getJson(changesUrl(baseUrl, warehouseId, 0)),
   ]);
-  return applyChanges(listsFromSnapshots(stockBody, deviationBody), mapChangeRows(changeBody), warehouseId);
+  let lists = listsFromSnapshots(stockBody, deviationBody);
+  let since = 0;
+  for (;;) {
+    const page = mapChangeRows(await getJson(changesUrl(baseUrl, warehouseId, since)));
+    if (page.length === 0) {
+      break;
+    }
+    lists = applyChanges(lists, page, warehouseId);
+    const lastSeq = page.reduce((max, row) => (row.seq > max ? row.seq : max), page[0]!.seq);
+    if (lastSeq <= since) {
+      break;
+    }
+    since = lastSeq;
+  }
+  return lists;
 }
 
 function applyStockRow(stock: Map<string, StockRow>, entry: ChangeRow): void {

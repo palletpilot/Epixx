@@ -7,7 +7,7 @@ import { useTableCursor } from "../composables/useTableCursor";
 const { t } = useI18n();
 const searchRef = ref<HTMLInputElement | null>(null);
 const searchText = ref("");
-const { stockRows } = useOfficeLists();
+const { stockRows, loadError } = useOfficeLists();
 
 const rows = computed(() => {
   const query = searchText.value.trim().toLowerCase();
@@ -53,6 +53,8 @@ onUnmounted(() => {
 
 <template>
   <section>
+    <p v-if="loadError" role="alert">{{ t("stock.loadError") }}</p>
+    <template v-else>
     <label class="mb-3 block max-w-xs text-sm">
       <span class="sr-only">{{ t("stock.search") }}</span>
       <input
@@ -102,5 +104,6 @@ onUnmounted(() => {
         </tbody>
       </table>
     </div>
+    </template>
   </section>
 </template>

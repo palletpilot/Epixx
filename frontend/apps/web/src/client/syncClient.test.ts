@@ -7,6 +7,7 @@ import {
   mapChangeRows,
   mapDeviationSnapshot,
   mapStockSnapshot,
+  SyncLoadError,
   type ChangeRow,
   type StockRow,
 } from "./syncClient";
@@ -243,6 +244,10 @@ describe("loadOfficeLists", () => {
         if (url.includes("/sync/snapshot")) {
           return { snapshot_schema: "do-not-use", items: [] };
         }
+        const since = Number(new URL(url).searchParams.get("since"));
+        if (since > 0) {
+          return { entries: [] };
+        }
         return {
           entries: [
             {
@@ -274,5 +279,83 @@ describe("loadOfficeLists", () => {
     expect(called.some((url) => url.includes("/sync/changes") && url.includes(`warehouse=${warehouseId}`))).toBe(true);
     expect(lists.stock.size).toBe(0);
     expect(lists.deviations.size).toBe(0);
+  });
+
+  it("pages changes so an upsert on page 1 deleted on page 2 is absent", async () => {
+    const sinceCalls: number[] = [];
+    const lists = await loadOfficeLists(
+      async (url) => {
+        if (url.includes("/sync/snapshot")) {
+          return { items: [] };
+        }
+        const since = Number(new URL(url).searchParams.get("since"));
+        sinceCalls.push(since);
+        if (since === 0) {
+          return {
+            entries: [
+              change({
+                seq: 1,
+                entity: "stock",
+                id: "s-page",
+                op: "upsert",
+                warehouse_id: warehouseId,
+                payload: {
+                  id: "s-page",
+                  warehouse_id: warehouseId,
+                  location_id: "A-01-01",
+                  handling_unit_id: "HU-PAGE",
+                  qty_base: 3,
+                  created_at: "2026-09-13T08:00:00.000Z",
+                },
+              }),
+            ],
+          };
+        }
+        if (since === 1) {
+          return {
+            entries: [
+              change({
+                seq: 2,
+                entity: "stock",
+                id: "s-page",
+                op: "delete",
+                warehouse_id: warehouseId,
+                payload: { warehouse_id: warehouseId, id: "s-page" },
+              }),
+            ],
+          };
+        }
+        return { entries: [] };
+      },
+      "http://sync.test",
+      warehouseId,
+    );
+    expect(sinceCalls).toEqual([0, 1, 2]);
+    expect(lists.stock.has("s-page")).toBe(false);
+  });
+
+  it("treats a 500 and a 410 from changes as an error, not an empty list", async () => {
+    await expect(
+      loadOfficeLists(
+        async () => {
+          throw new SyncLoadError(500);
+        },
+        "http://sync.test",
+        warehouseId,
+      ),
+    ).rejects.toMatchObject({ status: 500 });
+
+    await expect(
+      loadOfficeLists(
+        async (url) => {
+          if (url.includes("/sync/snapshot")) {
+            return { items: [stockSnapshotItem()] };
+          }
+          throw new SyncLoadError(410);
+        },
+        "http://sync.test",
+        warehouseId,
+      ),
+    ).rejects.toMatchObject({ status: 410 });
   });
 });

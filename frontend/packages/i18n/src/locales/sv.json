@@ -148,7 +148,8 @@
     "caption": "Lagerposter",
     "warehouse": "Lagerställe",
     "sections": "Lagersektioner",
-    "none": "–"
+    "none": "–",
+    "loadError": "Kunde inte hämta lagerlistan."
   },
   "deviations": {
     "title": "Avvikelser",
@@ -159,6 +160,8 @@
     "search": "Sök",
     "empty": "Inga avvikelser.",
     "occupiedBin": "Upptagen plats",
-    "caption": "Avvikelser"
+    "caption": "Avvikelser",
+    "count": "{count} avvikelser",
+    "loadError": "Kunde inte hämta avvikelselistan."
   }
 }

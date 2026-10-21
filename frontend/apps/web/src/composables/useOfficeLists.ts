@@ -1,11 +1,12 @@
 import { computed, ref, watch } from "vue";
-import { emptyLists, loadOfficeLists, type OfficeLists } from "../client/syncClient";
+import { emptyLists, loadOfficeLists, SyncLoadError, type OfficeLists } from "../client/syncClient";
 import { syncUrl } from "../env";
 import { useAuthStore } from "../stores/auth";
 import { useSessionStore } from "../stores/session";
 
 const lists = ref<OfficeLists>(emptyLists());
 const loading = ref(false);
+const loadError = ref(false);
 let watching = false;
 
 export function useOfficeLists() {
@@ -16,6 +17,7 @@ export function useOfficeLists() {
     const warehouseId = session.selectedWarehouseId;
     if (!warehouseId || !auth.accessToken) {
       lists.value = emptyLists();
+      loadError.value = false;
       return;
     }
     loading.value = true;
@@ -24,15 +26,16 @@ export function useOfficeLists() {
         async (url) => {
           const res = await auth.authedFetch(url);
           if (!res.ok) {
-            return { items: [], entries: [] };
+            throw new SyncLoadError(res.status);
           }
           return res.json();
         },
         syncUrl(),
         warehouseId,
       );
+      loadError.value = false;
     } catch {
-      lists.value = emptyLists();
+      loadError.value = true;
     } finally {
       loading.value = false;
     }
@@ -52,8 +55,9 @@ export function useOfficeLists() {
     lists,
     stockRows: computed(() => [...lists.value.stock.values()]),
     deviationRows: computed(() => [...lists.value.deviations.values()]),
-    openDeviationCount: computed(() => lists.value.deviations.size),
+    deviationCount: computed(() => lists.value.deviations.size),
     loading,
+    loadError,
     refresh,
   };
 }
