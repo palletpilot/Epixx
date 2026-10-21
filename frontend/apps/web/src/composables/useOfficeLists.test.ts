@@ -17,11 +17,12 @@ function stockItem(hu: string) {
   };
 }
 
-function deviationItem(id: string) {
+function deviationItem(id: string, status = "open") {
   return {
     warehouse_id: warehouseId,
     id,
     kind: "occupied_bin",
+    status,
     command_id: "cmd-1",
     detail: { location_id: "loc-a" },
     created_at: "2026-09-19T08:00:00.000Z",
@@ -158,6 +159,68 @@ describe("useOfficeLists HTTP errors", () => {
     const office = useOfficeLists();
     await office.refresh();
     expect(office.loadError.value).toBe(true);
+    expect(office.lists.value.stock.size).toBe(0);
+  });
+
+  it("sets loadError when a deviation snapshot item has no status", async () => {
+    stubFetch((url) => {
+      if (url.includes("/sync/snapshot") && url.includes("entity=Deviation")) {
+        return snapshotOk([
+          {
+            id: "d-1",
+            warehouse_id: warehouseId,
+            kind: "occupied_bin",
+            command_id: "c1",
+            detail: { location_id: "loc-a" },
+            created_at: "2026-09-19T08:00:00.000Z",
+          },
+        ]);
+      }
+      if (url.includes("/sync/snapshot")) {
+        return snapshotOk();
+      }
+      return ok({ entries: [] });
+    });
+    const office = useOfficeLists();
+    await office.refresh();
+    expect(office.loadError.value).toBe(true);
+    expect(office.lists.value.deviations.size).toBe(0);
+    expect(office.lists.value.stock.size).toBe(0);
+  });
+
+  it("sets loadError when a deviation feed payload has no status", async () => {
+    stubFetch((url) => {
+      if (url.includes("/sync/snapshot")) {
+        return snapshotOk();
+      }
+      return ok({
+        entries: [
+          {
+            seq: 1,
+            entity: "deviation",
+            id: "d-1",
+            op: "upsert",
+            warehouse_id: warehouseId,
+            payload: {
+              warehouse_id: warehouseId,
+              id: "d-1",
+              kind: "occupied_bin",
+              command_id: "c1",
+              detail: { location_id: "loc-a" },
+              created_at: "2026-09-19T08:00:00.000Z",
+            },
+            command_id: "c1",
+            actor: null,
+            occurred_at: "2026-09-19T08:00:00.000Z",
+            recorded_at: "2026-09-19T08:00:00.100Z",
+          },
+        ],
+      });
+    });
+    const office = useOfficeLists();
+    await office.refresh();
+    expect(office.loadError.value).toBe(true);
+    expect(office.lists.value.deviations.size).toBe(0);
     expect(office.lists.value.stock.size).toBe(0);
   });
 });

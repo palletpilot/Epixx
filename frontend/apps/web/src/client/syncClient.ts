@@ -14,6 +14,12 @@ export type DeviationDetail = {
   existing_handling_unit_id?: string;
   incoming_handling_unit_id?: string;
   lpn?: string;
+  /**
+   * Provisional occupied_bin reserved qty. Decimal string; "0" when nothing is
+   * reserved. Not sent by WmsCore PR 8 at 500117c; optional until the next SHA lands.
+   * There is no boolean companion field.
+   */
+  existing_reserved_qty_base?: string;
 };
 
 /**
@@ -34,7 +40,7 @@ export type DeviationRow = {
   warehouse_id: string;
   id: string;
   kind: string;
-  status?: string;
+  status: string;
   command_id: string;
   detail: DeviationDetail;
   created_at: string;
@@ -337,6 +343,26 @@ export function deviationLocationId(row: DeviationRow): string {
   return row.detail.location_id ?? "";
 }
 
+/** True for a non-negative decimal string that is not all zeros (optional fractional zeros). No float math. */
+export function isAboveZeroDecimalString(value: string): boolean {
+  if (!/^\d+(\.\d+)?$/.test(value)) {
+    return false;
+  }
+  return !/^0+(\.0+)?$/.test(value);
+}
+
+/** Raw existing_reserved_qty_base when the occupied_bin reserved badge should show; otherwise null. */
+export function occupiedBinReservedQty(row: DeviationRow): string | null {
+  if (row.kind !== "occupied_bin") {
+    return null;
+  }
+  const qty = row.detail.existing_reserved_qty_base;
+  if (qty == null || !isAboveZeroDecimalString(qty)) {
+    return null;
+  }
+  return qty;
+}
+
 export function deviationDetailParts(row: DeviationRow): string[] {
   return [
     row.detail.location_id,
@@ -348,9 +374,6 @@ export function deviationDetailParts(row: DeviationRow): string[] {
 }
 
 function isListedDeviation(row: DeviationRow): boolean {
-  if (row.status == null || row.status === "") {
-    return true;
-  }
   return row.status === "open" || row.status === "pending_approval";
 }
 
@@ -380,6 +403,13 @@ function requireSnapshotId(item: Record<string, unknown>): string {
     throw new SnapshotContractError("snapshot_missing_id");
   }
   return item.id;
+}
+
+function requireDeviationStatus(item: Record<string, unknown>): string {
+  if (typeof item.status !== "string" || item.status === "") {
+    throw new SnapshotContractError("snapshot_missing_status");
+  }
+  return item.status;
 }
 
 function asChangeRow(value: unknown): ChangeRow | null {
@@ -435,13 +465,14 @@ function asDeviation(value: unknown, fallbackId: string): DeviationRow | null {
   if (!id) {
     return null;
   }
+  const status = requireDeviationStatus(raw);
   const detail =
     typeof raw.detail === "object" && raw.detail !== null ? (raw.detail as Record<string, unknown>) : {};
   return {
     warehouse_id: String(raw.warehouse_id ?? ""),
     id,
     kind: String(raw.kind ?? ""),
-    status: typeof raw.status === "string" && raw.status !== "" ? raw.status : undefined,
+    status,
     command_id: String(raw.command_id ?? ""),
     detail: {
       location_id: optionalString(detail.location_id),
@@ -449,6 +480,7 @@ function asDeviation(value: unknown, fallbackId: string): DeviationRow | null {
       existing_handling_unit_id: optionalString(detail.existing_handling_unit_id),
       incoming_handling_unit_id: optionalString(detail.incoming_handling_unit_id),
       lpn: optionalString(detail.lpn),
+      existing_reserved_qty_base: asDecimalString(detail.existing_reserved_qty_base) ?? undefined,
     },
     created_at: String(raw.created_at ?? ""),
   };

@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { deviationDetailParts, deviationLocationId, type DeviationRow } from "../client/syncClient";
+import {
+  deviationDetailParts,
+  deviationLocationId,
+  occupiedBinReservedQty,
+  type DeviationRow,
+} from "../client/syncClient";
 import { useOfficeLists } from "../composables/useOfficeLists";
 import { useTableCursor } from "../composables/useTableCursor";
 
@@ -128,6 +133,12 @@ onUnmounted(() => {
                   class="inline-block rounded bg-destructive/10 px-2 py-0.5 text-xs font-semibold text-destructive"
                 >
                   {{ kindLabel(row.kind) }}
+                </span>
+                <span
+                  v-if="occupiedBinReservedQty(row)"
+                  class="ml-1 inline-block rounded bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground"
+                >
+                  {{ t("stock.reserved") }} {{ occupiedBinReservedQty(row) }}
                 </span>
               </td>
               <td class="px-2 py-1">{{ formatDetail(row) }}</td>

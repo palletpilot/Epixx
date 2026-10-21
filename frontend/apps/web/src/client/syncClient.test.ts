@@ -17,10 +17,12 @@ import {
   mapDeviationSnapshot,
   mapLocationSnapshot,
   mapStockSnapshot,
+  occupiedBinReservedQty,
   SnapshotContractError,
   SNAPSHOT_PAGE_SIZE,
   SyncLoadError,
   type ChangeRow,
+  type DeviationRow,
   type LocationRow,
   type StockRow,
 } from "./syncClient";
@@ -86,6 +88,24 @@ describe("snapshot mapping", () => {
             handling_unit_id: huId,
             qty_base: "4",
             reserved_qty_base: "0",
+          },
+        ],
+      }),
+    ).toThrow(SnapshotContractError);
+  });
+
+  it("treats a deviation snapshot item without status as a contract error", () => {
+    expect(() =>
+      mapDeviationSnapshot({
+        seq: 4,
+        items: [
+          {
+            id: "d-open",
+            warehouse_id: warehouseId,
+            kind: "occupied_bin",
+            command_id: "c1",
+            detail: { location_id: "loc-a" },
+            created_at: "2026-09-19T08:00:00.000Z",
           },
         ],
       }),
@@ -428,6 +448,7 @@ describe("applyChanges", () => {
             warehouse_id: warehouseId,
             id: "d-new",
             kind: "occupied_bin",
+            status: "open",
             command_id: commandId,
             detail: {
               location_id: binId,
@@ -598,6 +619,7 @@ describe("applyChanges", () => {
             warehouse_id: warehouseId,
             id: "d-wrong",
             kind: "wrong_location",
+            status: "open",
             command_id: "cmd-wrong",
             detail: {
               location_id: "loc-actual",
@@ -614,6 +636,32 @@ describe("applyChanges", () => {
     expect(row?.detail.location_id).toBe("loc-actual");
     expect(row?.detail.suggested_location_id).toBe("loc-suggested");
     expect(deviationLocationId(row!)).toBe("loc-actual");
+  });
+
+  it("treats a deviation feed upsert without status as a contract error", () => {
+    expect(() =>
+      applyChanges(
+        emptyLists(),
+        [
+          change({
+            seq: 1,
+            entity: "deviation",
+            id: "d-open",
+            op: "upsert",
+            warehouse_id: warehouseId,
+            payload: {
+              warehouse_id: warehouseId,
+              id: "d-open",
+              kind: "occupied_bin",
+              command_id: "c1",
+              detail: { location_id: "loc-a" },
+              created_at: "2026-09-19T08:00:00.000Z",
+            },
+          }),
+        ],
+        warehouseId,
+      ),
+    ).toThrow(SnapshotContractError);
   });
 
   it.each(["resolved", "dismissed"] as const)(
@@ -1008,7 +1056,8 @@ describe("PR 8 WmsCore contract fixture", () => {
       reserved_qty_base: "0",
     });
     expect(fromSnapshot.deviations.get(PR8_DEVIATION_ID)?.kind).toBe("occupied_bin");
-    expect(fromSnapshot.deviations.get(PR8_DEVIATION_ID)?.status).toBeUndefined();
+    expect(fromSnapshot.deviations.get(PR8_DEVIATION_ID)?.status).toBe("open");
+    expect(fromSnapshot.deviations.get(PR8_DEVIATION_ID)?.detail.existing_reserved_qty_base).toBeUndefined();
     expect(isUnlocatedSystemLocation(fromSnapshot.locations.get(PR8_UNLOCATED_ID))).toBe(true);
 
     const upserted = applyChanges(
@@ -1050,5 +1099,35 @@ describe("PR 8 WmsCore contract fixture", () => {
     expect(loaded.stock.get("f4faf703-c1f7-5805-9e1f-aed95cc6831f")?.handling_unit_id).toBe(
       "01900000-0000-7000-8000-000000000001",
     );
+  });
+});
+
+describe("occupied_bin reserved badge", () => {
+  function occupiedRow(qty?: string): DeviationRow {
+    return {
+      warehouse_id: warehouseId,
+      id: "d-1",
+      kind: "occupied_bin",
+      status: "open",
+      command_id: "c1",
+      detail:
+        qty === undefined
+          ? { location_id: "loc-a" }
+          : { location_id: "loc-a", existing_reserved_qty_base: qty },
+      created_at: "2026-09-19T08:00:00.000Z",
+    };
+  }
+
+  it.each([
+    ["0", null],
+    ["0.000", null],
+    ["4", "4"],
+    ["0.5", "0.5"],
+  ] as const)("qty %s shows badge %s", (qty, shown) => {
+    expect(occupiedBinReservedQty(occupiedRow(qty))).toBe(shown);
+  });
+
+  it("hides the badge when existing_reserved_qty_base is missing", () => {
+    expect(occupiedBinReservedQty(occupiedRow())).toBeNull();
   });
 });
