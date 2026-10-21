@@ -1,20 +1,35 @@
 export type StockRow = {
-  location_id: string | null;
+  location_id: string;
   article_id: string;
   handling_unit_id: string;
   qty_base: string;
   reserved_qty_base: string;
 };
 
+/** Provisional: occupied_bin movement ids until Sync/WmsCore lock the payload. */
 export type DeviationDetail = {
   location_id?: string;
   actual_location_id?: string;
   suggested_location_id?: string;
   existing_handling_unit_id?: string;
   incoming_handling_unit_id?: string;
-  existing_movement_id?: string;
-  incoming_movement_id?: string;
+  movement_id?: string;
+  displaced_movement_id?: string;
   lpn?: string;
+};
+
+/**
+ * Provisional join key for the warehouse UNLOCATED system location.
+ * RC Location snapshot already has `is_system` and `code`; StockBalance does not.
+ * RC does not yet seed code UNLOCATED.
+ */
+export const UNLOCATED_CODE = "UNLOCATED";
+
+export type LocationRow = {
+  id: string;
+  warehouse_id: string;
+  code: string;
+  is_system: boolean;
 };
 
 export type DeviationRow = {
@@ -42,6 +57,7 @@ export type ChangeRow = {
 export type OfficeLists = {
   stock: Map<string, StockRow>;
   deviations: Map<string, DeviationRow>;
+  locations: Map<string, LocationRow>;
 };
 
 export type SyncGetJson = (url: string) => Promise<unknown>;
@@ -57,10 +73,10 @@ export class SyncLoadError extends Error {
 }
 
 export function emptyLists(): OfficeLists {
-  return { stock: new Map(), deviations: new Map() };
+  return { stock: new Map(), deviations: new Map(), locations: new Map() };
 }
 
-export function snapshotUrl(baseUrl: string, warehouse: string, entity: "StockBalance"): string {
+export function snapshotUrl(baseUrl: string, warehouse: string, entity: "StockBalance" | "Location"): string {
   const query = new URLSearchParams({ warehouse, entity });
   return `${baseUrl}/sync/snapshot?${query.toString()}`;
 }
@@ -94,17 +110,21 @@ export function formatDecimalSvSe(value: string): string {
   return negative ? `\u2212${body}` : body;
 }
 
-export function compareStockLocations(a: string | null, b: string | null): number {
-  if (!a && !b) {
-    return 0;
+export function isUnlocatedSystemLocation(location: Pick<LocationRow, "is_system" | "code"> | undefined): boolean {
+  return location?.is_system === true && location.code === UNLOCATED_CODE;
+}
+
+export function compareStockLocationOrder(
+  aLocationId: string,
+  bLocationId: string,
+  locations: Map<string, LocationRow>,
+): number {
+  const aUnlocated = isUnlocatedSystemLocation(locations.get(aLocationId));
+  const bUnlocated = isUnlocatedSystemLocation(locations.get(bLocationId));
+  if (aUnlocated !== bUnlocated) {
+    return aUnlocated ? 1 : -1;
   }
-  if (!a) {
-    return 1;
-  }
-  if (!b) {
-    return -1;
-  }
-  return a.localeCompare(b);
+  return aLocationId.localeCompare(bLocationId);
 }
 
 export function compareDecimalStrings(a: string, b: string): number {
@@ -129,11 +149,28 @@ export function mapStockSnapshot(body: unknown): StockRow[] {
   return rows;
 }
 
-export function listsFromStockSnapshot(stockBody: unknown): OfficeLists {
+export function mapLocationSnapshot(body: unknown): LocationRow[] {
+  const items = snapshotItems(body);
+  const rows: LocationRow[] = [];
+  for (const item of items) {
+    const row = asLocation(item, "");
+    if (row) {
+      rows.push(row);
+    }
+  }
+  return rows;
+}
+
+export function listsFromSnapshots(stockBody: unknown, locationBody: unknown): OfficeLists {
   return {
     stock: toStockMap(mapStockSnapshot(stockBody)),
     deviations: new Map(),
+    locations: toLocationMap(mapLocationSnapshot(locationBody)),
   };
+}
+
+export function listsFromStockSnapshot(stockBody: unknown): OfficeLists {
+  return listsFromSnapshots(stockBody, { items: [] });
 }
 
 export function mapChangeRows(body: unknown): ChangeRow[] {
@@ -158,6 +195,7 @@ export function mapChangeRows(body: unknown): ChangeRow[] {
 export function applyChanges(lists: OfficeLists, entries: ChangeRow[], warehouseId: string): OfficeLists {
   const stock = new Map(lists.stock);
   const deviations = new Map(lists.deviations);
+  const locations = new Map(lists.locations);
   const ordered = [...entries].sort((a, b) => a.seq - b.seq);
   for (const entry of ordered) {
     if (!changeMatchesSelectedWarehouse(entry, warehouseId)) {
@@ -168,9 +206,11 @@ export function applyChanges(lists: OfficeLists, entries: ChangeRow[], warehouse
       applyStockRow(stock, entry);
     } else if (entity === "deviation") {
       applyDeviationRow(deviations, entry);
+    } else if (entity === "location") {
+      applyLocationRow(locations, entry);
     }
   }
-  return { stock, deviations };
+  return { stock, deviations, locations };
 }
 
 export async function loadOfficeLists(
@@ -179,7 +219,8 @@ export async function loadOfficeLists(
   warehouseId: string,
 ): Promise<OfficeLists> {
   const stockBody = await getJson(snapshotUrl(baseUrl, warehouseId, "StockBalance"));
-  let lists = listsFromStockSnapshot(stockBody);
+  const locationBody = await getJson(snapshotUrl(baseUrl, warehouseId, "Location"));
+  let lists = listsFromSnapshots(stockBody, locationBody);
   let since = 0;
   for (;;) {
     const page = mapChangeRows(await getJson(changesUrl(baseUrl, warehouseId, since)));
@@ -281,7 +322,7 @@ function asStock(value: unknown, fallbackHuId: string): StockRow | null {
     return null;
   }
   return {
-    location_id: asStockLocationId(raw.location_id),
+    location_id: typeof raw.location_id === "string" ? raw.location_id : String(raw.location_id ?? ""),
     article_id: String(raw.article_id ?? ""),
     handling_unit_id: handlingUnitId,
     qty_base: qty,
@@ -311,8 +352,8 @@ function asDeviation(value: unknown, fallbackId: string): DeviationRow | null {
       suggested_location_id: optionalString(detail.suggested_location_id),
       existing_handling_unit_id: optionalString(detail.existing_handling_unit_id),
       incoming_handling_unit_id: optionalString(detail.incoming_handling_unit_id),
-      existing_movement_id: optionalString(detail.existing_movement_id),
-      incoming_movement_id: optionalString(detail.incoming_movement_id),
+      movement_id: optionalString(detail.movement_id) ?? optionalString(raw.movement_id),
+      displaced_movement_id: optionalString(detail.displaced_movement_id) ?? optionalString(raw.displaced_movement_id),
       lpn: optionalString(detail.lpn),
     },
     created_at: String(raw.created_at ?? ""),
@@ -323,12 +364,40 @@ function optionalString(value: unknown): string | undefined {
   return value == null ? undefined : String(value);
 }
 
-function asStockLocationId(value: unknown): string | null {
-  return typeof value === "string" && value !== "" ? value : null;
+function applyLocationRow(locations: Map<string, LocationRow>, entry: ChangeRow): void {
+  if (entry.op === "delete") {
+    locations.delete(entry.id);
+    return;
+  }
+  const row = asLocation(entry.payload, entry.id);
+  if (row) {
+    locations.set(row.id, row);
+  }
+}
+
+function asLocation(value: unknown, fallbackId: string): LocationRow | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const raw = value as Record<string, unknown>;
+  const id = typeof raw.id === "string" && raw.id !== "" ? raw.id : fallbackId;
+  if (!id) {
+    return null;
+  }
+  return {
+    id,
+    warehouse_id: String(raw.warehouse_id ?? ""),
+    code: String(raw.code ?? ""),
+    is_system: Boolean(raw.is_system),
+  };
 }
 
 function toStockMap(rows: StockRow[]): Map<string, StockRow> {
   return new Map(rows.map((row) => [row.handling_unit_id, row]));
+}
+
+function toLocationMap(rows: LocationRow[]): Map<string, LocationRow> {
+  return new Map(rows.map((row) => [row.id, row]));
 }
 
 function compareUnsignedDecimal(a: string, b: string): number {

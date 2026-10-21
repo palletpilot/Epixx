@@ -4,17 +4,21 @@ import {
   asDecimalString,
   changeMatchesSelectedWarehouse,
   compareDecimalStrings,
-  compareStockLocations,
+  compareStockLocationOrder,
   deviationDetailParts,
   deviationLocationId,
   emptyLists,
   formatDecimalSvSe,
+  isUnlocatedSystemLocation,
+  listsFromSnapshots,
   listsFromStockSnapshot,
   loadOfficeLists,
   mapChangeRows,
+  mapLocationSnapshot,
   mapStockSnapshot,
   SyncLoadError,
   type ChangeRow,
+  type LocationRow,
   type StockRow,
 } from "./syncClient";
 
@@ -55,6 +59,26 @@ describe("snapshot mapping", () => {
     const lists = listsFromStockSnapshot({ snapshot_schema: "2", items: [] });
     expect(lists.stock.size).toBe(0);
     expect(lists.deviations.size).toBe(0);
+    expect(lists.locations.size).toBe(0);
+  });
+
+  it("maps Location snapshot is_system and code without using a display name", () => {
+    const rows = mapLocationSnapshot({
+      snapshot_schema: "ignore-me",
+      items: [
+        { id: "loc-unlocated", warehouse_id: warehouseId, code: "UNLOCATED", is_system: true, name: "No location" },
+        { id: "loc-bin", warehouse_id: warehouseId, code: "A-01-01-01", is_system: false },
+      ],
+    });
+    expect(rows).toEqual([
+      { id: "loc-unlocated", warehouse_id: warehouseId, code: "UNLOCATED", is_system: true },
+      { id: "loc-bin", warehouse_id: warehouseId, code: "A-01-01-01", is_system: false },
+    ]);
+    expect(isUnlocatedSystemLocation(rows[0])).toBe(true);
+    expect(isUnlocatedSystemLocation(rows[1])).toBe(false);
+    expect(isUnlocatedSystemLocation({ is_system: true, code: "RECEIVING" })).toBe(false);
+    expect(isUnlocatedSystemLocation({ is_system: false, code: "UNLOCATED" })).toBe(false);
+    expect(isUnlocatedSystemLocation({ is_system: true, code: "No location" })).toBe(false);
   });
 
   it("keeps a quantity that Number() cannot represent exactly", () => {
@@ -146,30 +170,39 @@ describe("applyChanges", () => {
     expect(next.deviations.size).toBe(0);
   });
 
-  it("applies occupied-bin as two HU upserts, two stock_balance upserts, deviation upsert, and task upsert under one command_id", () => {
+  it("applies occupied-bin as five upserts under one command_id", () => {
     const incomingHu = huId;
     const existingHu = "hu-old";
     const binId = "loc-bin";
+    const unlocatedId = "loc-unlocated";
     const existingQty = "4.250000";
     const incomingQty = "2.000000";
     const commandId = "cmd-occ-1";
-    const start = listsFromStockSnapshot({
-      items: [
-        stockSnapshotItem({
-          location_id: "loc-from",
-          handling_unit_id: incomingHu,
-          qty_base: incomingQty,
-          reserved_qty_base: "0",
-        }),
-        stockSnapshotItem({
-          location_id: binId,
-          handling_unit_id: existingHu,
-          article_id: "art-old",
-          qty_base: existingQty,
-          reserved_qty_base: "0",
-        }),
-      ],
-    });
+    const locations: LocationRow[] = [
+      { id: "loc-from", warehouse_id: warehouseId, code: "A-01-01-01", is_system: false },
+      { id: binId, warehouse_id: warehouseId, code: "A-01-01-02", is_system: false },
+      { id: unlocatedId, warehouse_id: warehouseId, code: "UNLOCATED", is_system: true },
+    ];
+    const start = listsFromSnapshots(
+      {
+        items: [
+          stockSnapshotItem({
+            location_id: "loc-from",
+            handling_unit_id: incomingHu,
+            qty_base: incomingQty,
+            reserved_qty_base: "0",
+          }),
+          stockSnapshotItem({
+            location_id: binId,
+            handling_unit_id: existingHu,
+            article_id: "art-old",
+            qty_base: existingQty,
+            reserved_qty_base: "0",
+          }),
+        ],
+      },
+      { items: locations },
+    );
     const next = applyChanges(
       start,
       [
@@ -184,15 +217,6 @@ describe("applyChanges", () => {
         }),
         change({
           seq: 11,
-          entity: "handling_unit",
-          id: existingHu,
-          op: "upsert",
-          command_id: commandId,
-          warehouse_id: warehouseId,
-          payload: { id: existingHu, warehouse_id: warehouseId, lpn: "LPN-old" },
-        }),
-        change({
-          seq: 12,
           entity: "stock_balance",
           id: incomingHu,
           op: "upsert",
@@ -207,14 +231,14 @@ describe("applyChanges", () => {
           },
         }),
         change({
-          seq: 13,
+          seq: 12,
           entity: "stock_balance",
           id: existingHu,
           op: "upsert",
           command_id: commandId,
           warehouse_id: warehouseId,
           payload: {
-            location_id: null,
+            location_id: unlocatedId,
             article_id: "art-old",
             handling_unit_id: existingHu,
             qty_base: existingQty,
@@ -222,7 +246,7 @@ describe("applyChanges", () => {
           },
         }),
         change({
-          seq: 14,
+          seq: 13,
           entity: "deviation",
           id: "d-new",
           op: "upsert",
@@ -237,15 +261,15 @@ describe("applyChanges", () => {
               location_id: binId,
               existing_handling_unit_id: existingHu,
               incoming_handling_unit_id: incomingHu,
-              existing_movement_id: "mov-old",
-              incoming_movement_id: "mov-in",
+              movement_id: "mov-in",
+              displaced_movement_id: "mov-old",
               lpn: "LPN-in",
             },
             created_at: "2026-09-19T08:00:01.000Z",
           },
         }),
         change({
-          seq: 15,
+          seq: 14,
           entity: "task",
           id: "task-1",
           op: "upsert",
@@ -264,14 +288,14 @@ describe("applyChanges", () => {
       handling_unit_id: incomingHu,
       qty_base: incomingQty,
     });
-    expect(next.stock.has(existingHu)).toBe(true);
     expect(next.stock.get(existingHu)).toMatchObject({
-      location_id: null,
+      location_id: unlocatedId,
       handling_unit_id: existingHu,
       qty_base: existingQty,
     });
     expect(next.stock.get(existingHu)?.qty_base).toBe(existingQty);
-    expect(compareStockLocations(binId, next.stock.get(existingHu)?.location_id ?? null)).toBeLessThan(0);
+    expect(isUnlocatedSystemLocation(next.locations.get(unlocatedId))).toBe(true);
+    expect(compareStockLocationOrder(binId, unlocatedId, next.locations)).toBeLessThan(0);
 
     const deviation = next.deviations.get("d-new");
     expect(next.deviations.size).toBe(1);
@@ -283,23 +307,26 @@ describe("applyChanges", () => {
         location_id: binId,
         existing_handling_unit_id: existingHu,
         incoming_handling_unit_id: incomingHu,
-        existing_movement_id: "mov-old",
-        incoming_movement_id: "mov-in",
+        movement_id: "mov-in",
+        displaced_movement_id: "mov-old",
         lpn: "LPN-in",
       },
     });
-    expect(deviation).not.toHaveProperty("movement_id");
     const visible = deviationDetailParts(deviation!);
     expect(visible).toEqual(expect.arrayContaining([existingHu, incomingHu]));
-    expect(visible.join(" ")).not.toContain("mov-old");
     expect(visible.join(" ")).not.toContain("mov-in");
+    expect(visible.join(" ")).not.toContain("mov-old");
   });
 
-  it("sorts a missing stock location after real locations", () => {
-    expect(compareStockLocations("loc-z", null)).toBeLessThan(0);
-    expect(compareStockLocations(null, "loc-a")).toBeGreaterThan(0);
-    expect(compareStockLocations(null, "")).toBe(0);
-    expect(compareStockLocations("loc-a", "loc-b")).toBeLessThan(0);
+  it("sorts UNLOCATED system locations after real bins", () => {
+    const locations = new Map<string, LocationRow>([
+      ["loc-a", { id: "loc-a", warehouse_id: warehouseId, code: "Z-99", is_system: false }],
+      ["loc-unlocated", { id: "loc-unlocated", warehouse_id: warehouseId, code: "UNLOCATED", is_system: true }],
+      ["loc-receiving", { id: "loc-receiving", warehouse_id: warehouseId, code: "RECEIVING", is_system: true }],
+    ]);
+    expect(compareStockLocationOrder("loc-a", "loc-unlocated", locations)).toBeLessThan(0);
+    expect(compareStockLocationOrder("loc-unlocated", "loc-a", locations)).toBeGreaterThan(0);
+    expect(compareStockLocationOrder("loc-receiving", "loc-unlocated", locations)).toBeLessThan(0);
   });
 
   it("applies a wrong_location deviation with suggested and actual location ids", () => {
@@ -375,6 +402,7 @@ describe("loadOfficeLists", () => {
       warehouseId,
     );
     expect(called.some((url) => url.includes("/sync/snapshot") && url.includes("entity=StockBalance"))).toBe(true);
+    expect(called.some((url) => url.includes("/sync/snapshot") && url.includes("entity=Location"))).toBe(true);
     expect(called.every((url) => !url.includes("entity=Deviation") && !url.includes("entity=deviation"))).toBe(true);
     expect(called.some((url) => url.includes("/sync/changes") && url.includes(`warehouse=${warehouseId}`))).toBe(true);
     expect(lists.stock.size).toBe(0);

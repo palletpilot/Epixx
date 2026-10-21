@@ -55,6 +55,7 @@ export function useOfficeLists() {
   return {
     lists,
     stockRows: computed(() => [...lists.value.stock.values()]),
+    locations: computed(() => lists.value.locations),
     deviationRows: computed(() => [...lists.value.deviations.values()]),
     deviationCount: computed(() => lists.value.deviations.size),
     loading,
