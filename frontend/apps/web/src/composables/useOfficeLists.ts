@@ -36,6 +36,7 @@ export function useOfficeLists() {
       loadError.value = false;
     } catch {
       loadError.value = true;
+      lists.value = emptyLists();
     } finally {
       loading.value = false;
     }
