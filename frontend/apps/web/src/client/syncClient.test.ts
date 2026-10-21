@@ -76,6 +76,24 @@ describe("snapshot mapping", () => {
     ).toThrow(SnapshotContractError);
   });
 
+  it("treats an id-less deviation snapshot item as a contract error, not a skip", () => {
+    expect(() =>
+      mapDeviationSnapshot({
+        seq: 4,
+        items: [
+          {
+            warehouse_id: warehouseId,
+            kind: "occupied_bin",
+            status: "open",
+            command_id: "c1",
+            detail: { location_id: "loc-a" },
+            created_at: "2026-09-19T08:00:00.000Z",
+          },
+        ],
+      }),
+    ).toThrow(SnapshotContractError);
+  });
+
   it("maps StockBalance items and keeps qty_base as a decimal string", () => {
     const rows = mapStockSnapshot({
       snapshot_schema: "ignore-me",
@@ -581,6 +599,49 @@ describe("applyChanges", () => {
     expect(row?.detail.suggested_location_id).toBe("loc-suggested");
     expect(deviationLocationId(row!)).toBe("loc-actual");
   });
+
+  it.each(["resolved", "dismissed"] as const)(
+    "drops a snapshot open deviation when a later upsert is %s",
+    (status) => {
+      const start = listsFromSnapshots({ items: [] }, { items: [] }, {
+        items: [
+          {
+            id: "d-open",
+            warehouse_id: warehouseId,
+            kind: "occupied_bin",
+            status: "open",
+            command_id: "c1",
+            detail: { location_id: "loc-a" },
+            created_at: "2026-09-19T08:00:00.000Z",
+          },
+        ],
+      });
+      expect(start.deviations.has("d-open")).toBe(true);
+      const next = applyChanges(
+        start,
+        [
+          change({
+            seq: 1,
+            entity: "deviation",
+            id: "d-open",
+            op: "upsert",
+            warehouse_id: warehouseId,
+            payload: {
+              warehouse_id: warehouseId,
+              id: "d-open",
+              kind: "occupied_bin",
+              status,
+              command_id: "c1",
+              detail: { location_id: "loc-a" },
+              created_at: "2026-09-19T08:00:00.000Z",
+            },
+          }),
+        ],
+        warehouseId,
+      );
+      expect(next.deviations.has("d-open")).toBe(false);
+    },
+  );
 });
 
 describe("loadOfficeLists", () => {
@@ -789,6 +850,36 @@ describe("loadOfficeLists", () => {
                   handling_unit_id: huId,
                   qty_base: "4",
                   reserved_qty_base: "0",
+                },
+              ],
+            };
+          }
+          if (url.includes("/sync/snapshot")) {
+            return { seq: 4, items: [] };
+          }
+          return { entries: [] };
+        },
+        "http://sync.test",
+        warehouseId,
+      ),
+    ).rejects.toBeInstanceOf(SnapshotContractError);
+  });
+
+  it("treats an id-less deviation snapshot item as a load error", async () => {
+    await expect(
+      loadOfficeLists(
+        async (url) => {
+          if (url.includes("/sync/snapshot") && url.includes("entity=Deviation")) {
+            return {
+              seq: 4,
+              items: [
+                {
+                  warehouse_id: warehouseId,
+                  kind: "occupied_bin",
+                  status: "open",
+                  command_id: "c1",
+                  detail: { location_id: "loc-a" },
+                  created_at: "2026-09-19T08:00:00.000Z",
                 },
               ],
             };

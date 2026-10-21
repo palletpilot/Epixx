@@ -199,7 +199,14 @@ export function mapDeviationSnapshot(body: unknown): DeviationRow[] {
   const items = snapshotItems(body);
   const rows: DeviationRow[] = [];
   for (const item of items) {
-    const row = asDeviation(item, "");
+    if (typeof item !== "object" || item === null) {
+      continue;
+    }
+    const raw = item as Record<string, unknown>;
+    if (typeof raw.id !== "string" || raw.id === "") {
+      throw new SnapshotContractError("snapshot_missing_id");
+    }
+    const row = asDeviation(item, raw.id);
     if (row && row.kind !== "" && isListedDeviation(row)) {
       rows.push(row);
     }
