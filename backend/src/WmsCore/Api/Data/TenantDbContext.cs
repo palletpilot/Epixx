@@ -48,6 +48,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
             e.Property(x => x.Entity).HasMaxLength(128);
             e.Property(x => x.Op).HasMaxLength(32);
             e.Property(x => x.Payload).HasColumnType("jsonb");
+            e.HasIndex(x => new { x.WarehouseId, x.Seq });
         });
 
         builder.Entity<OutboxRow>(e =>

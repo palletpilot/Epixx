@@ -149,8 +149,15 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("recorded_at");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
                     b.HasKey("Seq")
                         .HasName("pk_change_log");
+
+                    b.HasIndex("WarehouseId", "Seq")
+                        .HasDatabaseName("ix_change_log_warehouse_id_seq");
 
                     b.ToTable("change_log", (string)null);
                 });
@@ -180,6 +187,10 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("kind");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
 
                     b.HasKey("Id")
                         .HasName("pk_deviation");
@@ -727,7 +738,7 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("command_id");
 
-                    b.Property<Guid>("DeviceId")
+                    b.Property<Guid?>("DeviceId")
                         .HasColumnType("uuid")
                         .HasColumnName("device_id");
 
