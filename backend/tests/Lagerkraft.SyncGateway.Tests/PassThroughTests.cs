@@ -16,6 +16,8 @@ public sealed class PassThroughTests : IAsyncLifetime
     private Guid _userId;
     private Guid _deviceId;
     private Guid _warehouseId;
+    // Warehouse UNLOCATED system location (is_system, code UNLOCATED). Real id, never null.
+    private Guid _unlocatedLocationId;
 
     public Task InitializeAsync()
     {
@@ -23,6 +25,7 @@ public sealed class PassThroughTests : IAsyncLifetime
         _userId = Guid.CreateVersion7();
         _deviceId = Guid.CreateVersion7();
         _warehouseId = Guid.CreateVersion7();
+        _unlocatedLocationId = Guid.CreateVersion7();
         _factory.Platform.Devices[_deviceId] = new InternalDevice(
             _deviceId, _tenantId, "floor-1", [_tenantId], null, 0);
         _factory.Platform.Entitlement = new TenantEntitlement(_tenantId, "Trialing", false, "pro", 1000);
@@ -266,7 +269,7 @@ public sealed class PassThroughTests : IAsyncLifetime
         var actualEntries = (await response.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("entries").EnumerateArray().ToArray();
 
-        actualEntries.Length.ShouldBe(7);
+        actualEntries.Length.ShouldBe(6);
         actualEntries.Length.ShouldBe(expectedEntries.Length);
 
         for (var i = 0; i < expectedEntries.Length; i++)
@@ -289,16 +292,18 @@ public sealed class PassThroughTests : IAsyncLifetime
         article.GetProperty("warehouse_id").ValueKind.ShouldBe(JsonValueKind.Null);
 
         var occupied = actualEntries.Where(e => e.GetProperty("entity").GetString() != "article").ToArray();
-        occupied.Length.ShouldBe(6);
+        occupied.Length.ShouldBe(5);
         foreach (var row in occupied)
         {
             row.GetProperty("op").GetString().ShouldBe("upsert");
-            row.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
+            row.TryGetProperty("warehouse_id", out var warehouseId).ShouldBeTrue();
+            warehouseId.ValueKind.ShouldBe(JsonValueKind.String);
+            warehouseId.GetGuid().ShouldBe(_warehouseId);
         }
     }
 
     [Fact]
-    public async Task OccupiedBinChanges_SixRowsKeepNullLocationAndIds()
+    public async Task OccupiedBinChanges_FiveRowsKeepUnlocatedBalanceAndWarehouseId()
     {
         var expectedBody = OccupiedBinChangesBody();
         _factory.Wms.OnGetChanges = () => expectedBody;
@@ -318,14 +323,17 @@ public sealed class PassThroughTests : IAsyncLifetime
         var occupiedActual = actualEntries
             .Where(e => e.GetProperty("entity").GetString() != "article")
             .ToArray();
-        occupiedActual.Length.ShouldBe(6);
-        occupiedExpected.Length.ShouldBe(6);
+        occupiedActual.Length.ShouldBe(5);
+        occupiedExpected.Length.ShouldBe(5);
 
         var commandId = occupiedExpected[0].GetProperty("command_id").GetGuid();
         foreach (var row in occupiedActual)
         {
             row.GetProperty("command_id").GetGuid().ShouldBe(commandId);
             row.GetProperty("op").GetString().ShouldBe("upsert");
+            row.TryGetProperty("warehouse_id", out var warehouseId).ShouldBeTrue();
+            warehouseId.ValueKind.ShouldBe(JsonValueKind.String);
+            warehouseId.GetGuid().ShouldBe(_warehouseId);
         }
 
         AssertOccupiedBinRows(occupiedExpected, occupiedActual);
@@ -465,9 +473,11 @@ public sealed class PassThroughTests : IAsyncLifetime
         AssertDecimalString(item.GetProperty("qty_base"), "1");
     }
 
-    // Occupied-bin change page is provisional: wms-core is still writing this wire
-    // (spec PR 5). Incoming HU putaway into the bin; existing HU moves out to no
-    // location and keeps qty. Existing outbound movement is displaced_movement_id.
+    // Occupied-bin change page is provisional (spec PR 5 / wms-core). Incoming HU
+    // putaway into the bin; existing HU stock_balance moves to the warehouse
+    // UNLOCATED system location (is_system, code UNLOCATED) and keeps qty.
+    // RC handling_unit payloads have no location. Existing HU gets no HU row.
+    // Existing outbound movement is displaced_movement_id.
     private JsonElement OccupiedBinChangesBody()
     {
         var commandId = Guid.CreateVersion7();
@@ -491,13 +501,12 @@ public sealed class PassThroughTests : IAsyncLifetime
             warehouse = _warehouseId,
             entries = new object[]
             {
-                HandlingUnitRow(100, commandId, incomingHuId, "LPN-INCOMING", binLocationId, incomingArticleId, incomingQtyBase, now),
-                HandlingUnitRow(101, commandId, existingHuId, "LPN-EXISTING", locationId: null, existingArticleId, existingQtyBase, now),
-                StockBalanceRow(102, commandId, incomingHuId, binLocationId, incomingArticleId, incomingQtyBase, now),
-                StockBalanceRow(103, commandId, existingHuId, locationId: null, existingArticleId, existingQtyBase, now),
+                HandlingUnitRow(100, commandId, incomingHuId, "LPN-INCOMING", incomingArticleId, incomingQtyBase, now),
+                StockBalanceRow(101, commandId, incomingHuId, binLocationId, incomingArticleId, incomingQtyBase, now),
+                StockBalanceRow(102, commandId, existingHuId, _unlocatedLocationId, existingArticleId, existingQtyBase, now),
                 new
                 {
-                    seq = 104L,
+                    seq = 103L,
                     entity = "deviation",
                     id = deviationId,
                     op = DeviationChangeOp,
@@ -525,7 +534,7 @@ public sealed class PassThroughTests : IAsyncLifetime
                 },
                 new
                 {
-                    seq = 105L,
+                    seq = 104L,
                     entity = "task",
                     id = taskId,
                     op = "upsert",
@@ -548,7 +557,7 @@ public sealed class PassThroughTests : IAsyncLifetime
                 },
                 new
                 {
-                    seq = 106L,
+                    seq = 105L,
                     entity = "article",
                     id = incomingArticleId,
                     op = "upsert",
@@ -574,12 +583,12 @@ public sealed class PassThroughTests : IAsyncLifetime
         });
     }
 
+    // Matches RC HandlingUnitDto + InventoryJson (no location_id; null height_mm omitted).
     private object HandlingUnitRow(
         long seq,
         Guid commandId,
         Guid huId,
         string lpn,
-        Guid? locationId,
         Guid articleId,
         string qtyBase,
         DateTimeOffset now) =>
@@ -593,9 +602,7 @@ public sealed class PassThroughTests : IAsyncLifetime
             {
                 id = huId,
                 warehouse_id = _warehouseId,
-                location_id = locationId,
                 lpn,
-                height_mm = (int?)null,
                 received_at = now,
                 contents = new[]
                 {
@@ -620,7 +627,7 @@ public sealed class PassThroughTests : IAsyncLifetime
         long seq,
         Guid commandId,
         Guid huId,
-        Guid? locationId,
+        Guid locationId,
         Guid articleId,
         string qtyBase,
         DateTimeOffset now) =>
@@ -646,7 +653,7 @@ public sealed class PassThroughTests : IAsyncLifetime
         };
 
     // Provisional occupied_bin detail (wms-core / spec PR 5). Incoming putaway
-    // movement_id; existing pallet leaves via displaced_movement_id.
+    // movement_id; existing pallet leaves via displaced_movement_id to UNLOCATED.
     private JsonElement OccupiedBinDetail(
         Guid binLocationId,
         Guid incomingHuId,
@@ -667,39 +674,41 @@ public sealed class PassThroughTests : IAsyncLifetime
             existing_qty_base = existingQtyBase
         });
 
-    private static void AssertOccupiedBinRows(JsonElement[] expected, JsonElement[] actual)
+    private void AssertOccupiedBinRows(JsonElement[] expected, JsonElement[] actual)
     {
-        actual.Length.ShouldBe(6);
+        actual.Length.ShouldBe(5);
         for (var i = 0; i < expected.Length; i++)
         {
             AssertJsonEqual(expected[i], actual[i]);
         }
 
-        var incomingHu = actual.Single(e =>
-            e.GetProperty("entity").GetString() == "handling_unit"
-            && e.GetProperty("payload").GetProperty("lpn").GetString() == "LPN-INCOMING");
-        var existingHu = actual.Single(e =>
-            e.GetProperty("entity").GetString() == "handling_unit"
-            && e.GetProperty("payload").GetProperty("lpn").GetString() == "LPN-EXISTING");
+        actual.Count(e => e.GetProperty("entity").GetString() == "handling_unit").ShouldBe(1);
+        var incomingHu = actual.Single(e => e.GetProperty("entity").GetString() == "handling_unit");
+        incomingHu.GetProperty("payload").TryGetProperty("location_id", out _).ShouldBeFalse();
         var incomingHuId = incomingHu.GetProperty("id").GetGuid();
-        var existingHuId = existingHu.GetProperty("id").GetGuid();
-        var binId = incomingHu.GetProperty("payload").GetProperty("location_id").GetGuid();
 
-        existingHu.GetProperty("payload").GetProperty("location_id").ValueKind.ShouldBe(JsonValueKind.Null);
+        var balances = actual.Where(e => e.GetProperty("entity").GetString() == "stock_balance").ToArray();
+        balances.Length.ShouldBe(2);
+        var incomingBal = balances.Single(e => e.GetProperty("id").GetGuid() == incomingHuId);
+        var existingBal = balances.Single(e => e.GetProperty("id").GetGuid() != incomingHuId);
+        var existingHuId = existingBal.GetProperty("id").GetGuid();
 
-        var incomingBal = actual.Single(e =>
-            e.GetProperty("entity").GetString() == "stock_balance"
-            && e.GetProperty("id").GetGuid() == incomingHuId);
-        var existingBal = actual.Single(e =>
-            e.GetProperty("entity").GetString() == "stock_balance"
-            && e.GetProperty("id").GetGuid() == existingHuId);
-
-        incomingBal.GetProperty("payload").GetProperty("location_id").GetGuid().ShouldBe(binId);
-        existingBal.GetProperty("id").GetGuid().ShouldBe(existingHuId);
-        existingBal.GetProperty("payload").GetProperty("location_id").ValueKind.ShouldBe(JsonValueKind.Null);
+        incomingBal.GetProperty("payload").GetProperty("location_id").ValueKind.ShouldBe(JsonValueKind.String);
+        incomingBal.GetProperty("payload").GetProperty("location_id").GetGuid().ShouldNotBe(_unlocatedLocationId);
+        existingBal.GetProperty("payload").GetProperty("location_id").ValueKind.ShouldBe(JsonValueKind.String);
+        existingBal.GetProperty("payload").GetProperty("location_id").GetGuid().ShouldBe(_unlocatedLocationId);
         existingBal.GetProperty("payload").GetProperty("handling_unit_id").GetGuid().ShouldBe(existingHuId);
         AssertDecimalString(existingBal.GetProperty("payload").GetProperty("qty_base"), "1");
         AssertDecimalString(incomingBal.GetProperty("payload").GetProperty("qty_base"), "12.5");
+
+        foreach (var row in actual)
+        {
+            row.TryGetProperty("warehouse_id", out var warehouseId).ShouldBeTrue();
+            warehouseId.ValueKind.ShouldBe(JsonValueKind.String);
+            warehouseId.GetGuid().ShouldBe(_warehouseId);
+        }
+
+        existingBal.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
 
         var deviation = actual.Single(e => e.GetProperty("entity").GetString() == "deviation");
         deviation.GetProperty("op").GetString().ShouldBe(DeviationChangeOp);
@@ -708,8 +717,7 @@ public sealed class PassThroughTests : IAsyncLifetime
         detail.GetProperty("existing_handling_unit_id").GetGuid().ShouldBe(existingHuId);
         detail.TryGetProperty("movement_id", out _).ShouldBeTrue();
         detail.TryGetProperty("displaced_movement_id", out _).ShouldBeTrue();
-        detail.GetProperty("warehouse_id").GetGuid().ShouldBe(
-            incomingHu.GetProperty("warehouse_id").GetGuid());
+        detail.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
 
         actual.Count(e => e.GetProperty("entity").GetString() == "task").ShouldBe(1);
     }
