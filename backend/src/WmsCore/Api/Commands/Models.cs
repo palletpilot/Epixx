@@ -46,6 +46,8 @@ public sealed class CommandContext
     public required DateTimeOffset BatchNow { get; init; }
     public int ClockSkewMs { get; init; }
     public required IReadOnlyList<MembershipAssignment> Memberships { get; init; }
+
+    public Guid? DeviceIdOrNull => DeviceId == Guid.Empty ? null : DeviceId;
 }
 
 public sealed record MembershipAssignment(

@@ -1,5 +1,6 @@
 ﻿using Lagerkraft.Shared;
 using Lagerkraft.Shared.Jobs;
+using Lagerkraft.WmsCore.Api.Commands;
 using Lagerkraft.WmsCore.Api.Data;
 using Lagerkraft.WmsCore.Api.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -68,6 +69,10 @@ public sealed class AssignmentSweepJob : PeriodicJob
             .UseSnakeCaseNamingConvention()
             .Options;
         await using var db = new TenantDbContext(options);
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlRawAsync(
+            "SELECT pg_advisory_xact_lock({0})",
+            CommandDispatcher.LockKey(tenantId));
         var now = _clock.UtcNow;
         var expired = await db.Tasks
             .Where(t => t.Status == "claimed" && t.AssignedUntil != null && t.AssignedUntil < now)
@@ -112,5 +117,7 @@ public sealed class AssignmentSweepJob : PeriodicJob
         {
             await db.SaveChangesAsync(ct);
         }
+
+        await tx.CommitAsync(ct);
     }
 }

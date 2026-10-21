@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Lagerkraft.Shared;
 using Lagerkraft.WmsCore.Api.Data;
 using Lagerkraft.WmsCore.Layout.Contracts;
 using Microsoft.EntityFrameworkCore;
@@ -34,17 +33,7 @@ public static class SystemLocationEnsure
                     continue;
                 }
 
-                var location = new Location
-                {
-                    Id = Ids.New(),
-                    WarehouseId = warehouseId,
-                    Type = "staging",
-                    Code = code,
-                    Path = code,
-                    Barcode = code,
-                    Status = "active",
-                    IsSystem = true
-                };
+                var location = SystemLocations.New(warehouseId, code);
                 db.Locations.Add(location);
                 db.ChangeLog.Add(new ChangeLogRow
                 {

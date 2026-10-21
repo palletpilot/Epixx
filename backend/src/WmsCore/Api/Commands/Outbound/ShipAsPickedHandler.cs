@@ -106,7 +106,7 @@ public sealed class ShipAsPickedHandler(
                 OccurredAt = context.OccurredAt,
                 RecordedAt = now,
                 ActorUserId = context.UserId,
-                DeviceId = context.DeviceId == Guid.Empty ? null : context.DeviceId,
+                DeviceId = context.DeviceIdOrNull,
                 CommandId = command.Id,
                 ArticleId = balance.ArticleId,
                 FromLocationId = picking.Id,

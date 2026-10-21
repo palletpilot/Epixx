@@ -155,7 +155,7 @@ public sealed class ReceiveHandlingUnitHandler(
             OccurredAt = context.OccurredAt,
             RecordedAt = now,
             ActorUserId = context.UserId,
-            DeviceId = context.DeviceId == Guid.Empty ? null : context.DeviceId,
+            DeviceId = context.DeviceIdOrNull,
             CommandId = command.Id,
             ArticleId = article.Id,
             ToLocationId = receiving.Id,
@@ -259,7 +259,6 @@ public sealed class ReceiveHandlingUnitHandler(
             .Where(l => l.WarehouseId == warehouseId
                 && l.Type == "bin"
                 && !l.IsSystem
-                && l.Code != "UNLOCATED"
                 && l.Status == "active"
                 && !occupied.Contains(l.Id)
                 && !reserved.Contains(l.Id))

@@ -59,7 +59,7 @@ public sealed class ConfirmPutawayHandler(
 
         var dest = await db.Db.Locations.FirstOrDefaultAsync(l => l.Id == payload.LocationId, ct);
         if (dest is null || dest.WarehouseId != task.WarehouseId || dest.Status != "active"
-            || dest.Code == "UNLOCATED")
+            || dest.IsSystem)
         {
             return new CommandResult(command.Id, CommandOutcome.Rejected, "unknown_location", "location not found");
         }
@@ -100,7 +100,7 @@ public sealed class ConfirmPutawayHandler(
             OccurredAt = context.OccurredAt,
             RecordedAt = now,
             ActorUserId = context.UserId,
-            DeviceId = context.DeviceId == Guid.Empty ? null : context.DeviceId,
+            DeviceId = context.DeviceIdOrNull,
             CommandId = command.Id,
             ArticleId = content.ArticleId,
             FromLocationId = fromId,
@@ -170,7 +170,7 @@ public sealed class ConfirmPutawayHandler(
                     OccurredAt = context.OccurredAt,
                     RecordedAt = now,
                     ActorUserId = context.UserId,
-                    DeviceId = context.DeviceId == Guid.Empty ? null : context.DeviceId,
+                    DeviceId = context.DeviceIdOrNull,
                     CommandId = command.Id,
                     ArticleId = occupant.ArticleId,
                     FromLocationId = dest.Id,
@@ -203,6 +203,7 @@ public sealed class ConfirmPutawayHandler(
                 }
 
                 unlocatedBal.QtyBase += occupant.QtyBase;
+                unlocatedBal.ReservedQtyBase += occupant.ReservedQtyBase;
                 db.Db.StockBalances.Remove(occupant);
                 WriteLog(
                     db, command, context, now, "stock_balance", task.WarehouseId,
@@ -219,6 +220,9 @@ public sealed class ConfirmPutawayHandler(
             }
 
             var existingHuId = occupantBalances[0].HandlingUnitId;
+            var existingReservedQty = occupantBalances
+                .Where(b => b.HandlingUnitId == existingHuId)
+                .Sum(b => b.ReservedQtyBase);
             deviation = new Deviation
             {
                 Id = Ids.New(),
@@ -230,6 +234,7 @@ public sealed class ConfirmPutawayHandler(
                 {
                     location_id = dest.Id,
                     existing_handling_unit_id = existingHuId,
+                    existing_reserved_qty_base = DecimalString(existingReservedQty),
                     incoming_handling_unit_id = huId,
                     lpn = hu.Lpn,
                     command_id = command.Id
@@ -315,15 +320,7 @@ public sealed class ConfirmPutawayHandler(
             {
                 Id = Ids.New(),
                 Type = "inventory.deviation.reported",
-                Payload = JsonSerializer.Serialize(new
-                {
-                    id = deviation.Id,
-                    warehouse_id = deviation.WarehouseId,
-                    kind = deviation.Kind,
-                    command_id = deviation.CommandId,
-                    detail = JsonDocument.Parse(deviation.Detail).RootElement,
-                    created_at = deviation.CreatedAt
-                }, InventoryJson.Options),
+                Payload = deviationPayload,
                 OccurredAt = context.OccurredAt
             });
         }

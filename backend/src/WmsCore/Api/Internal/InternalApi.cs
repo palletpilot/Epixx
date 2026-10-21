@@ -396,17 +396,18 @@ public static class InternalApi
 
     private static async Task<long> SequenceFloorAsync(TenantDbContext db, CancellationToken ct)
     {
-        var state = await db.Database
-            .SqlQueryRaw<ChangeLogSeqState>(
-                """SELECT last_value AS "last_value", is_called AS "is_called" FROM change_log_seq""")
+        var last = await db.Database
+            .SqlQueryRaw<ChangeLogSeqLast>(
+                """
+                SELECT pg_sequence_last_value(pg_get_serial_sequence('change_log', 'seq')::regclass) AS last_value
+                """)
             .FirstAsync(ct);
-        return state.is_called ? state.last_value + 1 : state.last_value;
+        return last.last_value is { } value ? value + 1 : 1;
     }
 
-    private sealed class ChangeLogSeqState
+    private sealed class ChangeLogSeqLast
     {
-        public long last_value { get; set; }
-        public bool is_called { get; set; }
+        public long? last_value { get; set; }
     }
 
     private static IResult GetCompat(CommandRegistry registry, IConfiguration config)

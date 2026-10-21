@@ -1,5 +1,6 @@
 using Lagerkraft.Shared;
 using Lagerkraft.Shared.Jobs;
+using Lagerkraft.WmsCore.Api.Commands;
 using Lagerkraft.WmsCore.Api.Data;
 using Lagerkraft.WmsCore.Api.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -68,14 +69,18 @@ public sealed class LocationReservationSweepJob : PeriodicJob
             .UseSnakeCaseNamingConvention()
             .Options;
         await using var db = new TenantDbContext(options);
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlRawAsync(
+            "SELECT pg_advisory_xact_lock({0})",
+            CommandDispatcher.LockKey(tenantId));
         var now = _clock.UtcNow;
         var expired = await db.LocationReservations.Where(r => r.ExpiresAt <= now).ToListAsync(ct);
-        if (expired.Count == 0)
+        if (expired.Count > 0)
         {
-            return;
+            db.LocationReservations.RemoveRange(expired);
+            await db.SaveChangesAsync(ct);
         }
 
-        db.LocationReservations.RemoveRange(expired);
-        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 }

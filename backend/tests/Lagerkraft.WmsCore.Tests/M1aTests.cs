@@ -126,9 +126,57 @@ public sealed class M1aTests : IAsyncLifetime
         deviation.GetProperty("op").GetString().ShouldBe("upsert");
         deviation.GetProperty("payload").GetProperty("kind").GetString().ShouldBe("occupied_bin");
         deviation.GetProperty("payload").GetProperty("status").GetString().ShouldBe("open");
+        var detail = deviation.GetProperty("payload").GetProperty("detail");
+        detail.GetProperty("existing_handling_unit_id").GetGuid().ShouldBe(existingHu);
+        detail.GetProperty("existing_reserved_qty_base").GetString().ShouldBe("0");
+        detail.TryGetProperty("displaced_reserved_qty_base", out _).ShouldBeFalse();
         (await db.Deviations.SingleAsync(d => d.CommandId == commandId)).Status.ShouldBe("open");
         commandRows.Count(e => e.GetProperty("entity").GetString() == "task").ShouldBe(1);
         commandRows.ShouldNotContain(e => e.GetProperty("entity").GetString() == "stock_movement");
+    }
+
+    [Fact]
+    public async Task ConfirmPutaway_OccupiedBin_DisplacedReservationCarriedToUnlocated()
+    {
+        var binId = Guid.CreateVersion7();
+        (await Apply("CreateLocationBatch", Bin(binId, "A-01-01-01"))).Outcome.ShouldBe("Applied");
+        var existingHu = Guid.CreateVersion7();
+        var existingTask = Guid.CreateVersion7();
+        (await Apply("ReceiveHandlingUnit", ReceivePayload(existingHu, existingTask, "LPN-RSV"))).Outcome.ShouldBe("Applied");
+        (await Apply("ConfirmPutaway", new { task_id = existingTask, location_id = binId, qty = "1" }))
+            .Outcome.ShouldBe("Applied");
+
+        await using (var db = OpenDb())
+        {
+            var occupant = await db.StockBalances.SingleAsync(b => b.HandlingUnitId == existingHu);
+            occupant.ReservedQtyBase = 1m;
+            await db.SaveChangesAsync();
+        }
+
+        var incomingHu = Guid.CreateVersion7();
+        var incomingTask = Guid.CreateVersion7();
+        (await Apply("ReceiveHandlingUnit", ReceivePayload(incomingHu, incomingTask, "LPN-IN"))).Outcome.ShouldBe("Applied");
+        var commandId = Guid.CreateVersion7();
+        (await Apply("ConfirmPutaway", new { task_id = incomingTask, location_id = binId, qty = "1" }, commandId: commandId))
+            .Outcome.ShouldBe("Applied");
+
+        await using var after = OpenDb();
+        var unlocated = await after.Locations.SingleAsync(l => l.WarehouseId == _warehouseId && l.Code == "UNLOCATED");
+        var moved = await after.StockBalances.SingleAsync(b => b.HandlingUnitId == existingHu);
+        moved.LocationId.ShouldBe(unlocated.Id);
+        moved.ReservedQtyBase.ShouldBe(1m);
+        var detail = JsonDocument.Parse(
+            (await after.Deviations.SingleAsync(d => d.CommandId == commandId)).Detail).RootElement;
+        detail.GetProperty("existing_handling_unit_id").GetGuid().ShouldBe(existingHu);
+        detail.GetProperty("existing_reserved_qty_base").GetString().ShouldBe("1");
+        detail.TryGetProperty("displaced_reserved_qty_base", out _).ShouldBeFalse();
+        var entries = await ScopedEntriesAsync();
+        var displaced = entries.Single(e =>
+            e.GetProperty("entity").GetString() == "stock_balance"
+            && e.GetProperty("id").GetGuid() == StockBalanceId.For(existingHu, _articleId)
+            && e.TryGetProperty("command_id", out var cid)
+            && cid.GetGuid() == commandId);
+        displaced.GetProperty("payload").GetProperty("reserved_qty_base").GetString().ShouldBe("1");
     }
 
     [Fact]
@@ -333,9 +381,15 @@ public sealed class M1aTests : IAsyncLifetime
     [Fact]
     public async Task Changes_SinceZeroOnFreshTenant_Ok()
     {
+        var fresh = Guid.CreateVersion7();
+        var cs = await TenantDatabases.CreateAsync(_postgres.ConnectionString, fresh);
+        _factory.Platform.Connections[fresh] = cs;
         using var client = InternalClient();
-        var response = await client.GetAsync($"/internal/changes?tenantId={_tenantId}&since=0");
+        (await client.PostAsync($"/internal/tenants/{fresh}/migrate", null)).EnsureSuccessStatusCode();
+        var response = await client.GetAsync($"/internal/changes?tenantId={fresh}&since=0");
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        await using var db = OpenDb(cs);
+        (await db.ChangeLog.CountAsync()).ShouldBe(0);
     }
 
     [Fact]
@@ -492,6 +546,36 @@ public sealed class M1aTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssignmentSweep_WaitsForTenantLock()
+    {
+        var binId = Guid.CreateVersion7();
+        (await Apply("CreateLocationBatch", Bin(binId, "A-01-01-01"))).Outcome.ShouldBe("Applied");
+        var huId = Guid.CreateVersion7();
+        var taskId = Guid.CreateVersion7();
+        (await Apply("ReceiveHandlingUnit", ReceivePayload(huId, taskId, "LPN-LCK"))).Outcome.ShouldBe("Applied");
+        (await Apply("ClaimTask", new { task_id = taskId })).Outcome.ShouldBe("Applied");
+        _clock.Advance(TimeSpan.FromMinutes(31));
+
+        await using var holder = OpenDb();
+        await using var tx = await holder.Database.BeginTransactionAsync();
+        await holder.Database.ExecuteSqlRawAsync(
+            "SELECT pg_advisory_xact_lock({0})",
+            CommandDispatcher.LockKey(_tenantId));
+
+        var sweep = _factory.Services.GetRequiredService<AssignmentSweepJob>();
+        var sweepTask = sweep.SweepTenantAsync(_tenantId, CancellationToken.None);
+        var delay = Task.Delay(TimeSpan.FromMilliseconds(500));
+        (await Task.WhenAny(sweepTask, delay)).ShouldBe(delay);
+        sweepTask.IsCompleted.ShouldBeFalse();
+
+        await tx.RollbackAsync();
+        await sweepTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await using var db = OpenDb();
+        (await db.Tasks.SingleAsync(t => t.Id == taskId)).Status.ShouldBe("open");
+    }
+
+    [Fact]
     public async Task AssignmentSweep_ReleasesExpiredClaim_SetsWarehouseId()
     {
         var binId = Guid.CreateVersion7();
@@ -544,6 +628,41 @@ public sealed class M1aTests : IAsyncLifetime
         await using var after = OpenDb();
         (await after.LocationReservations.CountAsync()).ShouldBe(1);
         (await after.LocationReservations.SingleAsync()).LocationId.ShouldBe(liveBin);
+    }
+
+    [Fact]
+    public async Task ReservationSweep_WaitsForTenantLock()
+    {
+        var expiredBin = Guid.CreateVersion7();
+        (await Apply("CreateLocationBatch", Bin(expiredBin, "A-01-01-01"))).Outcome.ShouldBe("Applied");
+        await using (var db = OpenDb())
+        {
+            db.LocationReservations.Add(new LocationReservation
+            {
+                LocationId = expiredBin,
+                TaskId = Guid.CreateVersion7(),
+                ExpiresAt = _clock.UtcNow.AddMinutes(-1)
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using var holder = OpenDb();
+        await using var tx = await holder.Database.BeginTransactionAsync();
+        await holder.Database.ExecuteSqlRawAsync(
+            "SELECT pg_advisory_xact_lock({0})",
+            CommandDispatcher.LockKey(_tenantId));
+
+        var sweep = _factory.Services.GetRequiredService<LocationReservationSweepJob>();
+        var sweepTask = sweep.SweepTenantAsync(_tenantId, CancellationToken.None);
+        var delay = Task.Delay(TimeSpan.FromMilliseconds(500));
+        (await Task.WhenAny(sweepTask, delay)).ShouldBe(delay);
+        sweepTask.IsCompleted.ShouldBeFalse();
+
+        await tx.RollbackAsync();
+        await sweepTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await using var after = OpenDb();
+        (await after.LocationReservations.CountAsync()).ShouldBe(0);
     }
 
     [Fact]
@@ -661,10 +780,10 @@ public sealed class M1aTests : IAsyncLifetime
         return body!.Results[0];
     }
 
-    private TenantDbContext OpenDb()
+    private TenantDbContext OpenDb(string? cs = null)
     {
         var options = new DbContextOptionsBuilder<TenantDbContext>()
-            .UseNpgsql(_cs)
+            .UseNpgsql(cs ?? _cs)
             .UseSnakeCaseNamingConvention()
             .Options;
         return new TenantDbContext(options);
