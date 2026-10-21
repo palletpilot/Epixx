@@ -8,6 +8,7 @@ using Lagerkraft.WmsCore.Api.Data;
 using Lagerkraft.WmsCore.Api.Jobs;
 using Lagerkraft.WmsCore.Api.Layout;
 using Lagerkraft.WmsCore.Catalog.Contracts;
+using Lagerkraft.WmsCore.Layout.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -90,7 +91,8 @@ public sealed class M1aTests : IAsyncLifetime
 
         await using var db = OpenDb();
         db.ChangeTracker.Clear();
-        var unlocated = await db.Locations.SingleAsync(l => l.WarehouseId == _warehouseId && l.Code == "UNLOCATED");
+        var unlocated = await db.Locations.SingleAsync(
+            l => l.WarehouseId == _warehouseId && l.Code == LayoutDefaults.Unlocated);
         var existingBal = await db.StockBalances.SingleAsync(b => b.HandlingUnitId == existingHu);
         existingBal.LocationId.ShouldBe(unlocated.Id);
         existingBal.QtyBase.ShouldBe(1m);
@@ -161,7 +163,8 @@ public sealed class M1aTests : IAsyncLifetime
             .Outcome.ShouldBe("Applied");
 
         await using var after = OpenDb();
-        var unlocated = await after.Locations.SingleAsync(l => l.WarehouseId == _warehouseId && l.Code == "UNLOCATED");
+        var unlocated = await after.Locations.SingleAsync(
+            l => l.WarehouseId == _warehouseId && l.Code == LayoutDefaults.Unlocated);
         var moved = await after.StockBalances.SingleAsync(b => b.HandlingUnitId == existingHu);
         moved.LocationId.ShouldBe(unlocated.Id);
         moved.ReservedQtyBase.ShouldBe(1m);
@@ -270,7 +273,8 @@ public sealed class M1aTests : IAsyncLifetime
 
         await using var after = OpenDb();
         after.ChangeTracker.Clear();
-        var unlocated = await after.Locations.SingleAsync(l => l.WarehouseId == _warehouseId && l.Code == "UNLOCATED");
+        var unlocated = await after.Locations.SingleAsync(
+            l => l.WarehouseId == _warehouseId && l.Code == LayoutDefaults.Unlocated);
         var moved = await after.StockBalances.Where(b => b.HandlingUnitId == existingHu).ToListAsync();
         moved.Count.ShouldBe(2);
         moved.ShouldAllBe(b => b.LocationId == unlocated.Id);
@@ -322,6 +326,52 @@ public sealed class M1aTests : IAsyncLifetime
             .ShouldBe(suggested);
         deviation.GetProperty("payload").GetProperty("detail").GetProperty("location_id").GetGuid()
             .ShouldBe(other);
+    }
+
+    [Fact]
+    public async Task ConfirmPutaway_Unlocated_Rejected()
+    {
+        var destId = await SystemLocationIdAsync(LayoutDefaults.Unlocated);
+        var huId = Guid.CreateVersion7();
+        var taskId = Guid.CreateVersion7();
+        (await Apply("ReceiveHandlingUnit", ReceivePayload(huId, taskId, "LPN-UNL"))).Outcome.ShouldBe("Applied");
+        var result = await Apply("ConfirmPutaway", new { task_id = taskId, location_id = destId, qty = "1" });
+        result.Outcome.ShouldBe("Rejected");
+        result.Code.ShouldBe("unknown_location");
+        await using var db = OpenDb();
+        (await db.Tasks.SingleAsync(t => t.Id == taskId)).Status.ShouldBe("open");
+        (await db.StockBalances.SingleAsync(b => b.HandlingUnitId == huId)).LocationId
+            .ShouldNotBe(destId);
+    }
+
+    [Fact]
+    public async Task ConfirmPutaway_Adjustment_Rejected()
+    {
+        var destId = await SystemLocationIdAsync(LayoutDefaults.Adjustment);
+        var huId = Guid.CreateVersion7();
+        var taskId = Guid.CreateVersion7();
+        (await Apply("ReceiveHandlingUnit", ReceivePayload(huId, taskId, "LPN-ADJ"))).Outcome.ShouldBe("Applied");
+        var result = await Apply("ConfirmPutaway", new { task_id = taskId, location_id = destId, qty = "1" });
+        result.Outcome.ShouldBe("Rejected");
+        result.Code.ShouldBe("unknown_location");
+        await using var db = OpenDb();
+        (await db.Tasks.SingleAsync(t => t.Id == taskId)).Status.ShouldBe("open");
+        (await db.StockBalances.SingleAsync(b => b.HandlingUnitId == huId)).LocationId
+            .ShouldNotBe(destId);
+    }
+
+    [Fact]
+    public async Task ConfirmPutaway_Quarantine_Accepted()
+    {
+        var destId = await SystemLocationIdAsync(LayoutDefaults.Quarantine);
+        var huId = Guid.CreateVersion7();
+        var taskId = Guid.CreateVersion7();
+        (await Apply("ReceiveHandlingUnit", ReceivePayload(huId, taskId, "LPN-QUA"))).Outcome.ShouldBe("Applied");
+        var result = await Apply("ConfirmPutaway", new { task_id = taskId, location_id = destId, qty = "1" });
+        result.Outcome.ShouldBe("Applied");
+        await using var db = OpenDb();
+        (await db.Tasks.SingleAsync(t => t.Id == taskId)).Status.ShouldBe("done");
+        (await db.StockBalances.SingleAsync(b => b.HandlingUnitId == huId)).LocationId.ShouldBe(destId);
     }
 
     [Fact]
@@ -505,7 +555,8 @@ public sealed class M1aTests : IAsyncLifetime
     {
         await using (var db = OpenDb())
         {
-            var existing = await db.Locations.SingleAsync(l => l.WarehouseId == _warehouseId && l.Code == "UNLOCATED");
+            var existing = await db.Locations.SingleAsync(
+                l => l.WarehouseId == _warehouseId && l.Code == LayoutDefaults.Unlocated);
             db.Locations.Remove(existing);
             var logs = await db.ChangeLog.Where(c => c.Id == existing.Id).ToListAsync();
             db.ChangeLog.RemoveRange(logs);
@@ -515,7 +566,8 @@ public sealed class M1aTests : IAsyncLifetime
             added.ShouldBe(1);
             await db.SaveChangesAsync();
             db.ChangeTracker.Clear();
-            var row = await db.Locations.SingleAsync(l => l.WarehouseId == _warehouseId && l.Code == "UNLOCATED");
+            var row = await db.Locations.SingleAsync(
+                l => l.WarehouseId == _warehouseId && l.Code == LayoutDefaults.Unlocated);
             var change = await db.ChangeLog.SingleAsync(c => c.Entity == "location" && c.Id == row.Id);
             change.WarehouseId.ShouldBe(_warehouseId);
             change.CommandId.ShouldBeNull();
@@ -540,7 +592,8 @@ public sealed class M1aTests : IAsyncLifetime
             .Outcome.ShouldBe("Applied");
 
         await using var after = OpenDb();
-        var unlocated = await after.Locations.SingleAsync(l => l.WarehouseId == _warehouseId && l.Code == "UNLOCATED");
+        var unlocated = await after.Locations.SingleAsync(
+            l => l.WarehouseId == _warehouseId && l.Code == LayoutDefaults.Unlocated);
         (await after.StockBalances.SingleAsync(b => b.HandlingUnitId == existingHu)).LocationId.ShouldBe(unlocated.Id);
         (await after.Deviations.CountAsync(d => d.Kind == "occupied_bin")).ShouldBe(1);
     }
@@ -718,6 +771,13 @@ public sealed class M1aTests : IAsyncLifetime
         rows.Where(r => r.Entity != "article").ShouldNotBeEmpty();
         rows.Where(r => r.Entity != "article").ShouldAllBe(r => r.WarehouseId != null);
         rows.Where(r => r.Entity == "article").ShouldAllBe(r => r.WarehouseId == null);
+    }
+
+    private async Task<Guid> SystemLocationIdAsync(string code)
+    {
+        await using var db = OpenDb();
+        return (await db.Locations.SingleAsync(
+            l => l.WarehouseId == _warehouseId && l.IsSystem && l.Code == code)).Id;
     }
 
     private async Task<List<JsonElement>> ScopedEntriesAsync()

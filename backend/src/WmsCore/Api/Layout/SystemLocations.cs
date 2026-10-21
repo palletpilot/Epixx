@@ -1,5 +1,6 @@
 using Lagerkraft.Shared;
 using Lagerkraft.WmsCore.Api.Data;
+using Lagerkraft.WmsCore.Layout.Contracts;
 
 namespace Lagerkraft.WmsCore.Api.Layout;
 
@@ -16,4 +17,7 @@ public static class SystemLocations
         Status = "active",
         IsSystem = true
     };
+
+    public static bool IsForbiddenPutawayDest(Location dest) =>
+        dest.IsSystem && LayoutDefaults.IsForbiddenPutawayCode(dest.Code);
 }

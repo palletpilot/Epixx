@@ -3,7 +3,9 @@ using System.Text.Json;
 using FluentValidation;
 using Lagerkraft.Shared;
 using Lagerkraft.WmsCore.Api.Data;
+using Lagerkraft.WmsCore.Api.Layout;
 using Lagerkraft.WmsCore.Inventory.Contracts;
+using Lagerkraft.WmsCore.Layout.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lagerkraft.WmsCore.Api.Commands.Inventory;
@@ -59,7 +61,7 @@ public sealed class ConfirmPutawayHandler(
 
         var dest = await db.Db.Locations.FirstOrDefaultAsync(l => l.Id == payload.LocationId, ct);
         if (dest is null || dest.WarehouseId != task.WarehouseId || dest.Status != "active"
-            || dest.IsSystem)
+            || SystemLocations.IsForbiddenPutawayDest(dest))
         {
             return new CommandResult(command.Id, CommandOutcome.Rejected, "unknown_location", "location not found");
         }
@@ -150,10 +152,11 @@ public sealed class ConfirmPutawayHandler(
         if (occupantBalances.Count > 0)
         {
             var unlocated = await db.Db.Locations.FirstOrDefaultAsync(
-                l => l.WarehouseId == task.WarehouseId && l.IsSystem && l.Code == "UNLOCATED", ct);
+                l => l.WarehouseId == task.WarehouseId && l.IsSystem && l.Code == LayoutDefaults.Unlocated, ct);
             if (unlocated is null)
             {
-                return new CommandResult(command.Id, CommandOutcome.Rejected, "unknown_location", "UNLOCATED not found");
+                return new CommandResult(
+                    command.Id, CommandOutcome.Rejected, "unknown_location", $"{LayoutDefaults.Unlocated} not found");
             }
 
             foreach (var occupant in occupantBalances)
