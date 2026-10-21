@@ -8,6 +8,8 @@ export type StockRow = {
 
 export type DeviationDetail = {
   location_id?: string;
+  actual_location_id?: string;
+  suggested_location_id?: string;
   existing_handling_unit_id?: string;
   incoming_handling_unit_id?: string;
   lpn?: string;
@@ -190,6 +192,13 @@ function applyStockRow(stock: Map<string, StockRow>, entry: ChangeRow): void {
   }
 }
 
+export function deviationLocationId(row: DeviationRow): string {
+  if (row.kind === "wrong_location") {
+    return row.detail.actual_location_id ?? row.detail.location_id ?? "";
+  }
+  return row.detail.location_id ?? "";
+}
+
 function applyDeviationRow(deviations: Map<string, DeviationRow>, entry: ChangeRow): void {
   if (entry.op === "delete") {
     deviations.delete(entry.id);
@@ -272,6 +281,8 @@ function asDeviation(value: unknown, fallbackId: string): DeviationRow | null {
     command_id: String(raw.command_id ?? ""),
     detail: {
       location_id: optionalString(detail.location_id),
+      actual_location_id: optionalString(detail.actual_location_id),
+      suggested_location_id: optionalString(detail.suggested_location_id),
       existing_handling_unit_id: optionalString(detail.existing_handling_unit_id),
       incoming_handling_unit_id: optionalString(detail.incoming_handling_unit_id),
       lpn: optionalString(detail.lpn),

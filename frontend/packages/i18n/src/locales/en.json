@@ -138,6 +138,7 @@
     "createdAt": "Created",
     "search": "Search",
     "occupiedBin": "Occupied bin",
+    "wrongLocation": "Wrong location",
     "caption": "Deviations",
     "count": "{count} deviations",
     "loadError": "Could not load the deviations list."

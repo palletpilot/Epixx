@@ -3,6 +3,7 @@ import {
   applyChanges,
   asDecimalString,
   changeMatchesSelectedWarehouse,
+  deviationLocationId,
   compareDecimalStrings,
   emptyLists,
   formatDecimalSvSe,
@@ -143,7 +144,7 @@ describe("applyChanges", () => {
     expect(next.deviations.size).toBe(0);
   });
 
-  it("applies occupied-bin as stock_balance upsert plus deviation insert under one command_id", () => {
+  it("applies occupied-bin as stock_balance upsert plus deviation upsert under one command_id", () => {
     const start = listsFromStockSnapshot({
       items: [stockSnapshotItem({ location_id: "loc-old", qty_base: "4", reserved_qty_base: "0" })],
     });
@@ -170,7 +171,7 @@ describe("applyChanges", () => {
           seq: 11,
           entity: "deviation",
           id: "d-new",
-          op: "insert",
+          op: "upsert",
           command_id: commandId,
           warehouse_id: warehouseId,
           payload: {
@@ -231,29 +232,36 @@ describe("applyChanges", () => {
     expect(next.deviations.get("d-new")).not.toHaveProperty("movement_id");
   });
 
-  it("treats deviation upsert the same as insert", () => {
+  it("applies a wrong_location deviation with suggested and actual location ids", () => {
     const next = applyChanges(
       emptyLists(),
       [
         change({
           seq: 1,
           entity: "deviation",
-          id: "d1",
+          id: "d-wrong",
           op: "upsert",
           warehouse_id: warehouseId,
           payload: {
             warehouse_id: warehouseId,
-            id: "d1",
-            kind: "occupied_bin",
-            command_id: "cmd-1",
-            detail: { location_id: "loc-a" },
+            id: "d-wrong",
+            kind: "wrong_location",
+            command_id: "cmd-wrong",
+            detail: {
+              suggested_location_id: "loc-suggested",
+              actual_location_id: "loc-actual",
+            },
             created_at: "2026-09-19T08:00:00.000Z",
           },
         }),
       ],
       warehouseId,
     );
-    expect(next.deviations.get("d1")?.kind).toBe("occupied_bin");
+    const row = next.deviations.get("d-wrong");
+    expect(row?.kind).toBe("wrong_location");
+    expect(row?.detail.suggested_location_id).toBe("loc-suggested");
+    expect(row?.detail.actual_location_id).toBe("loc-actual");
+    expect(deviationLocationId(row!)).toBe("loc-actual");
   });
 });
 

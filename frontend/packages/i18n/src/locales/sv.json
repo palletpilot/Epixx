@@ -138,6 +138,7 @@
     "createdAt": "Skapad",
     "search": "Sök",
     "occupiedBin": "Upptagen plats",
+    "wrongLocation": "Fel plats",
     "caption": "Avvikelser",
     "count": "{count} avvikelser",
     "loadError": "Kunde inte hämta avvikelselistan."

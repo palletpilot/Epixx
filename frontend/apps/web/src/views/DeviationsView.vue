@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type { DeviationRow } from "../client/syncClient";
+import { deviationLocationId, type DeviationRow } from "../client/syncClient";
 import { useOfficeLists } from "../composables/useOfficeLists";
 import { useTableCursor } from "../composables/useTableCursor";
 
@@ -30,6 +30,8 @@ function matches(row: DeviationRow, query: string): boolean {
   return (
     row.kind.toLowerCase().includes(query) ||
     (row.detail.location_id ?? "").toLowerCase().includes(query) ||
+    (row.detail.suggested_location_id ?? "").toLowerCase().includes(query) ||
+    (row.detail.actual_location_id ?? "").toLowerCase().includes(query) ||
     (row.detail.lpn ?? "").toLowerCase().includes(query) ||
     (row.detail.existing_handling_unit_id ?? "").toLowerCase().includes(query) ||
     (row.detail.incoming_handling_unit_id ?? "").toLowerCase().includes(query)
@@ -37,12 +39,20 @@ function matches(row: DeviationRow, query: string): boolean {
 }
 
 function kindLabel(kind: string): string {
-  return kind === "occupied_bin" ? t("deviations.occupiedBin") : kind;
+  if (kind === "occupied_bin") {
+    return t("deviations.occupiedBin");
+  }
+  if (kind === "wrong_location") {
+    return t("deviations.wrongLocation");
+  }
+  return kind;
 }
 
 function formatDetail(row: DeviationRow): string {
   return [
     row.detail.location_id,
+    row.detail.suggested_location_id,
+    row.detail.actual_location_id,
     row.detail.existing_handling_unit_id,
     row.detail.incoming_handling_unit_id,
     row.detail.lpn,
@@ -122,7 +132,7 @@ onUnmounted(() => {
                 'font-medium': selected === index,
               }"
             >
-              <td class="sticky left-0 z-10 bg-background px-2 py-1">{{ row.detail.location_id }}</td>
+              <td class="sticky left-0 z-10 bg-background px-2 py-1">{{ deviationLocationId(row) }}</td>
               <td class="sticky left-28 z-10 bg-background px-2 py-1">
                 <span
                   class="inline-block rounded bg-destructive/10 px-2 py-0.5 text-xs font-semibold text-destructive"

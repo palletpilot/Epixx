@@ -69,7 +69,7 @@ describe("useOfficeLists HTTP errors", () => {
               seq: 1,
               entity: "deviation",
               id: "d-prev",
-              op: "insert",
+              op: "upsert",
               warehouse_id: warehouseId,
               payload: deviationItem("d-prev"),
               command_id: "cmd-1",
