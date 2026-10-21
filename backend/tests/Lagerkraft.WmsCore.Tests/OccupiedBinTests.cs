@@ -504,6 +504,7 @@ public sealed class OccupiedBinTests : IAsyncLifetime
 
         await db.SaveChangesAsync();
 
+        var commandId = Guid.CreateVersion7();
         using var client = InternalClient();
         var response = await client.PostAsJsonAsync(
             "/internal/commands",
@@ -513,7 +514,7 @@ public sealed class OccupiedBinTests : IAsyncLifetime
                 location_id = locationId,
                 handling_unit_id = incomingHuId,
                 lpn = "PALLET002"
-            }, _clock.UtcNow, _userId),
+            }, _clock.UtcNow, _userId, commandId: commandId),
             Json);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -554,12 +555,32 @@ public sealed class OccupiedBinTests : IAsyncLifetime
             entry.GetProperty("id").GetGuid().ShouldNotBe(nullWarehouseChangeId);
         }
 
-        var stockDeleteEntry = entries.Single(e =>
+        var commandRows = entries
+            .Where(e =>
+                e.TryGetProperty("command_id", out var cid)
+                && cid.ValueKind != JsonValueKind.Null
+                && cid.GetGuid() == commandId
+                && (e.GetProperty("entity").GetString() == "stock"
+                    || e.GetProperty("entity").GetString() == "deviation"))
+            .ToList();
+        commandRows.Count.ShouldBe(3);
+
+        var stockDeleteEntry = commandRows.Single(e =>
             e.GetProperty("entity").GetString() == "stock"
-            && e.GetProperty("id").GetGuid() == existingStockId
             && e.GetProperty("op").GetString() == "delete");
-        stockDeleteEntry.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
-        stockDeleteEntry.GetProperty("payload").GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
+        var stockUpsertEntry = commandRows.Single(e =>
+            e.GetProperty("entity").GetString() == "stock"
+            && e.GetProperty("op").GetString() == "upsert");
+        var deviationInsertEntry = commandRows.Single(e =>
+            e.GetProperty("entity").GetString() == "deviation"
+            && e.GetProperty("op").GetString() == "insert");
+
+        stockDeleteEntry.GetProperty("id").GetGuid().ShouldBe(existingStockId);
+        foreach (var entry in new[] { stockDeleteEntry, stockUpsertEntry, deviationInsertEntry })
+        {
+            entry.GetProperty("command_id").GetGuid().ShouldBe(commandId);
+            entry.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
+        }
 
         var deviationChanges = await db.ChangeLog
             .Where(c => c.Entity == "deviation" && c.Op == "insert")
@@ -573,6 +594,7 @@ public sealed class OccupiedBinTests : IAsyncLifetime
         stockDelete.ShouldNotBeNull();
         stockDelete.WarehouseId.ShouldBe(_warehouseId);
         deviationChanges[0].CommandId.ShouldBe(stockDelete.CommandId);
+        deviationChanges[0].CommandId.ShouldBe(commandId);
     }
 
     [Fact]
@@ -628,7 +650,8 @@ public sealed class OccupiedBinTests : IAsyncLifetime
         DateTimeOffset now,
         Guid userId,
         DateTimeOffset? occurredAt = null,
-        Guid? deviceId = null) =>
+        Guid? deviceId = null,
+        Guid? commandId = null) =>
         new
         {
             tenant_id = _tenantId,
@@ -637,7 +660,7 @@ public sealed class OccupiedBinTests : IAsyncLifetime
             {
                 new
                 {
-                    id = Guid.CreateVersion7(),
+                    id = commandId ?? Guid.CreateVersion7(),
                     type,
                     v,
                     payload = JsonSerializer.SerializeToElement(payload, Json),
