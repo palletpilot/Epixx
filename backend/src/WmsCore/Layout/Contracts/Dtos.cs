@@ -5,7 +5,7 @@ public static class LayoutDefaults
     public const string CodePattern = "{aisle}-{rack:2}-{level:2}-{bin:2}";
 
     public static readonly string[] SystemLocationCodes =
-        ["RECEIVING", "PICKING", "SHIPPING", "QUARANTINE", "FLOOR", "ADJUSTMENT"];
+        ["RECEIVING", "PICKING", "SHIPPING", "QUARANTINE", "FLOOR", "ADJUSTMENT", "UNLOCATED"];
 }
 
 public sealed record LocationDto(

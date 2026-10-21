@@ -16,7 +16,7 @@ public sealed class LayoutModuleTests : IAsyncLifetime
     };
 
     private static readonly string[] SystemCodes =
-        ["RECEIVING", "PICKING", "SHIPPING", "QUARANTINE", "FLOOR", "ADJUSTMENT"];
+        ["RECEIVING", "PICKING", "SHIPPING", "QUARANTINE", "FLOOR", "ADJUSTMENT", "UNLOCATED"];
 
     private readonly PostgresFixture _postgres;
     private readonly WmsCoreApiFactory _factory = new();
