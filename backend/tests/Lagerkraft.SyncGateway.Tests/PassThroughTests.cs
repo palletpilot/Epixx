@@ -14,7 +14,7 @@ public sealed class PassThroughTests : IAsyncLifetime
     // WmsCore PR 8 change_log writes one op. Occupied-bin deviation uses the same vocabulary.
     private const string DeviationChangeOp = "upsert";
 
-    // Test-only: matches WmsCore PR 8 @ 500117c / spec PR 5 @ e3b2acf.
+    // Test-only: matches WmsCore PR 8 @ 41e608b / spec PR 5 @ e3b2acf.
     // The gateway treats change row id as opaque and never computes this.
     private static readonly Guid StockBalanceChangeIdNamespace =
         Guid.Parse("9296f5d4-6bd8-44c5-b874-be71680d1d6b");
@@ -624,12 +624,12 @@ public sealed class PassThroughTests : IAsyncLifetime
         AssertDecimalString(item.GetProperty("qty_base"), "1");
     }
 
-    // Occupied-bin change page matches WmsCore PR 8 @ 500117c. Incoming HU
+    // Occupied-bin change page matches WmsCore PR 8 @ 41e608b. Incoming HU
     // putaway into the bin; existing HU stock_balance moves to the warehouse
     // UNLOCATED system location (is_system, code UNLOCATED) and keeps qty.
     // handling_unit payloads have no location. Existing HU gets no HU row.
     // Deviation detail is location_id, existing_handling_unit_id,
-    // incoming_handling_unit_id, lpn, command_id.
+    // existing_reserved_qty_base, incoming_handling_unit_id, lpn, command_id.
     private JsonElement OccupiedBinChangesBody()
     {
         var commandId = Guid.CreateVersion7();
@@ -834,7 +834,7 @@ public sealed class PassThroughTests : IAsyncLifetime
         (guid[6], guid[7]) = (guid[7], guid[6]);
     }
 
-    // WmsCore PR 8 occupied_bin detail (ConfirmPutawayHandler). No movement ids.
+    // WmsCore PR 8 @ 41e608b occupied_bin detail. Links by command_id + HU ids.
     private static JsonElement OccupiedBinDetail(
         Guid binLocationId,
         Guid incomingHuId,
@@ -845,6 +845,7 @@ public sealed class PassThroughTests : IAsyncLifetime
         {
             location_id = binLocationId,
             existing_handling_unit_id = existingHuId,
+            existing_reserved_qty_base = "0",
             incoming_handling_unit_id = incomingHuId,
             lpn,
             command_id = commandId
@@ -906,6 +907,7 @@ public sealed class PassThroughTests : IAsyncLifetime
         var detail = deviation.GetProperty("payload").GetProperty("detail");
         detail.GetProperty("incoming_handling_unit_id").GetGuid().ShouldBe(incomingHuId);
         detail.GetProperty("existing_handling_unit_id").GetGuid().ShouldBe(existingHuId);
+        AssertDecimalString(detail.GetProperty("existing_reserved_qty_base"), "0");
         detail.GetProperty("lpn").GetString().ShouldBe(incomingLpn);
         detail.GetProperty("command_id").GetGuid().ShouldBe(commandId);
         detail.TryGetProperty("movement_id", out _).ShouldBeFalse();
