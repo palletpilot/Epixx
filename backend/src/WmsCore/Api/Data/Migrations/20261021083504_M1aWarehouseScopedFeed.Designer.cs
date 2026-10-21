@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Lagerkraft.WmsCore.Api.Data.Migrations
 {
     [DbContext(typeof(TenantDbContext))]
-    [Migration("20261021082910_M1aWarehouseScopedFeed")]
+    [Migration("20261021083504_M1aWarehouseScopedFeed")]
     partial class M1aWarehouseScopedFeed
     {
         /// <inheritdoc />
@@ -191,6 +191,13 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("kind");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("open")
+                        .HasColumnName("status");
+
                     b.Property<Guid?>("WarehouseId")
                         .HasColumnType("uuid")
                         .HasColumnName("warehouse_id");
@@ -198,7 +205,10 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_deviation");
 
-                    b.ToTable("deviation", (string)null);
+                    b.ToTable("deviation", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_deviation_status", "status IN ('open', 'pending_approval', 'resolved', 'dismissed')");
+                        });
                 });
 
             modelBuilder.Entity("Lagerkraft.WmsCore.Api.Data.HandlingUnit", b =>

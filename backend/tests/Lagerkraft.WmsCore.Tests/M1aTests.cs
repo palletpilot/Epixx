@@ -125,8 +125,45 @@ public sealed class M1aTests : IAsyncLifetime
         var deviation = commandRows.Single(e => e.GetProperty("entity").GetString() == "deviation");
         deviation.GetProperty("op").GetString().ShouldBe("upsert");
         deviation.GetProperty("payload").GetProperty("kind").GetString().ShouldBe("occupied_bin");
+        deviation.GetProperty("payload").GetProperty("status").GetString().ShouldBe("open");
+        (await db.Deviations.SingleAsync(d => d.CommandId == commandId)).Status.ShouldBe("open");
         commandRows.Count(e => e.GetProperty("entity").GetString() == "task").ShouldBe(1);
         commandRows.ShouldNotContain(e => e.GetProperty("entity").GetString() == "stock_movement");
+    }
+
+    [Fact]
+    public async Task ConfirmPutaway_OccupiedBin_ReplaySameCommandId_Dedupe()
+    {
+        var binId = Guid.CreateVersion7();
+        (await Apply("CreateLocationBatch", Bin(binId, "A-01-01-01"))).Outcome.ShouldBe("Applied");
+        var existingHu = Guid.CreateVersion7();
+        var existingTask = Guid.CreateVersion7();
+        (await Apply("ReceiveHandlingUnit", ReceivePayload(existingHu, existingTask, "LPN-OLD"))).Outcome.ShouldBe("Applied");
+        (await Apply("ConfirmPutaway", new { task_id = existingTask, location_id = binId, qty = "1" }))
+            .Outcome.ShouldBe("Applied");
+
+        var incomingHu = Guid.CreateVersion7();
+        var incomingTask = Guid.CreateVersion7();
+        (await Apply("ReceiveHandlingUnit", ReceivePayload(incomingHu, incomingTask, "LPN-NEW"))).Outcome.ShouldBe("Applied");
+        var commandId = Guid.CreateVersion7();
+        var payload = new { task_id = incomingTask, location_id = binId, qty = "1" };
+        (await Apply("ConfirmPutaway", payload, commandId: commandId)).Outcome.ShouldBe("Applied");
+
+        await using var before = OpenDb();
+        var deviationCount = await before.Deviations.CountAsync(d => d.Kind == "occupied_bin");
+        var changeCount = await before.ChangeLog.CountAsync(c => c.CommandId == commandId);
+        var movementCount = await before.StockMovements.CountAsync(m => m.CommandId == commandId);
+        deviationCount.ShouldBe(1);
+        changeCount.ShouldBeGreaterThan(0);
+        movementCount.ShouldBe(2);
+
+        var replay = await Apply("ConfirmPutaway", payload, commandId: commandId);
+        replay.Outcome.ShouldBe("Applied");
+
+        await using var after = OpenDb();
+        (await after.Deviations.CountAsync(d => d.Kind == "occupied_bin")).ShouldBe(1);
+        (await after.ChangeLog.CountAsync(c => c.CommandId == commandId)).ShouldBe(changeCount);
+        (await after.StockMovements.CountAsync(m => m.CommandId == commandId)).ShouldBe(movementCount);
     }
 
     [Fact]
@@ -232,6 +269,7 @@ public sealed class M1aTests : IAsyncLifetime
         var deviation = commandRows.Single(e => e.GetProperty("entity").GetString() == "deviation");
         deviation.GetProperty("op").GetString().ShouldBe("upsert");
         deviation.GetProperty("payload").GetProperty("kind").GetString().ShouldBe("wrong_location");
+        deviation.GetProperty("payload").GetProperty("status").GetString().ShouldBe("open");
         deviation.GetProperty("payload").GetProperty("detail").GetProperty("suggested_location_id").GetGuid()
             .ShouldBe(suggested);
         deviation.GetProperty("payload").GetProperty("detail").GetProperty("location_id").GetGuid()
@@ -354,16 +392,58 @@ public sealed class M1aTests : IAsyncLifetime
 
         await using var db = OpenDb();
         var deviation = await db.Deviations.SingleAsync(d => d.Kind == "wrong_location");
+        deviation.Status.ShouldBe("open");
         var maxSeq = await db.ChangeLog.MaxAsync(c => c.Seq);
         body.GetProperty("seq").GetInt64().ShouldBe(maxSeq);
+
+        var pendingId = Guid.CreateVersion7();
+        var resolvedId = Guid.CreateVersion7();
+        var dismissedId = Guid.CreateVersion7();
+        db.Deviations.AddRange(
+            new Deviation
+            {
+                Id = pendingId,
+                WarehouseId = _warehouseId,
+                Kind = "stale_command",
+                Status = "pending_approval",
+                Detail = "{}",
+                CreatedAt = _clock.UtcNow
+            },
+            new Deviation
+            {
+                Id = resolvedId,
+                WarehouseId = _warehouseId,
+                Kind = "reported",
+                Status = "resolved",
+                Detail = "{}",
+                CreatedAt = _clock.UtcNow
+            },
+            new Deviation
+            {
+                Id = dismissedId,
+                WarehouseId = _warehouseId,
+                Kind = "reported",
+                Status = "dismissed",
+                Detail = "{}",
+                CreatedAt = _clock.UtcNow
+            });
+        await db.SaveChangesAsync();
 
         var devSnap = await client.GetAsync(
             $"/internal/snapshot?tenantId={_tenantId}&warehouse={_warehouseId}&entity=deviation");
         devSnap.EnsureSuccessStatusCode();
         var devBody = await devSnap.Content.ReadFromJsonAsync<JsonElement>(Json);
-        var devItem = devBody.GetProperty("items").EnumerateArray().ShouldHaveSingleItem();
-        devItem.GetProperty("id").GetGuid().ShouldBe(deviation.Id);
-        devItem.GetProperty("kind").GetString().ShouldBe("wrong_location");
+        var ids = devBody.GetProperty("items").EnumerateArray()
+            .Select(i => i.GetProperty("id").GetGuid())
+            .ToList();
+        ids.ShouldContain(deviation.Id);
+        ids.ShouldContain(pendingId);
+        ids.ShouldNotContain(resolvedId);
+        ids.ShouldNotContain(dismissedId);
+        var openItem = devBody.GetProperty("items").EnumerateArray()
+            .Single(i => i.GetProperty("id").GetGuid() == deviation.Id);
+        openItem.GetProperty("kind").GetString().ShouldBe("wrong_location");
+        openItem.GetProperty("status").GetString().ShouldBe("open");
     }
 
     [Fact]

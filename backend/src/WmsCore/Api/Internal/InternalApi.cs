@@ -273,7 +273,8 @@ public static class InternalApi
         }
         else if (kind.Equals("deviation", StringComparison.OrdinalIgnoreCase))
         {
-            var q = db.Deviations.AsNoTracking().AsQueryable();
+            var q = db.Deviations.AsNoTracking()
+                .Where(d => d.Status == "open" || d.Status == "pending_approval");
             if (warehouse is { } devWh)
             {
                 q = q.Where(d => d.WarehouseId == devWh || d.WarehouseId == null);
@@ -285,6 +286,7 @@ public static class InternalApi
                 d.Id,
                 d.WarehouseId,
                 d.Kind,
+                d.Status,
                 d.CommandId,
                 detail = JsonDocument.Parse(d.Detail).RootElement,
                 d.CreatedAt

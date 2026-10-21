@@ -224,6 +224,7 @@ public sealed class ConfirmPutawayHandler(
                 Id = Ids.New(),
                 WarehouseId = task.WarehouseId,
                 Kind = "occupied_bin",
+                Status = "open",
                 CommandId = command.Id,
                 Detail = JsonSerializer.Serialize(new
                 {
@@ -244,6 +245,7 @@ public sealed class ConfirmPutawayHandler(
                 Id = Ids.New(),
                 WarehouseId = task.WarehouseId,
                 Kind = "wrong_location",
+                Status = "open",
                 CommandId = command.Id,
                 Detail = JsonSerializer.Serialize(new
                 {
@@ -303,6 +305,7 @@ public sealed class ConfirmPutawayHandler(
                 id = deviation.Id,
                 warehouse_id = deviation.WarehouseId,
                 kind = deviation.Kind,
+                status = deviation.Status,
                 command_id = deviation.CommandId,
                 detail = JsonDocument.Parse(deviation.Detail).RootElement,
                 created_at = deviation.CreatedAt

@@ -19,6 +19,13 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                 oldClrType: typeof(Guid),
                 oldType: "uuid");
 
+            migrationBuilder.AddColumn<string>(
+                name: "status",
+                table: "deviation",
+                type: "text",
+                nullable: false,
+                defaultValue: "open");
+
             migrationBuilder.AddColumn<Guid>(
                 name: "warehouse_id",
                 table: "deviation",
@@ -31,6 +38,11 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                 type: "uuid",
                 nullable: true);
 
+            migrationBuilder.AddCheckConstraint(
+                name: "ck_deviation_status",
+                table: "deviation",
+                sql: "status IN ('open', 'pending_approval', 'resolved', 'dismissed')");
+
             migrationBuilder.CreateIndex(
                 name: "ix_change_log_warehouse_id_seq",
                 table: "change_log",
@@ -40,9 +52,17 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropCheckConstraint(
+                name: "ck_deviation_status",
+                table: "deviation");
+
             migrationBuilder.DropIndex(
                 name: "ix_change_log_warehouse_id_seq",
                 table: "change_log");
+
+            migrationBuilder.DropColumn(
+                name: "status",
+                table: "deviation");
 
             migrationBuilder.DropColumn(
                 name: "warehouse_id",

@@ -51,6 +51,7 @@ public sealed class Deviation
     public Guid Id { get; set; }
     public Guid? WarehouseId { get; set; }
     public string Kind { get; set; } = "";
+    public string Status { get; set; } = "open";
     public Guid? CommandId { get; set; }
     public string Detail { get; set; } = "{}";
     public DateTimeOffset CreatedAt { get; set; }
