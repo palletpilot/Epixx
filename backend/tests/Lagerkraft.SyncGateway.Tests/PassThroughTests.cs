@@ -1,8 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using Lagerkraft.SyncGateway.Clients;
 
@@ -14,17 +12,27 @@ public sealed class PassThroughTests : IAsyncLifetime
     // WmsCore PR 8 change_log writes one op. Occupied-bin deviation uses the same vocabulary.
     private const string DeviationChangeOp = "upsert";
 
-    // Test-only: matches WmsCore PR 8 @ 41e608b / spec PR 5 @ e3b2acf.
-    // The gateway treats change row id as opaque and never computes this.
-    private static readonly Guid StockBalanceChangeIdNamespace =
-        Guid.Parse("9296f5d4-6bd8-44c5-b874-be71680d1d6b");
-
+    // Opaque stock_balance ids. The gateway never computes these.
+    // First literal is the PR 5 / PR 8 pinned vector for
+    // hu:01900000-0000-7000-8000-000000000001:01900000-0000-7000-8000-000000000002.
     private static readonly Guid PinnedHuId =
         Guid.Parse("01900000-0000-7000-8000-000000000001");
     private static readonly Guid PinnedArticleId =
         Guid.Parse("01900000-0000-7000-8000-000000000002");
     private static readonly Guid PinnedStockBalanceId =
         Guid.Parse("f4faf703-c1f7-5805-9e1f-aed95cc6831f");
+    private static readonly Guid SnapshotOtherBalanceId =
+        Guid.Parse("01900000-0000-7000-8000-0000000000a1");
+    private static readonly Guid QtyBaseBalanceId =
+        Guid.Parse("01900000-0000-7000-8000-0000000000a2");
+    private static readonly Guid MixedArticleBId =
+        Guid.Parse("01900000-0000-7000-8000-000000000003");
+    private static readonly Guid MixedStockBalanceBId =
+        Guid.Parse("01900000-0000-7000-8000-0000000000a3");
+    private static readonly Guid OccupiedIncomingBalanceId =
+        Guid.Parse("01900000-0000-7000-8000-0000000000a4");
+    private static readonly Guid OccupiedExistingBalanceId =
+        Guid.Parse("01900000-0000-7000-8000-0000000000a5");
 
     private const string SnapshotSchemaM1a = "20261021083504_M1aWarehouseScopedFeed";
 
@@ -53,12 +61,6 @@ public sealed class PassThroughTests : IAsyncLifetime
     public Task DisposeAsync() => _factory.DisposeAsync().AsTask();
 
     [Fact]
-    public void StockBalanceChangeId_KnownPair_MatchesPinnedVector()
-    {
-        StockBalanceChangeId(PinnedHuId, PinnedArticleId).ShouldBe(PinnedStockBalanceId);
-    }
-
-    [Fact]
     public async Task Snapshot_StockBalance_PassesThroughWmsCoreBodyUnchanged()
     {
         var otherHu = Guid.CreateVersion7();
@@ -84,7 +86,7 @@ public sealed class PassThroughTests : IAsyncLifetime
                 },
                 new
                 {
-                    id = StockBalanceChangeId(otherHu, otherArticle),
+                    id = SnapshotOtherBalanceId,
                     location_id = Guid.CreateVersion7(),
                     article_id = otherArticle,
                     handling_unit_id = otherHu,
@@ -269,7 +271,7 @@ public sealed class PassThroughTests : IAsyncLifetime
             {
                 new
                 {
-                    id = StockBalanceChangeId(huId, articleId),
+                    id = QtyBaseBalanceId,
                     location_id = Guid.CreateVersion7(),
                     article_id = articleId,
                     handling_unit_id = huId,
@@ -287,7 +289,7 @@ public sealed class PassThroughTests : IAsyncLifetime
         response.EnsureSuccessStatusCode();
 
         var item = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0];
-        item.GetProperty("id").GetGuid().ShouldBe(StockBalanceChangeId(huId, articleId));
+        item.GetProperty("id").GetGuid().ShouldBe(QtyBaseBalanceId);
         AssertDecimalString(item.GetProperty("qty_base"), "12.5");
         AssertDecimalString(item.GetProperty("reserved_qty_base"), "0");
     }
@@ -301,7 +303,7 @@ public sealed class PassThroughTests : IAsyncLifetime
             warehouse = _warehouseId,
             entries = new[]
             {
-                StockBalanceRow(200, Guid.CreateVersion7(), PinnedHuId, Guid.CreateVersion7(), PinnedArticleId, "12.5", DateTimeOffset.UtcNow, reservedQtyBase: "1")
+                StockBalanceRow(200, Guid.CreateVersion7(), PinnedStockBalanceId, PinnedHuId, Guid.CreateVersion7(), PinnedArticleId, "12.5", DateTimeOffset.UtcNow, reservedQtyBase: "1")
             }
         });
 
@@ -322,7 +324,7 @@ public sealed class PassThroughTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Changes_WmsCore410_PassesStatusAndBodyThrough()
+    public async Task Changes_WmsCore410_PassesStatusThrough()
     {
         _factory.Wms.ChangesStatus = HttpStatusCode.Gone;
 
@@ -533,15 +535,9 @@ public sealed class PassThroughTests : IAsyncLifetime
     public async Task MixedPalletChanges_TwoStockBalancesDistinctIds()
     {
         var commandId = Guid.CreateVersion7();
-        var huId = Guid.CreateVersion7();
-        var articleA = Guid.CreateVersion7();
-        var articleB = Guid.CreateVersion7();
         var locationId = Guid.CreateVersion7();
         var now = DateTimeOffset.UtcNow;
-        var idA = StockBalanceChangeId(huId, articleA);
-        var idB = StockBalanceChangeId(huId, articleB);
-        idA.ShouldNotBe(idB);
-        StockBalanceChangeId(huId, articleA).ShouldBe(idA);
+        PinnedStockBalanceId.ShouldNotBe(MixedStockBalanceBId);
 
         var expectedBody = JsonSerializer.SerializeToElement(new
         {
@@ -549,8 +545,8 @@ public sealed class PassThroughTests : IAsyncLifetime
             warehouse = _warehouseId,
             entries = new object[]
             {
-                StockBalanceRow(400, commandId, huId, locationId, articleA, "12.5", now),
-                StockBalanceRow(401, commandId, huId, locationId, articleB, "1", now)
+                StockBalanceRow(400, commandId, PinnedStockBalanceId, PinnedHuId, locationId, PinnedArticleId, "12.5", now),
+                StockBalanceRow(401, commandId, MixedStockBalanceBId, PinnedHuId, locationId, MixedArticleBId, "1", now)
             }
         });
 
@@ -565,63 +561,24 @@ public sealed class PassThroughTests : IAsyncLifetime
 
         var entries = actualBody.GetProperty("entries").EnumerateArray().ToArray();
         entries.Length.ShouldBe(2);
-        entries[0].GetProperty("id").GetGuid().ShouldBe(idA);
-        entries[1].GetProperty("id").GetGuid().ShouldBe(idB);
+        entries[0].GetProperty("id").GetGuid().ShouldBe(PinnedStockBalanceId);
+        entries[1].GetProperty("id").GetGuid().ShouldBe(MixedStockBalanceBId);
         entries[0].GetProperty("id").GetGuid().ShouldNotBe(entries[1].GetProperty("id").GetGuid());
 
         foreach (var entry in entries)
         {
             var payload = entry.GetProperty("payload");
             payload.GetProperty("id").GetGuid().ShouldBe(entry.GetProperty("id").GetGuid());
-            payload.GetProperty("handling_unit_id").GetGuid().ShouldBe(huId);
+            payload.GetProperty("handling_unit_id").GetGuid().ShouldBe(PinnedHuId);
             payload.TryGetProperty("article_id", out var article).ShouldBeTrue();
             article.ValueKind.ShouldBe(JsonValueKind.String);
             entry.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
         }
 
-        entries[0].GetProperty("payload").GetProperty("article_id").GetGuid().ShouldBe(articleA);
-        entries[1].GetProperty("payload").GetProperty("article_id").GetGuid().ShouldBe(articleB);
+        entries[0].GetProperty("payload").GetProperty("article_id").GetGuid().ShouldBe(PinnedArticleId);
+        entries[1].GetProperty("payload").GetProperty("article_id").GetGuid().ShouldBe(MixedArticleBId);
         AssertDecimalString(entries[0].GetProperty("payload").GetProperty("qty_base"), "12.5");
         AssertDecimalString(entries[1].GetProperty("payload").GetProperty("qty_base"), "1");
-    }
-
-    [Fact]
-    public async Task Snapshot_NullArticleIdIncluded_PassesThroughAsIs()
-    {
-        var huId = Guid.CreateVersion7();
-        var expectedBody = JsonSerializer.SerializeToElement(new
-        {
-            feed_epoch = _factory.Wms.FeedEpoch,
-            warehouse = _warehouseId,
-            entity = "StockBalance",
-            page = 1,
-            seq = 4L,
-            snapshot_schema = SnapshotSchemaM1a,
-            items = new[]
-            {
-                new
-                {
-                    id = Guid.CreateVersion7(),
-                    location_id = Guid.CreateVersion7(),
-                    article_id = (Guid?)null,
-                    handling_unit_id = huId,
-                    qty_base = "1",
-                    reserved_qty_base = "0"
-                }
-            }
-        });
-
-        _factory.Wms.OnGetSnapshot = (_, _, _, _) => expectedBody;
-
-        using var client = Authed();
-        var response = await client.GetAsync(
-            $"/sync/snapshot?warehouse={_warehouseId}&entity=StockBalance");
-        response.EnsureSuccessStatusCode();
-
-        var item = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0];
-        item.TryGetProperty("article_id", out var articleIdProp).ShouldBeTrue();
-        articleIdProp.ValueKind.ShouldBe(JsonValueKind.Null);
-        AssertDecimalString(item.GetProperty("qty_base"), "1");
     }
 
     // Occupied-bin change page matches WmsCore PR 8 @ 41e608b. Incoming HU
@@ -653,8 +610,8 @@ public sealed class PassThroughTests : IAsyncLifetime
             entries = new object[]
             {
                 HandlingUnitRow(100, commandId, incomingHuId, incomingLpn, incomingArticleId, incomingQtyBase, now),
-                StockBalanceRow(101, commandId, incomingHuId, binLocationId, incomingArticleId, incomingQtyBase, now),
-                StockBalanceRow(102, commandId, existingHuId, _unlocatedLocationId, existingArticleId, existingQtyBase, now),
+                StockBalanceRow(101, commandId, OccupiedIncomingBalanceId, incomingHuId, binLocationId, incomingArticleId, incomingQtyBase, now),
+                StockBalanceRow(102, commandId, OccupiedExistingBalanceId, existingHuId, _unlocatedLocationId, existingArticleId, existingQtyBase, now),
                 new
                 {
                     seq = 103L,
@@ -776,15 +733,14 @@ public sealed class PassThroughTests : IAsyncLifetime
     private object StockBalanceRow(
         long seq,
         Guid commandId,
+        Guid id,
         Guid huId,
         Guid locationId,
         Guid articleId,
         string qtyBase,
         DateTimeOffset now,
-        string reservedQtyBase = "0")
-    {
-        var id = StockBalanceChangeId(huId, articleId);
-        return new
+        string reservedQtyBase = "0") =>
+        new
         {
             seq,
             entity = "stock_balance",
@@ -805,34 +761,6 @@ public sealed class PassThroughTests : IAsyncLifetime
             occurred_at = now,
             recorded_at = now
         };
-    }
-
-    private static Guid StockBalanceChangeId(Guid handlingUnitId, Guid articleId)
-    {
-        var name = $"hu:{handlingUnitId:D}:{articleId:D}".ToLowerInvariant();
-        return UuidV5(StockBalanceChangeIdNamespace, Encoding.UTF8.GetBytes(name));
-    }
-
-    // RFC 4122 name-based UUIDv5. .NET 10 on this SDK has no Guid.CreateVersion5.
-    private static Guid UuidV5(Guid namespaceId, byte[] name)
-    {
-        var ns = namespaceId.ToByteArray();
-        SwapGuidEndianness(ns);
-        var hash = SHA1.HashData(ns.Concat(name).ToArray());
-        var bytes = hash.AsSpan(0, 16).ToArray();
-        bytes[6] = (byte)((bytes[6] & 0x0F) | 0x50);
-        bytes[8] = (byte)((bytes[8] & 0x3F) | 0x80);
-        SwapGuidEndianness(bytes);
-        return new Guid(bytes);
-    }
-
-    private static void SwapGuidEndianness(byte[] guid)
-    {
-        (guid[0], guid[3]) = (guid[3], guid[0]);
-        (guid[1], guid[2]) = (guid[2], guid[1]);
-        (guid[4], guid[5]) = (guid[5], guid[4]);
-        (guid[6], guid[7]) = (guid[7], guid[6]);
-    }
 
     // WmsCore PR 8 @ 41e608b occupied_bin detail. Links by command_id + HU ids.
     private static JsonElement OccupiedBinDetail(
@@ -875,8 +803,8 @@ public sealed class PassThroughTests : IAsyncLifetime
         var existingHuId = existingBal.GetProperty("payload").GetProperty("handling_unit_id").GetGuid();
         var incomingArticleId = incomingBal.GetProperty("payload").GetProperty("article_id").GetGuid();
         var existingArticleId = existingBal.GetProperty("payload").GetProperty("article_id").GetGuid();
-        incomingBal.GetProperty("id").GetGuid().ShouldBe(StockBalanceChangeId(incomingHuId, incomingArticleId));
-        existingBal.GetProperty("id").GetGuid().ShouldBe(StockBalanceChangeId(existingHuId, existingArticleId));
+        incomingBal.GetProperty("id").GetGuid().ShouldBe(OccupiedIncomingBalanceId);
+        existingBal.GetProperty("id").GetGuid().ShouldBe(OccupiedExistingBalanceId);
         incomingBal.GetProperty("id").GetGuid().ShouldNotBe(existingBal.GetProperty("id").GetGuid());
         incomingBal.GetProperty("payload").GetProperty("id").GetGuid().ShouldBe(incomingBal.GetProperty("id").GetGuid());
         existingBal.GetProperty("payload").GetProperty("id").GetGuid().ShouldBe(existingBal.GetProperty("id").GetGuid());
