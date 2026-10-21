@@ -1024,8 +1024,11 @@ describe("loadOfficeLists", () => {
     await expect(
       loadOfficeLists(
         async (url) => {
-          if (url.includes("/sync/snapshot")) {
+          if (url.includes("/sync/snapshot") && url.includes("entity=StockBalance")) {
             return { seq: 1, items: [stockSnapshotItem()] };
+          }
+          if (url.includes("/sync/snapshot")) {
+            return { seq: 1, items: [] };
           }
           throw new SyncLoadError(410);
         },
