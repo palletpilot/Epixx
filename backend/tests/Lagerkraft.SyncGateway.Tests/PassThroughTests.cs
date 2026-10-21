@@ -8,6 +8,9 @@ namespace Lagerkraft.SyncGateway.Tests;
 [Trait("Category", "Integration")]
 public sealed class PassThroughTests : IAsyncLifetime
 {
+    // RC change_log writes one op. Occupied-bin deviation uses the same vocabulary.
+    private const string DeviationChangeOp = "upsert";
+
     private readonly SyncGatewayApiFactory _factory = new();
     private Guid _tenantId;
     private Guid _userId;
@@ -30,51 +33,44 @@ public sealed class PassThroughTests : IAsyncLifetime
     public Task DisposeAsync() => _factory.DisposeAsync().AsTask();
 
     [Fact]
-    public async Task Snapshot_Stock_PassesThroughWmsCoreBodyUnchanged()
+    public async Task Snapshot_StockBalance_PassesThroughWmsCoreBodyUnchanged()
     {
         var expectedBody = JsonSerializer.SerializeToElement(new
         {
             feed_epoch = _factory.Wms.FeedEpoch,
             warehouse = _warehouseId,
-            entity = "Stock",
+            entity = "StockBalance",
             page = 1,
-            snapshot_schema = "20241204_AddInventory",
+            snapshot_schema = "20260919164855_OutboundTables",
             items = new object[]
             {
                 new
                 {
-                    id = Guid.CreateVersion7(),
-                    warehouse_id = _warehouseId,
                     location_id = Guid.CreateVersion7(),
-                    handling_unit_id = (Guid?)null,
                     article_id = Guid.CreateVersion7(),
-                    qty_base = 42.5m,
-                    created_at = DateTimeOffset.UtcNow
+                    handling_unit_id = Guid.CreateVersion7(),
+                    qty_base = "12.5",
+                    reserved_qty_base = "1"
                 },
                 new
                 {
-                    id = Guid.CreateVersion7(),
-                    warehouse_id = _warehouseId,
                     location_id = Guid.CreateVersion7(),
+                    article_id = Guid.CreateVersion7(),
                     handling_unit_id = Guid.CreateVersion7(),
-                    article_id = (Guid?)null,
-                    qty_base = 100,
-                    created_at = DateTimeOffset.UtcNow
+                    qty_base = "1",
+                    reserved_qty_base = "0"
                 }
             }
         });
 
-        _factory.Wms.OnGetSnapshot = (tid, wh, ent, pg) => expectedBody;
+        _factory.Wms.OnGetSnapshot = (_, _, _, _) => expectedBody;
 
         using var client = Authed();
-        var response = await client.GetAsync($"/sync/snapshot?warehouse={_warehouseId}&entity=Stock&page=1");
+        var response = await client.GetAsync(
+            $"/sync/snapshot?warehouse={_warehouseId}&entity=StockBalance&page=1");
         response.EnsureSuccessStatusCode();
 
-        var actualBody = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var actualJson = JsonSerializer.Serialize(actualBody, new JsonSerializerOptions { WriteIndented = false });
-        var expectedJson = JsonSerializer.Serialize(expectedBody, new JsonSerializerOptions { WriteIndented = false });
-
-        actualJson.ShouldBe(expectedJson);
+        AssertJsonEqual(expectedBody, await response.Content.ReadFromJsonAsync<JsonElement>());
     }
 
     [Fact]
@@ -86,37 +82,29 @@ public sealed class PassThroughTests : IAsyncLifetime
             warehouse = _warehouseId,
             entity = "Deviation",
             page = 1,
-            snapshot_schema = "20241010_AddDeviation",
+            snapshot_schema = "20260919164855_OutboundTables",
             items = new[]
             {
                 new
                 {
                     id = Guid.CreateVersion7(),
                     warehouse_id = _warehouseId,
-                    kind = "count_mismatch",
+                    kind = "occupied_bin",
                     command_id = Guid.CreateVersion7(),
-                    detail = JsonSerializer.SerializeToElement(new
-                    {
-                        expected = 50,
-                        actual = 45,
-                        location_id = Guid.CreateVersion7()
-                    }),
+                    detail = OccupiedBinDetail(Guid.CreateVersion7(), "12.5"),
                     created_at = DateTimeOffset.UtcNow
                 }
             }
         });
 
-        _factory.Wms.OnGetSnapshot = (tid, wh, ent, pg) => expectedBody;
+        _factory.Wms.OnGetSnapshot = (_, _, _, _) => expectedBody;
 
         using var client = Authed();
-        var response = await client.GetAsync($"/sync/snapshot?warehouse={_warehouseId}&entity=Deviation&page=1");
+        var response = await client.GetAsync(
+            $"/sync/snapshot?warehouse={_warehouseId}&entity=Deviation&page=1");
         response.EnsureSuccessStatusCode();
 
-        var actualBody = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var actualJson = JsonSerializer.Serialize(actualBody, new JsonSerializerOptions { WriteIndented = false });
-        var expectedJson = JsonSerializer.Serialize(expectedBody, new JsonSerializerOptions { WriteIndented = false });
-
-        actualJson.ShouldBe(expectedJson);
+        AssertJsonEqual(expectedBody, await response.Content.ReadFromJsonAsync<JsonElement>());
     }
 
     [Fact]
@@ -131,7 +119,7 @@ public sealed class PassThroughTests : IAsyncLifetime
             items = Array.Empty<object>()
         });
 
-        _factory.Wms.OnGetSnapshot = (tid, wh, ent, pg) => expectedBody;
+        _factory.Wms.OnGetSnapshot = (_, _, _, _) => expectedBody;
 
         using var client = Authed();
         var response = await client.GetAsync($"/sync/snapshot?warehouse={_warehouseId}&entity=Task");
@@ -154,7 +142,7 @@ public sealed class PassThroughTests : IAsyncLifetime
             items = Array.Empty<object>()
         });
 
-        _factory.Wms.OnGetSnapshot = (tid, wh, ent, pg) => expectedBody;
+        _factory.Wms.OnGetSnapshot = (_, _, _, _) => expectedBody;
 
         using var client = Authed();
         var response = await client.GetAsync($"/sync/snapshot?warehouse={_warehouseId}&entity=Article");
@@ -165,59 +153,42 @@ public sealed class PassThroughTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Changes_StockAndDeviation_PassesThroughWmsCoreBodyUnchanged()
+    public async Task Snapshot_QtyBaseDecimalString_Unchanged()
     {
-        var expectedBody = OccupiedBinChangesBody();
-
-        _factory.Wms.OnGetChanges = () => expectedBody;
-
-        using var client = Authed();
-        var response = await client.GetAsync($"/sync/changes?warehouse={_warehouseId}&since=99");
-        response.EnsureSuccessStatusCode();
-
-        var actualBody = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var actualJson = JsonSerializer.Serialize(actualBody, new JsonSerializerOptions { WriteIndented = false });
-        var expectedJson = JsonSerializer.Serialize(expectedBody, new JsonSerializerOptions { WriteIndented = false });
-
-        actualJson.ShouldBe(expectedJson);
-    }
-
-    [Fact]
-    public async Task Changes_RowWarehouseId_UnchangedOnDeleteUpsertInsert()
-    {
-        var expectedBody = OccupiedBinChangesBody();
-        _factory.Wms.OnGetChanges = () => expectedBody;
-
-        using var client = Authed();
-        var response = await client.GetAsync($"/sync/changes?warehouse={_warehouseId}&since=99");
-        response.EnsureSuccessStatusCode();
-
-        var actualBody = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var expectedEntries = expectedBody.GetProperty("entries").EnumerateArray().ToArray();
-        var actualEntries = actualBody.GetProperty("entries").EnumerateArray().ToArray();
-
-        actualEntries.Length.ShouldBe(3);
-        actualEntries.Length.ShouldBe(expectedEntries.Length);
-
-        for (var i = 0; i < expectedEntries.Length; i++)
+        var expectedBody = JsonSerializer.SerializeToElement(new
         {
-            expectedEntries[i].TryGetProperty("warehouse_id", out var expectedWarehouse).ShouldBeTrue();
-            actualEntries[i].TryGetProperty("warehouse_id", out var actualWarehouse).ShouldBeTrue(
-                $"warehouse_id missing on public change row {i} ({actualEntries[i].GetProperty("entity").GetString()} {actualEntries[i].GetProperty("op").GetString()})");
-            actualWarehouse.ValueKind.ShouldBe(JsonValueKind.String);
-            actualWarehouse.GetGuid().ShouldBe(expectedWarehouse.GetGuid());
-        }
+            feed_epoch = _factory.Wms.FeedEpoch,
+            warehouse = _warehouseId,
+            entity = "StockBalance",
+            page = 1,
+            snapshot_schema = "20260919164855_OutboundTables",
+            items = new[]
+            {
+                new
+                {
+                    location_id = Guid.CreateVersion7(),
+                    article_id = Guid.CreateVersion7(),
+                    handling_unit_id = Guid.CreateVersion7(),
+                    qty_base = "12.5",
+                    reserved_qty_base = "0"
+                }
+            }
+        });
 
-        var stockDelete = actualEntries.Single(e =>
-            e.GetProperty("entity").GetString() == "stock"
-            && e.GetProperty("op").GetString() == "delete");
-        stockDelete.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
-        stockDelete.GetProperty("warehouse_id").GetGuid()
-            .ShouldBe(expectedEntries[0].GetProperty("warehouse_id").GetGuid());
+        _factory.Wms.OnGetSnapshot = (_, _, _, _) => expectedBody;
+
+        using var client = Authed();
+        var response = await client.GetAsync(
+            $"/sync/snapshot?warehouse={_warehouseId}&entity=StockBalance");
+        response.EnsureSuccessStatusCode();
+
+        var item = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0];
+        AssertDecimalString(item.GetProperty("qty_base"), "12.5");
+        AssertDecimalString(item.GetProperty("reserved_qty_base"), "0");
     }
 
     [Fact]
-    public async Task Changes_QtyBaseAsJsonNumber_PassesThroughUnchanged()
+    public async Task Changes_QtyBaseDecimalString_Unchanged()
     {
         var expectedBody = JsonSerializer.SerializeToElement(new
         {
@@ -228,16 +199,20 @@ public sealed class PassThroughTests : IAsyncLifetime
                 new
                 {
                     seq = 200L,
-                    entity = "Stock",
+                    entity = "stock_balance",
                     id = Guid.CreateVersion7(),
-                    op = "Upsert",
+                    op = "upsert",
                     payload = JsonSerializer.SerializeToElement(new
                     {
-                        id = Guid.CreateVersion7(),
-                        qty_base = 123.456789m
+                        location_id = Guid.CreateVersion7(),
+                        article_id = Guid.CreateVersion7(),
+                        handling_unit_id = Guid.CreateVersion7(),
+                        qty_base = "12.5",
+                        reserved_qty_base = "1"
                     }),
-                    command_id = (Guid?)null,
-                    actor = (Guid?)null,
+                    command_id = Guid.CreateVersion7(),
+                    actor = _userId,
+                    warehouse_id = _warehouseId,
                     occurred_at = DateTimeOffset.UtcNow,
                     recorded_at = DateTimeOffset.UtcNow
                 }
@@ -247,115 +222,93 @@ public sealed class PassThroughTests : IAsyncLifetime
         _factory.Wms.OnGetChanges = () => expectedBody;
 
         using var client = Authed();
-        var response = await client.GetAsync($"/sync/changes?since=199");
+        var response = await client.GetAsync($"/sync/changes?warehouse={_warehouseId}&since=199");
         response.EnsureSuccessStatusCode();
 
-        var actualBody = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var entry = actualBody.GetProperty("entries")[0];
-        var qtyBase = entry.GetProperty("payload").GetProperty("qty_base").GetDecimal();
-
-        qtyBase.ShouldBe(123.456789m);
+        var payload = (await response.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("entries")[0]
+            .GetProperty("payload");
+        AssertDecimalString(payload.GetProperty("qty_base"), "12.5");
+        AssertDecimalString(payload.GetProperty("reserved_qty_base"), "1");
     }
 
     [Fact]
-    public async Task Changes_NullArticleIdOmitted_PassesThroughAsIs()
+    public async Task OccupiedBinChanges_PassesThroughWmsCoreBodyUnchanged()
     {
-        var payloadWithoutArticleId = JsonDocument.Parse("""
-            {
-                "id": "01234567-89ab-cdef-0123-456789abcdef",
-                "warehouse_id": "01234567-89ab-cdef-0123-456789abcdef",
-                "qty_base": 100
-            }
-            """).RootElement;
-
-        var expectedBody = JsonSerializer.SerializeToElement(new
-        {
-            feed_epoch = _factory.Wms.FeedEpoch,
-            warehouse = (Guid?)null,
-            entries = new[]
-            {
-                new
-                {
-                    seq = 300L,
-                    entity = "Stock",
-                    id = Guid.CreateVersion7(),
-                    op = "Upsert",
-                    payload = payloadWithoutArticleId,
-                    command_id = (Guid?)null,
-                    actor = (Guid?)null,
-                    occurred_at = DateTimeOffset.UtcNow,
-                    recorded_at = DateTimeOffset.UtcNow
-                }
-            }
-        });
-
+        var expectedBody = OccupiedBinChangesBody();
         _factory.Wms.OnGetChanges = () => expectedBody;
 
         using var client = Authed();
-        var response = await client.GetAsync("/sync/changes?since=299");
+        var response = await client.GetAsync($"/sync/changes?warehouse={_warehouseId}&since=99");
         response.EnsureSuccessStatusCode();
 
-        var actualBody = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var entry = actualBody.GetProperty("entries")[0];
-        var payload = entry.GetProperty("payload");
-
-        payload.TryGetProperty("article_id", out _).ShouldBeFalse();
+        AssertJsonEqual(expectedBody, await response.Content.ReadFromJsonAsync<JsonElement>());
     }
 
     [Fact]
-    public async Task Snapshot_NullArticleIdIncluded_PassesThroughAsIs()
+    public async Task Changes_RowWarehouseId_UnchangedIncludingTenantWideNull()
     {
-        var expectedBody = JsonSerializer.SerializeToElement(new
-        {
-            feed_epoch = _factory.Wms.FeedEpoch,
-            warehouse = _warehouseId,
-            entity = "Stock",
-            page = 1,
-            snapshot_schema = "20241204_AddInventory",
-            items = new[]
-            {
-                new
-                {
-                    id = Guid.CreateVersion7(),
-                    article_id = (Guid?)null,
-                    qty_base = 50
-                }
-            }
-        });
-
-        _factory.Wms.OnGetSnapshot = (tid, wh, ent, pg) => expectedBody;
+        var expectedBody = OccupiedBinChangesBody();
+        _factory.Wms.OnGetChanges = () => expectedBody;
 
         using var client = Authed();
-        var response = await client.GetAsync($"/sync/snapshot?warehouse={_warehouseId}&entity=Stock");
+        var response = await client.GetAsync($"/sync/changes?warehouse={_warehouseId}&since=99");
         response.EnsureSuccessStatusCode();
 
-        var actualBody = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var item = actualBody.GetProperty("items")[0];
+        var expectedEntries = expectedBody.GetProperty("entries").EnumerateArray().ToArray();
+        var actualEntries = (await response.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("entries").EnumerateArray().ToArray();
 
-        item.TryGetProperty("article_id", out var articleIdProp).ShouldBeTrue();
-        articleIdProp.ValueKind.ShouldBe(JsonValueKind.Null);
+        actualEntries.Length.ShouldBe(5);
+        actualEntries.Length.ShouldBe(expectedEntries.Length);
+
+        for (var i = 0; i < expectedEntries.Length; i++)
+        {
+            expectedEntries[i].TryGetProperty("warehouse_id", out var expectedWarehouse).ShouldBeTrue();
+            actualEntries[i].TryGetProperty("warehouse_id", out var actualWarehouse).ShouldBeTrue(
+                $"warehouse_id missing on public change row {i} ({actualEntries[i].GetProperty("entity").GetString()} {actualEntries[i].GetProperty("op").GetString()})");
+            actualWarehouse.ValueKind.ShouldBe(expectedWarehouse.ValueKind);
+            if (expectedWarehouse.ValueKind == JsonValueKind.Null)
+            {
+                actualWarehouse.ValueKind.ShouldBe(JsonValueKind.Null);
+            }
+            else
+            {
+                actualWarehouse.GetGuid().ShouldBe(expectedWarehouse.GetGuid());
+            }
+        }
+
+        var article = actualEntries.Single(e => e.GetProperty("entity").GetString() == "article");
+        article.GetProperty("warehouse_id").ValueKind.ShouldBe(JsonValueKind.Null);
+
+        foreach (var entity in new[] { "handling_unit", "stock_balance", "deviation", "task" })
+        {
+            var row = actualEntries.Single(e => e.GetProperty("entity").GetString() == entity);
+            row.GetProperty("op").GetString().ShouldBe("upsert");
+            row.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
+        }
     }
 
     [Fact]
     public async Task Snapshot_WarehouseQuery_PassesThroughToWmsCore()
     {
         Guid? capturedWarehouse = null;
-        _factory.Wms.OnGetSnapshot = (tid, wh, ent, pg) =>
+        _factory.Wms.OnGetSnapshot = (_, wh, _, _) =>
         {
             capturedWarehouse = wh;
             return JsonSerializer.SerializeToElement(new
             {
                 feed_epoch = _factory.Wms.FeedEpoch,
                 warehouse = wh,
-                entity = "Stock",
+                entity = "StockBalance",
                 page = 1,
-                snapshot_schema = "test",
+                snapshot_schema = "20260919164855_OutboundTables",
                 items = Array.Empty<object>()
             });
         };
 
         using var client = Authed();
-        await client.GetAsync($"/sync/snapshot?warehouse={_warehouseId}&entity=Stock");
+        await client.GetAsync($"/sync/snapshot?warehouse={_warehouseId}&entity=StockBalance");
 
         capturedWarehouse.ShouldBe(_warehouseId);
     }
@@ -365,7 +318,7 @@ public sealed class PassThroughTests : IAsyncLifetime
     {
         Guid? capturedWarehouse = null;
 
-        _factory.Wms.OnGetChangesWithParams = (tid, wh, since) =>
+        _factory.Wms.OnGetChangesWithParams = (_, wh, _) =>
         {
             capturedWarehouse = wh;
             return JsonSerializer.SerializeToElement(new
@@ -376,13 +329,9 @@ public sealed class PassThroughTests : IAsyncLifetime
             });
         };
 
-        using var testClient = _factory.CreateClient();
-        var token = _factory.IssueToken(_userId, _tenantId, 1, _deviceId);
-        testClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
+        using var client = Authed();
         var warehouseToQuery = Guid.CreateVersion7();
-
-        var response = await testClient.GetAsync($"/sync/changes?warehouse={warehouseToQuery}&since=0");
+        var response = await client.GetAsync($"/sync/changes?warehouse={warehouseToQuery}&since=0");
         response.EnsureSuccessStatusCode();
 
         capturedWarehouse.ShouldBe(warehouseToQuery);
@@ -392,8 +341,17 @@ public sealed class PassThroughTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Changes_WarehouseIdInPayload_PassesThroughUnchanged()
+    public async Task Changes_NullArticleIdOmitted_PassesThroughAsIs()
     {
+        var payloadWithoutArticleId = JsonDocument.Parse("""
+            {
+                "location_id": "01234567-89ab-cdef-0123-456789abcdef",
+                "handling_unit_id": "01234567-89ab-cdef-0123-456789abcdef",
+                "qty_base": "1",
+                "reserved_qty_base": "0"
+            }
+            """).RootElement;
+
         var expectedBody = JsonSerializer.SerializeToElement(new
         {
             feed_epoch = _factory.Wms.FeedEpoch,
@@ -402,18 +360,14 @@ public sealed class PassThroughTests : IAsyncLifetime
             {
                 new
                 {
-                    seq = 400L,
-                    entity = "Deviation",
+                    seq = 300L,
+                    entity = "stock_balance",
                     id = Guid.CreateVersion7(),
-                    op = "Insert",
-                    payload = JsonSerializer.SerializeToElement(new
-                    {
-                        id = Guid.CreateVersion7(),
-                        warehouse_id = _warehouseId,
-                        kind = "test"
-                    }),
+                    op = "upsert",
+                    payload = payloadWithoutArticleId,
                     command_id = (Guid?)null,
                     actor = (Guid?)null,
+                    warehouse_id = _warehouseId,
                     occurred_at = DateTimeOffset.UtcNow,
                     recorded_at = DateTimeOffset.UtcNow
                 }
@@ -423,89 +377,227 @@ public sealed class PassThroughTests : IAsyncLifetime
         _factory.Wms.OnGetChanges = () => expectedBody;
 
         using var client = Authed();
-        var response = await client.GetAsync($"/sync/changes?warehouse={_warehouseId}&since=399");
+        var response = await client.GetAsync($"/sync/changes?warehouse={_warehouseId}&since=299");
         response.EnsureSuccessStatusCode();
 
-        var actualBody = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var entry = actualBody.GetProperty("entries")[0];
-        var warehouseIdInPayload = entry.GetProperty("payload").GetProperty("warehouse_id").GetGuid();
+        var payload = (await response.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("entries")[0]
+            .GetProperty("payload");
+        payload.TryGetProperty("article_id", out _).ShouldBeFalse();
+        AssertDecimalString(payload.GetProperty("qty_base"), "1");
+    }
 
-        warehouseIdInPayload.ShouldBe(_warehouseId);
+    [Fact]
+    public async Task Snapshot_NullArticleIdIncluded_PassesThroughAsIs()
+    {
+        var expectedBody = JsonSerializer.SerializeToElement(new
+        {
+            feed_epoch = _factory.Wms.FeedEpoch,
+            warehouse = _warehouseId,
+            entity = "StockBalance",
+            page = 1,
+            snapshot_schema = "20260919164855_OutboundTables",
+            items = new[]
+            {
+                new
+                {
+                    location_id = Guid.CreateVersion7(),
+                    article_id = (Guid?)null,
+                    handling_unit_id = Guid.CreateVersion7(),
+                    qty_base = "1",
+                    reserved_qty_base = "0"
+                }
+            }
+        });
+
+        _factory.Wms.OnGetSnapshot = (_, _, _, _) => expectedBody;
+
+        using var client = Authed();
+        var response = await client.GetAsync(
+            $"/sync/snapshot?warehouse={_warehouseId}&entity=StockBalance");
+        response.EnsureSuccessStatusCode();
+
+        var item = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0];
+        item.TryGetProperty("article_id", out var articleIdProp).ShouldBeTrue();
+        articleIdProp.ValueKind.ShouldBe(JsonValueKind.Null);
+        AssertDecimalString(item.GetProperty("qty_base"), "1");
     }
 
     private JsonElement OccupiedBinChangesBody()
     {
         var commandId = Guid.CreateVersion7();
-        var deletedStockId = Guid.CreateVersion7();
-        var upsertedStockId = Guid.CreateVersion7();
+        var huId = Guid.CreateVersion7();
+        var articleId = Guid.CreateVersion7();
+        var locationId = Guid.CreateVersion7();
+        var suggestedLocationId = Guid.CreateVersion7();
+        var movementId = Guid.CreateVersion7();
+        var taskId = Guid.CreateVersion7();
         var deviationId = Guid.CreateVersion7();
+        var now = DateTimeOffset.UtcNow;
+
         return JsonSerializer.SerializeToElement(new
         {
             feed_epoch = _factory.Wms.FeedEpoch,
             warehouse = _warehouseId,
-            entries = new[]
+            entries = new object[]
             {
                 new
                 {
                     seq = 100L,
-                    entity = "stock",
-                    id = deletedStockId,
-                    op = "delete",
+                    entity = "handling_unit",
+                    id = huId,
+                    op = "upsert",
                     payload = JsonSerializer.SerializeToElement(new
                     {
-                        id = deletedStockId,
+                        id = huId,
                         warehouse_id = _warehouseId,
-                        location_id = Guid.CreateVersion7(),
-                        article_id = Guid.CreateVersion7(),
-                        qty_base = 50
+                        lpn = "LPN-OCCUPIED",
+                        height_mm = (int?)null,
+                        received_at = now,
+                        contents = new[]
+                        {
+                            new
+                            {
+                                id = Guid.CreateVersion7(),
+                                handling_unit_id = huId,
+                                article_id = articleId,
+                                qty_base = "12.5",
+                                packaging_level_id = Guid.CreateVersion7()
+                            }
+                        }
                     }),
                     command_id = commandId,
                     actor = _userId,
                     warehouse_id = _warehouseId,
-                    occurred_at = DateTimeOffset.UtcNow,
-                    recorded_at = DateTimeOffset.UtcNow
+                    occurred_at = now,
+                    recorded_at = now
                 },
                 new
                 {
                     seq = 101L,
-                    entity = "stock",
-                    id = upsertedStockId,
+                    entity = "stock_balance",
+                    id = huId,
                     op = "upsert",
                     payload = JsonSerializer.SerializeToElement(new
                     {
-                        id = upsertedStockId,
-                        warehouse_id = _warehouseId,
-                        location_id = Guid.CreateVersion7(),
-                        article_id = Guid.CreateVersion7(),
-                        qty_base = 45.5
+                        location_id = locationId,
+                        article_id = articleId,
+                        handling_unit_id = huId,
+                        qty_base = "12.5",
+                        reserved_qty_base = "0"
                     }),
                     command_id = commandId,
                     actor = _userId,
                     warehouse_id = _warehouseId,
-                    occurred_at = DateTimeOffset.UtcNow,
-                    recorded_at = DateTimeOffset.UtcNow
+                    occurred_at = now,
+                    recorded_at = now
                 },
                 new
                 {
                     seq = 102L,
                     entity = "deviation",
                     id = deviationId,
-                    op = "insert",
+                    op = DeviationChangeOp,
                     payload = JsonSerializer.SerializeToElement(new
                     {
                         id = deviationId,
                         warehouse_id = _warehouseId,
                         kind = "occupied_bin",
-                        detail = JsonSerializer.SerializeToElement(new { reason = "physical_count" })
+                        command_id = commandId,
+                        detail = OccupiedBinDetail(
+                            locationId,
+                            "12.5",
+                            suggestedLocationId,
+                            huId,
+                            articleId,
+                            movementId),
+                        created_at = now
                     }),
                     command_id = commandId,
                     actor = _userId,
                     warehouse_id = _warehouseId,
-                    occurred_at = DateTimeOffset.UtcNow,
-                    recorded_at = DateTimeOffset.UtcNow
+                    occurred_at = now,
+                    recorded_at = now
+                },
+                new
+                {
+                    seq = 103L,
+                    entity = "task",
+                    id = taskId,
+                    op = "upsert",
+                    payload = JsonSerializer.SerializeToElement(new
+                    {
+                        id = taskId,
+                        warehouse_id = _warehouseId,
+                        type = "putaway",
+                        status = "done",
+                        assignee_user_id = _userId,
+                        assigned_until = (DateTimeOffset?)null,
+                        suggested_location_id = suggestedLocationId,
+                        created_at = now
+                    }),
+                    command_id = commandId,
+                    actor = _userId,
+                    warehouse_id = _warehouseId,
+                    occurred_at = now,
+                    recorded_at = now
+                },
+                new
+                {
+                    seq = 104L,
+                    entity = "article",
+                    id = articleId,
+                    op = "upsert",
+                    payload = JsonSerializer.SerializeToElement(new
+                    {
+                        id = articleId,
+                        sku = "SKU-1",
+                        name = "Widget",
+                        status = "published",
+                        base_uom_id = Guid.Parse("01900000-0000-7000-8000-000000000101"),
+                        quantity_precision = 0,
+                        quantity_step = "1",
+                        allow_loose_pick = true,
+                        packaging_levels = Array.Empty<object>()
+                    }),
+                    command_id = Guid.CreateVersion7(),
+                    actor = _userId,
+                    warehouse_id = (Guid?)null,
+                    occurred_at = now,
+                    recorded_at = now
                 }
             }
         });
+    }
+
+    private JsonElement OccupiedBinDetail(
+        Guid locationId,
+        string qtyBase,
+        Guid? suggestedLocationId = null,
+        Guid? handlingUnitId = null,
+        Guid? articleId = null,
+        Guid? movementId = null) =>
+        JsonSerializer.SerializeToElement(new
+        {
+            location_id = locationId,
+            suggested_location_id = suggestedLocationId ?? Guid.CreateVersion7(),
+            handling_unit_id = handlingUnitId ?? Guid.CreateVersion7(),
+            article_id = articleId ?? Guid.CreateVersion7(),
+            qty_base = qtyBase,
+            warehouse_id = _warehouseId,
+            movement_id = movementId ?? Guid.CreateVersion7()
+        });
+
+    private static void AssertJsonEqual(JsonElement expected, JsonElement actual)
+    {
+        var options = new JsonSerializerOptions { WriteIndented = false };
+        JsonSerializer.Serialize(actual, options).ShouldBe(JsonSerializer.Serialize(expected, options));
+    }
+
+    private static void AssertDecimalString(JsonElement value, string digits)
+    {
+        value.ValueKind.ShouldBe(JsonValueKind.String);
+        value.GetString().ShouldBe(digits);
     }
 
     private HttpClient Authed()
