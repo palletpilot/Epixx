@@ -13,12 +13,10 @@ public sealed class PassThroughTests : IAsyncLifetime
     // RC change_log writes one op. Occupied-bin deviation uses the same vocabulary.
     private const string DeviationChangeOp = "upsert";
 
-    // Provisional: spec PR 5 @ 1f9a021 says stock_balance change_log.id is UUIDv5 of
-    // handling_unit_id + article_id under a wms-core namespace constant. It does not
-    // publish the namespace UUID or the name bytes. This test-only namespace and
-    // "D|D" UTF-8 name stand in until wms-core owns the constant.
+    // Test-only: matches WmsCore / spec PR 5 @ e3b2acf. The gateway treats change
+    // row id as opaque and never computes this.
     private static readonly Guid StockBalanceChangeIdNamespace =
-        Guid.Parse("019a0000-5b01-5000-8000-73746f636b62");
+        Guid.Parse("9296f5d4-6bd8-44c5-b874-be71680d1d6b");
 
     private readonly SyncGatewayApiFactory _factory = new();
     private Guid _tenantId;
@@ -443,6 +441,7 @@ public sealed class PassThroughTests : IAsyncLifetime
         var idA = StockBalanceChangeId(huId, articleA);
         var idB = StockBalanceChangeId(huId, articleB);
         idA.ShouldNotBe(idB);
+        StockBalanceChangeId(huId, articleA).ShouldBe(idA);
 
         var expectedBody = JsonSerializer.SerializeToElement(new
         {
@@ -703,7 +702,7 @@ public sealed class PassThroughTests : IAsyncLifetime
 
     private static Guid StockBalanceChangeId(Guid handlingUnitId, Guid articleId)
     {
-        var name = $"{handlingUnitId:D}|{articleId:D}";
+        var name = $"hu:{handlingUnitId:D}:{articleId:D}".ToLowerInvariant();
         return UuidV5(StockBalanceChangeIdNamespace, Encoding.UTF8.GetBytes(name));
     }
 
