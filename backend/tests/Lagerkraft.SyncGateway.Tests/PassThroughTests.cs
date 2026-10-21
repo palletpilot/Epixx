@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
@@ -10,13 +11,22 @@ namespace Lagerkraft.SyncGateway.Tests;
 [Trait("Category", "Integration")]
 public sealed class PassThroughTests : IAsyncLifetime
 {
-    // RC change_log writes one op. Occupied-bin deviation uses the same vocabulary.
+    // WmsCore PR 8 change_log writes one op. Occupied-bin deviation uses the same vocabulary.
     private const string DeviationChangeOp = "upsert";
 
-    // Test-only: matches WmsCore / spec PR 5 @ e3b2acf. The gateway treats change
-    // row id as opaque and never computes this.
+    // Test-only: matches WmsCore PR 8 @ 500117c / spec PR 5 @ e3b2acf.
+    // The gateway treats change row id as opaque and never computes this.
     private static readonly Guid StockBalanceChangeIdNamespace =
         Guid.Parse("9296f5d4-6bd8-44c5-b874-be71680d1d6b");
+
+    private static readonly Guid PinnedHuId =
+        Guid.Parse("01900000-0000-7000-8000-000000000001");
+    private static readonly Guid PinnedArticleId =
+        Guid.Parse("01900000-0000-7000-8000-000000000002");
+    private static readonly Guid PinnedStockBalanceId =
+        Guid.Parse("f4faf703-c1f7-5805-9e1f-aed95cc6831f");
+
+    private const string SnapshotSchemaM1a = "20261021083504_M1aWarehouseScopedFeed";
 
     private readonly SyncGatewayApiFactory _factory = new();
     private Guid _tenantId;
@@ -43,30 +53,41 @@ public sealed class PassThroughTests : IAsyncLifetime
     public Task DisposeAsync() => _factory.DisposeAsync().AsTask();
 
     [Fact]
+    public void StockBalanceChangeId_KnownPair_MatchesPinnedVector()
+    {
+        StockBalanceChangeId(PinnedHuId, PinnedArticleId).ShouldBe(PinnedStockBalanceId);
+    }
+
+    [Fact]
     public async Task Snapshot_StockBalance_PassesThroughWmsCoreBodyUnchanged()
     {
+        var otherHu = Guid.CreateVersion7();
+        var otherArticle = Guid.CreateVersion7();
         var expectedBody = JsonSerializer.SerializeToElement(new
         {
             feed_epoch = _factory.Wms.FeedEpoch,
             warehouse = _warehouseId,
             entity = "StockBalance",
             page = 1,
-            snapshot_schema = "20260919164855_OutboundTables",
+            seq = 17L,
+            snapshot_schema = SnapshotSchemaM1a,
             items = new object[]
             {
                 new
                 {
+                    id = PinnedStockBalanceId,
                     location_id = Guid.CreateVersion7(),
-                    article_id = Guid.CreateVersion7(),
-                    handling_unit_id = Guid.CreateVersion7(),
+                    article_id = PinnedArticleId,
+                    handling_unit_id = PinnedHuId,
                     qty_base = "12.5",
                     reserved_qty_base = "1"
                 },
                 new
                 {
+                    id = StockBalanceChangeId(otherHu, otherArticle),
                     location_id = Guid.CreateVersion7(),
-                    article_id = Guid.CreateVersion7(),
-                    handling_unit_id = Guid.CreateVersion7(),
+                    article_id = otherArticle,
+                    handling_unit_id = otherHu,
                     qty_base = "1",
                     reserved_qty_base = "0"
                 }
@@ -80,35 +101,49 @@ public sealed class PassThroughTests : IAsyncLifetime
             $"/sync/snapshot?warehouse={_warehouseId}&entity=StockBalance&page=1");
         response.EnsureSuccessStatusCode();
 
-        AssertJsonEqual(expectedBody, await response.Content.ReadFromJsonAsync<JsonElement>());
+        var actualBody = await response.Content.ReadFromJsonAsync<JsonElement>();
+        AssertJsonEqual(expectedBody, actualBody);
+        actualBody.GetProperty("seq").GetInt64().ShouldBe(17);
+        actualBody.GetProperty("items")[0].GetProperty("id").GetGuid().ShouldBe(PinnedStockBalanceId);
     }
 
     [Fact]
     public async Task Snapshot_Deviation_PassesThroughWmsCoreBodyUnchanged()
     {
+        var commandId = Guid.CreateVersion7();
         var expectedBody = JsonSerializer.SerializeToElement(new
         {
             feed_epoch = _factory.Wms.FeedEpoch,
             warehouse = _warehouseId,
             entity = "Deviation",
             page = 1,
-            snapshot_schema = "20260919164855_OutboundTables",
-            items = new[]
+            seq = 21L,
+            snapshot_schema = SnapshotSchemaM1a,
+            items = new object[]
             {
                 new
                 {
                     id = Guid.CreateVersion7(),
                     warehouse_id = _warehouseId,
                     kind = "occupied_bin",
-                    command_id = Guid.CreateVersion7(),
+                    status = "open",
+                    command_id = commandId,
                     detail = OccupiedBinDetail(
                         binLocationId: Guid.CreateVersion7(),
                         incomingHuId: Guid.CreateVersion7(),
                         existingHuId: Guid.CreateVersion7(),
-                        incomingMovementId: Guid.CreateVersion7(),
-                        displacedMovementId: Guid.CreateVersion7(),
-                        incomingQtyBase: "12.5",
-                        existingQtyBase: "1"),
+                        lpn: "LPN-INCOMING",
+                        commandId: commandId),
+                    created_at = DateTimeOffset.UtcNow
+                },
+                new
+                {
+                    id = Guid.CreateVersion7(),
+                    warehouse_id = _warehouseId,
+                    kind = "stale_command",
+                    status = "pending_approval",
+                    command_id = (Guid?)null,
+                    detail = JsonSerializer.SerializeToElement(new { }),
                     created_at = DateTimeOffset.UtcNow
                 }
             }
@@ -121,7 +156,51 @@ public sealed class PassThroughTests : IAsyncLifetime
             $"/sync/snapshot?warehouse={_warehouseId}&entity=Deviation&page=1");
         response.EnsureSuccessStatusCode();
 
-        AssertJsonEqual(expectedBody, await response.Content.ReadFromJsonAsync<JsonElement>());
+        var actualBody = await response.Content.ReadFromJsonAsync<JsonElement>();
+        AssertJsonEqual(expectedBody, actualBody);
+
+        var items = actualBody.GetProperty("items").EnumerateArray().ToArray();
+        items.Length.ShouldBe(2);
+        items[0].GetProperty("status").GetString().ShouldBe("open");
+        items[1].GetProperty("status").GetString().ShouldBe("pending_approval");
+        actualBody.GetProperty("seq").GetInt64().ShouldBe(21);
+    }
+
+    [Fact]
+    public async Task Snapshot_SeqFeedEpochWarehousePage_PassesThroughUnchanged()
+    {
+        JsonElement PageBody(int page, long seq) => JsonSerializer.SerializeToElement(new
+        {
+            feed_epoch = _factory.Wms.FeedEpoch,
+            warehouse = _warehouseId,
+            entity = "StockBalance",
+            page,
+            seq,
+            snapshot_schema = SnapshotSchemaM1a,
+            items = Array.Empty<object>()
+        });
+
+        _factory.Wms.OnGetSnapshot = (_, _, _, page) =>
+            page == 2 ? PageBody(2, 99) : PageBody(1, 42);
+
+        using var client = Authed();
+        var page1 = await client.GetAsync(
+            $"/sync/snapshot?warehouse={_warehouseId}&entity=StockBalance&page=1");
+        page1.EnsureSuccessStatusCode();
+        var body1 = await page1.Content.ReadFromJsonAsync<JsonElement>();
+        body1.GetProperty("seq").GetInt64().ShouldBe(42);
+        body1.GetProperty("feed_epoch").GetGuid().ShouldBe(_factory.Wms.FeedEpoch);
+        body1.GetProperty("warehouse").GetGuid().ShouldBe(_warehouseId);
+        body1.GetProperty("page").GetInt32().ShouldBe(1);
+
+        var page2 = await client.GetAsync(
+            $"/sync/snapshot?warehouse={_warehouseId}&entity=StockBalance&page=2");
+        page2.EnsureSuccessStatusCode();
+        var body2 = await page2.Content.ReadFromJsonAsync<JsonElement>();
+        body2.GetProperty("seq").GetInt64().ShouldBe(99);
+        body2.GetProperty("feed_epoch").GetGuid().ShouldBe(_factory.Wms.FeedEpoch);
+        body2.GetProperty("warehouse").GetGuid().ShouldBe(_warehouseId);
+        body2.GetProperty("page").GetInt32().ShouldBe(2);
     }
 
     [Fact]
@@ -133,6 +212,7 @@ public sealed class PassThroughTests : IAsyncLifetime
             warehouse = _warehouseId,
             entity = "Task",
             page = 1,
+            seq = 0L,
             items = Array.Empty<object>()
         });
 
@@ -144,6 +224,7 @@ public sealed class PassThroughTests : IAsyncLifetime
 
         var actualBody = await response.Content.ReadFromJsonAsync<JsonElement>();
         actualBody.TryGetProperty("snapshot_schema", out _).ShouldBeFalse();
+        actualBody.GetProperty("seq").GetInt64().ShouldBe(0);
     }
 
     [Fact]
@@ -155,6 +236,7 @@ public sealed class PassThroughTests : IAsyncLifetime
             warehouse = _warehouseId,
             entity = "Article",
             page = 1,
+            seq = 3L,
             snapshot_schema = "CustomSchemaValue_2024",
             items = Array.Empty<object>()
         });
@@ -167,25 +249,30 @@ public sealed class PassThroughTests : IAsyncLifetime
 
         var actualBody = await response.Content.ReadFromJsonAsync<JsonElement>();
         actualBody.GetProperty("snapshot_schema").GetString().ShouldBe("CustomSchemaValue_2024");
+        actualBody.GetProperty("seq").GetInt64().ShouldBe(3);
     }
 
     [Fact]
     public async Task Snapshot_QtyBaseDecimalString_Unchanged()
     {
+        var huId = Guid.CreateVersion7();
+        var articleId = Guid.CreateVersion7();
         var expectedBody = JsonSerializer.SerializeToElement(new
         {
             feed_epoch = _factory.Wms.FeedEpoch,
             warehouse = _warehouseId,
             entity = "StockBalance",
             page = 1,
-            snapshot_schema = "20260919164855_OutboundTables",
+            seq = 8L,
+            snapshot_schema = SnapshotSchemaM1a,
             items = new[]
             {
                 new
                 {
+                    id = StockBalanceChangeId(huId, articleId),
                     location_id = Guid.CreateVersion7(),
-                    article_id = Guid.CreateVersion7(),
-                    handling_unit_id = Guid.CreateVersion7(),
+                    article_id = articleId,
+                    handling_unit_id = huId,
                     qty_base = "12.5",
                     reserved_qty_base = "0"
                 }
@@ -200,6 +287,7 @@ public sealed class PassThroughTests : IAsyncLifetime
         response.EnsureSuccessStatusCode();
 
         var item = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0];
+        item.GetProperty("id").GetGuid().ShouldBe(StockBalanceChangeId(huId, articleId));
         AssertDecimalString(item.GetProperty("qty_base"), "12.5");
         AssertDecimalString(item.GetProperty("reserved_qty_base"), "0");
     }
@@ -207,15 +295,13 @@ public sealed class PassThroughTests : IAsyncLifetime
     [Fact]
     public async Task Changes_QtyBaseDecimalString_Unchanged()
     {
-        var huId = Guid.CreateVersion7();
-        var articleId = Guid.CreateVersion7();
         var expectedBody = JsonSerializer.SerializeToElement(new
         {
             feed_epoch = _factory.Wms.FeedEpoch,
             warehouse = _warehouseId,
             entries = new[]
             {
-                StockBalanceRow(200, Guid.CreateVersion7(), huId, Guid.CreateVersion7(), articleId, "12.5", DateTimeOffset.UtcNow, reservedQtyBase: "1")
+                StockBalanceRow(200, Guid.CreateVersion7(), PinnedHuId, Guid.CreateVersion7(), PinnedArticleId, "12.5", DateTimeOffset.UtcNow, reservedQtyBase: "1")
             }
         });
 
@@ -226,12 +312,25 @@ public sealed class PassThroughTests : IAsyncLifetime
         response.EnsureSuccessStatusCode();
 
         var entry = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("entries")[0];
-        entry.GetProperty("id").GetGuid().ShouldBe(StockBalanceChangeId(huId, articleId));
+        entry.GetProperty("id").GetGuid().ShouldBe(PinnedStockBalanceId);
         var payload = entry.GetProperty("payload");
-        payload.GetProperty("handling_unit_id").GetGuid().ShouldBe(huId);
-        payload.GetProperty("article_id").GetGuid().ShouldBe(articleId);
+        payload.GetProperty("id").GetGuid().ShouldBe(PinnedStockBalanceId);
+        payload.GetProperty("handling_unit_id").GetGuid().ShouldBe(PinnedHuId);
+        payload.GetProperty("article_id").GetGuid().ShouldBe(PinnedArticleId);
         AssertDecimalString(payload.GetProperty("qty_base"), "12.5");
         AssertDecimalString(payload.GetProperty("reserved_qty_base"), "1");
+    }
+
+    [Fact]
+    public async Task Changes_WmsCore410_PassesStatusAndBodyThrough()
+    {
+        _factory.Wms.ChangesStatus = HttpStatusCode.Gone;
+
+        using var client = Authed();
+        var response = await client.GetAsync($"/sync/changes?warehouse={_warehouseId}&since=0");
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Gone);
+        (await response.Content.ReadAsStringAsync()).ShouldBeEmpty();
     }
 
     [Fact]
@@ -344,7 +443,8 @@ public sealed class PassThroughTests : IAsyncLifetime
                 warehouse = wh,
                 entity = "StockBalance",
                 page = 1,
-                snapshot_schema = "20260919164855_OutboundTables",
+                seq = 0L,
+                snapshot_schema = SnapshotSchemaM1a,
                 items = Array.Empty<object>()
             });
         };
@@ -472,6 +572,7 @@ public sealed class PassThroughTests : IAsyncLifetime
         foreach (var entry in entries)
         {
             var payload = entry.GetProperty("payload");
+            payload.GetProperty("id").GetGuid().ShouldBe(entry.GetProperty("id").GetGuid());
             payload.GetProperty("handling_unit_id").GetGuid().ShouldBe(huId);
             payload.TryGetProperty("article_id", out var article).ShouldBeTrue();
             article.ValueKind.ShouldBe(JsonValueKind.String);
@@ -487,20 +588,23 @@ public sealed class PassThroughTests : IAsyncLifetime
     [Fact]
     public async Task Snapshot_NullArticleIdIncluded_PassesThroughAsIs()
     {
+        var huId = Guid.CreateVersion7();
         var expectedBody = JsonSerializer.SerializeToElement(new
         {
             feed_epoch = _factory.Wms.FeedEpoch,
             warehouse = _warehouseId,
             entity = "StockBalance",
             page = 1,
-            snapshot_schema = "20260919164855_OutboundTables",
+            seq = 4L,
+            snapshot_schema = SnapshotSchemaM1a,
             items = new[]
             {
                 new
                 {
+                    id = Guid.CreateVersion7(),
                     location_id = Guid.CreateVersion7(),
                     article_id = (Guid?)null,
-                    handling_unit_id = Guid.CreateVersion7(),
+                    handling_unit_id = huId,
                     qty_base = "1",
                     reserved_qty_base = "0"
                 }
@@ -520,11 +624,12 @@ public sealed class PassThroughTests : IAsyncLifetime
         AssertDecimalString(item.GetProperty("qty_base"), "1");
     }
 
-    // Occupied-bin change page is provisional (spec PR 5 / wms-core). Incoming HU
+    // Occupied-bin change page matches WmsCore PR 8 @ 500117c. Incoming HU
     // putaway into the bin; existing HU stock_balance moves to the warehouse
     // UNLOCATED system location (is_system, code UNLOCATED) and keeps qty.
-    // RC handling_unit payloads have no location. Existing HU gets no HU row.
-    // Existing outbound movement is displaced_movement_id.
+    // handling_unit payloads have no location. Existing HU gets no HU row.
+    // Deviation detail is location_id, existing_handling_unit_id,
+    // incoming_handling_unit_id, lpn, command_id.
     private JsonElement OccupiedBinChangesBody()
     {
         var commandId = Guid.CreateVersion7();
@@ -534,12 +639,11 @@ public sealed class PassThroughTests : IAsyncLifetime
         var existingArticleId = Guid.CreateVersion7();
         var binLocationId = Guid.CreateVersion7();
         var suggestedLocationId = Guid.CreateVersion7();
-        var incomingMovementId = Guid.CreateVersion7();
-        var displacedMovementId = Guid.CreateVersion7();
         var taskId = Guid.CreateVersion7();
         var deviationId = Guid.CreateVersion7();
         const string existingQtyBase = "1";
         const string incomingQtyBase = "12.5";
+        const string incomingLpn = "LPN-INCOMING";
         var now = DateTimeOffset.UtcNow;
 
         return JsonSerializer.SerializeToElement(new
@@ -548,7 +652,7 @@ public sealed class PassThroughTests : IAsyncLifetime
             warehouse = _warehouseId,
             entries = new object[]
             {
-                HandlingUnitRow(100, commandId, incomingHuId, "LPN-INCOMING", incomingArticleId, incomingQtyBase, now),
+                HandlingUnitRow(100, commandId, incomingHuId, incomingLpn, incomingArticleId, incomingQtyBase, now),
                 StockBalanceRow(101, commandId, incomingHuId, binLocationId, incomingArticleId, incomingQtyBase, now),
                 StockBalanceRow(102, commandId, existingHuId, _unlocatedLocationId, existingArticleId, existingQtyBase, now),
                 new
@@ -562,15 +666,14 @@ public sealed class PassThroughTests : IAsyncLifetime
                         id = deviationId,
                         warehouse_id = _warehouseId,
                         kind = "occupied_bin",
+                        status = "open",
                         command_id = commandId,
                         detail = OccupiedBinDetail(
                             binLocationId,
                             incomingHuId,
                             existingHuId,
-                            incomingMovementId,
-                            displacedMovementId,
-                            incomingQtyBase,
-                            existingQtyBase),
+                            incomingLpn,
+                            commandId),
                         created_at = now
                     }),
                     command_id = commandId,
@@ -678,15 +781,18 @@ public sealed class PassThroughTests : IAsyncLifetime
         Guid articleId,
         string qtyBase,
         DateTimeOffset now,
-        string reservedQtyBase = "0") =>
-        new
+        string reservedQtyBase = "0")
+    {
+        var id = StockBalanceChangeId(huId, articleId);
+        return new
         {
             seq,
             entity = "stock_balance",
-            id = StockBalanceChangeId(huId, articleId),
+            id,
             op = "upsert",
             payload = JsonSerializer.SerializeToElement(new
             {
+                id,
                 location_id = locationId,
                 article_id = articleId,
                 handling_unit_id = huId,
@@ -699,6 +805,7 @@ public sealed class PassThroughTests : IAsyncLifetime
             occurred_at = now,
             recorded_at = now
         };
+    }
 
     private static Guid StockBalanceChangeId(Guid handlingUnitId, Guid articleId)
     {
@@ -727,26 +834,20 @@ public sealed class PassThroughTests : IAsyncLifetime
         (guid[6], guid[7]) = (guid[7], guid[6]);
     }
 
-    // Provisional occupied_bin detail (wms-core / spec PR 5). Incoming putaway
-    // movement_id; existing pallet leaves via displaced_movement_id to UNLOCATED.
-    private JsonElement OccupiedBinDetail(
+    // WmsCore PR 8 occupied_bin detail (ConfirmPutawayHandler). No movement ids.
+    private static JsonElement OccupiedBinDetail(
         Guid binLocationId,
         Guid incomingHuId,
         Guid existingHuId,
-        Guid incomingMovementId,
-        Guid displacedMovementId,
-        string incomingQtyBase,
-        string existingQtyBase) =>
+        string lpn,
+        Guid commandId) =>
         JsonSerializer.SerializeToElement(new
         {
             location_id = binLocationId,
-            handling_unit_id = incomingHuId,
             existing_handling_unit_id = existingHuId,
-            movement_id = incomingMovementId,
-            displaced_movement_id = displacedMovementId,
-            warehouse_id = _warehouseId,
-            qty_base = incomingQtyBase,
-            existing_qty_base = existingQtyBase
+            incoming_handling_unit_id = incomingHuId,
+            lpn,
+            command_id = commandId
         });
 
     private void AssertOccupiedBinRows(JsonElement[] expected, JsonElement[] actual)
@@ -761,6 +862,8 @@ public sealed class PassThroughTests : IAsyncLifetime
         var incomingHu = actual.Single(e => e.GetProperty("entity").GetString() == "handling_unit");
         incomingHu.GetProperty("payload").TryGetProperty("location_id", out _).ShouldBeFalse();
         var incomingHuId = incomingHu.GetProperty("id").GetGuid();
+        var commandId = incomingHu.GetProperty("command_id").GetGuid();
+        var incomingLpn = incomingHu.GetProperty("payload").GetProperty("lpn").GetString();
 
         var balances = actual.Where(e => e.GetProperty("entity").GetString() == "stock_balance").ToArray();
         balances.Length.ShouldBe(2);
@@ -774,6 +877,8 @@ public sealed class PassThroughTests : IAsyncLifetime
         incomingBal.GetProperty("id").GetGuid().ShouldBe(StockBalanceChangeId(incomingHuId, incomingArticleId));
         existingBal.GetProperty("id").GetGuid().ShouldBe(StockBalanceChangeId(existingHuId, existingArticleId));
         incomingBal.GetProperty("id").GetGuid().ShouldNotBe(existingBal.GetProperty("id").GetGuid());
+        incomingBal.GetProperty("payload").GetProperty("id").GetGuid().ShouldBe(incomingBal.GetProperty("id").GetGuid());
+        existingBal.GetProperty("payload").GetProperty("id").GetGuid().ShouldBe(existingBal.GetProperty("id").GetGuid());
 
         incomingBal.GetProperty("payload").GetProperty("location_id").ValueKind.ShouldBe(JsonValueKind.String);
         incomingBal.GetProperty("payload").GetProperty("location_id").GetGuid().ShouldNotBe(_unlocatedLocationId);
@@ -797,12 +902,14 @@ public sealed class PassThroughTests : IAsyncLifetime
 
         var deviation = actual.Single(e => e.GetProperty("entity").GetString() == "deviation");
         deviation.GetProperty("op").GetString().ShouldBe(DeviationChangeOp);
+        deviation.GetProperty("payload").GetProperty("status").GetString().ShouldBe("open");
         var detail = deviation.GetProperty("payload").GetProperty("detail");
-        detail.GetProperty("handling_unit_id").GetGuid().ShouldBe(incomingHuId);
+        detail.GetProperty("incoming_handling_unit_id").GetGuid().ShouldBe(incomingHuId);
         detail.GetProperty("existing_handling_unit_id").GetGuid().ShouldBe(existingHuId);
-        detail.TryGetProperty("movement_id", out _).ShouldBeTrue();
-        detail.TryGetProperty("displaced_movement_id", out _).ShouldBeTrue();
-        detail.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
+        detail.GetProperty("lpn").GetString().ShouldBe(incomingLpn);
+        detail.GetProperty("command_id").GetGuid().ShouldBe(commandId);
+        detail.TryGetProperty("movement_id", out _).ShouldBeFalse();
+        detail.TryGetProperty("displaced_movement_id", out _).ShouldBeFalse();
 
         actual.Count(e => e.GetProperty("entity").GetString() == "task").ShouldBe(1);
     }

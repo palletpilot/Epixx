@@ -38,6 +38,7 @@ public sealed class FakeWmsCoreSyncClient : IWmsCoreSyncClient
     public int CommandCalls { get; private set; }
     public Func<CommandBatchPayload, WmsCommandResponse>? OnCommands { get; set; }
     public Guid FeedEpoch { get; set; } = Guid.CreateVersion7();
+    public HttpStatusCode ChangesStatus { get; set; } = HttpStatusCode.OK;
     public Func<JsonElement>? OnGetChanges { get; set; }
     public Func<Guid, Guid?, long?, JsonElement>? OnGetChangesWithParams { get; set; }
     public Func<Guid, Guid?, string?, int?, JsonElement>? OnGetSnapshot { get; set; }
@@ -59,6 +60,11 @@ public sealed class FakeWmsCoreSyncClient : IWmsCoreSyncClient
 
     public Task<WmsChangesResponse> GetChangesAsync(Guid tenantId, Guid? warehouse, long? since, CancellationToken ct)
     {
+        if (ChangesStatus == HttpStatusCode.Gone)
+        {
+            return Task.FromResult(new WmsChangesResponse(HttpStatusCode.Gone, null, null));
+        }
+
         if (OnGetChangesWithParams is not null)
         {
             var custom = OnGetChangesWithParams(tenantId, warehouse, since);
@@ -111,6 +117,7 @@ public sealed class FakeWmsCoreSyncClient : IWmsCoreSyncClient
             warehouse,
             entity = entity ?? "Task",
             page = page ?? 1,
+            seq = 0L,
             snapshot_schema = "InitialTenant",
             items = Array.Empty<object>()
         });
