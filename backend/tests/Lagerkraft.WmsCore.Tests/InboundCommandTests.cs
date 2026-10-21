@@ -234,7 +234,7 @@ public sealed class InboundCommandTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ConfirmPutaway_WrongBin_PolicyOverride()
+    public async Task ConfirmPutaway_WrongBin_WrongLocation()
     {
         var suggested = Guid.CreateVersion7();
         var other = Guid.CreateVersion7();
@@ -247,7 +247,7 @@ public sealed class InboundCommandTests : IAsyncLifetime
         var result = await Apply("ConfirmPutaway", new { task_id = taskId, location_id = other, qty = "1" });
         result.Outcome.ShouldBe("Applied");
         await using var db = OpenDb();
-        (await db.Deviations.CountAsync(d => d.CommandId == result.CommandId && d.Kind == "policy_override")).ShouldBe(1);
+        (await db.Deviations.CountAsync(d => d.CommandId == result.CommandId && d.Kind == "wrong_location")).ShouldBe(1);
         (await db.StockBalances.SingleAsync()).LocationId.ShouldBe(other);
     }
 

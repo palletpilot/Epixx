@@ -155,7 +155,7 @@ public sealed class ReceiveHandlingUnitHandler(
             OccurredAt = context.OccurredAt,
             RecordedAt = now,
             ActorUserId = context.UserId,
-            DeviceId = context.DeviceId,
+            DeviceId = context.DeviceIdOrNull,
             CommandId = command.Id,
             ArticleId = article.Id,
             ToLocationId = receiving.Id,
@@ -221,11 +221,11 @@ public sealed class ReceiveHandlingUnitHandler(
             hu.ReceivedAt,
             [new HandlingUnitContentDto(content.Id, hu.Id, article.Id, DecimalString(qty), level.Id)]);
         var huJson = JsonSerializer.Serialize(huDto, InventoryJson.Options);
-        WriteLog(db, command, context, now, "handling_unit", hu.Id, huJson);
-        WriteLog(db, command, context, now, "stock_balance", hu.Id, JsonSerializer.Serialize(
-            new StockBalanceDto(receiving.Id, article.Id, hu.Id, DecimalString(qty), "0"),
+        WriteLog(db, command, context, now, "handling_unit", hu.WarehouseId, hu.Id, huJson);
+        WriteLog(db, command, context, now, "stock_balance", hu.WarehouseId, StockBalanceId.For(hu.Id, article.Id), JsonSerializer.Serialize(
+            new StockBalanceDto(StockBalanceId.For(hu.Id, article.Id), receiving.Id, article.Id, hu.Id, DecimalString(qty), "0"),
             InventoryJson.Options));
-        WriteLog(db, command, context, now, "task", task.Id, JsonSerializer.Serialize(new
+        WriteLog(db, command, context, now, "task", task.WarehouseId, task.Id, JsonSerializer.Serialize(new
         {
             id = task.Id,
             warehouse_id = task.WarehouseId,
@@ -272,6 +272,7 @@ public sealed class ReceiveHandlingUnitHandler(
         CommandContext context,
         DateTimeOffset now,
         string entity,
+        Guid warehouseId,
         Guid id,
         string payload)
     {
@@ -283,6 +284,7 @@ public sealed class ReceiveHandlingUnitHandler(
             Payload = payload,
             CommandId = command.Id,
             Actor = context.UserId,
+            WarehouseId = warehouseId,
             OccurredAt = context.OccurredAt,
             RecordedAt = now
         });

@@ -7,6 +7,7 @@ namespace Lagerkraft.WmsCore.Tests;
 public sealed class FakePlatformTenantClient : IPlatformTenantClient
 {
     public string? ConnectionString { get; set; } = "Host=tenant-db;Database=tenant_x";
+    public Dictionary<Guid, string> Connections { get; } = new();
     public bool ThrowOnGetConnection { get; set; }
     public HttpStatusCode? GetConnectionStatus { get; set; }
     public List<(Guid TenantId, string? SchemaVersion, string MigrationStatus, string? LastError)> StatusPuts { get; } = new();
@@ -23,6 +24,11 @@ public sealed class FakePlatformTenantClient : IPlatformTenantClient
         if (GetConnectionStatus == HttpStatusCode.NotFound)
         {
             return Task.FromResult<string?>(null);
+        }
+
+        if (Connections.TryGetValue(tenantId, out var mapped))
+        {
+            return Task.FromResult<string?>(mapped);
         }
 
         return Task.FromResult(ConnectionString);

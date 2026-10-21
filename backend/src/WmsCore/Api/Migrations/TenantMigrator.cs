@@ -1,4 +1,7 @@
-﻿using Lagerkraft.WmsCore.Api.Data;
+﻿using Lagerkraft.Shared;
+using Lagerkraft.WmsCore.Api.Commands;
+using Lagerkraft.WmsCore.Api.Data;
+using Lagerkraft.WmsCore.Api.Layout;
 using Lagerkraft.WmsCore.Api.Tenancy;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +15,7 @@ public interface ITenantMigrator
 public sealed class TenantMigrator(
     IPlatformTenantClient platform,
     ITenantConnectionCache connections,
+    IClock clock,
     ILogger<TenantMigrator> log) : ITenantMigrator
 {
     public async Task MigrateTenantAsync(Guid tenantId, CancellationToken ct)
@@ -31,6 +35,12 @@ public sealed class TenantMigrator(
             await using var db = new TenantDbContext(options);
             await db.Database.MigrateAsync(ct);
 
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            await db.Database.ExecuteSqlRawAsync(
+                "SELECT pg_advisory_xact_lock({0})",
+                CommandDispatcher.LockKey(tenantId));
+            await SystemLocationEnsure.RunAsync(db, clock.UtcNow, ct);
+
             var applied = (await db.Database.GetAppliedMigrationsAsync(ct)).LastOrDefault() ?? "none";
             var meta = await db.TenantMeta.SingleOrDefaultAsync(ct);
             if (meta is null)
@@ -43,6 +53,7 @@ public sealed class TenantMigrator(
             }
 
             await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
             await platform.PutMigrationStatusAsync(tenantId, applied, "up_to_date", null, ct);
             log.LogInformation("Migrated tenant {TenantId} to {SchemaVersion}", tenantId, applied);
         }

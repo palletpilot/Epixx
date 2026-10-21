@@ -18,6 +18,7 @@ public sealed class ChangeLogRow
     public string Payload { get; set; } = "{}";
     public Guid? CommandId { get; set; }
     public Guid? Actor { get; set; }
+    public Guid? WarehouseId { get; set; }
     public DateTimeOffset OccurredAt { get; set; }
     public DateTimeOffset RecordedAt { get; set; }
 }
@@ -48,7 +49,9 @@ public sealed class ProcessedEvent
 public sealed class Deviation
 {
     public Guid Id { get; set; }
+    public Guid? WarehouseId { get; set; }
     public string Kind { get; set; } = "";
+    public string Status { get; set; } = "open";
     public Guid? CommandId { get; set; }
     public string Detail { get; set; } = "{}";
     public DateTimeOffset CreatedAt { get; set; }
@@ -186,7 +189,7 @@ public sealed class StockMovement
     public DateTimeOffset OccurredAt { get; set; }
     public DateTimeOffset RecordedAt { get; set; }
     public Guid ActorUserId { get; set; }
-    public Guid DeviceId { get; set; }
+    public Guid? DeviceId { get; set; }
     public Guid CommandId { get; set; }
     public Guid ArticleId { get; set; }
     public Guid? FromLocationId { get; set; }

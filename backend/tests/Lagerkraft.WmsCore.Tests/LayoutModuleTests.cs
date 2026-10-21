@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Lagerkraft.WmsCore.Layout.Contracts;
 using Npgsql;
 
 namespace Lagerkraft.WmsCore.Tests;
@@ -15,8 +16,7 @@ public sealed class LayoutModuleTests : IAsyncLifetime
         PropertyNameCaseInsensitive = true
     };
 
-    private static readonly string[] SystemCodes =
-        ["RECEIVING", "PICKING", "SHIPPING", "QUARANTINE", "FLOOR", "ADJUSTMENT"];
+    private static readonly string[] SystemCodes = LayoutDefaults.SystemLocationCodes;
 
     private readonly PostgresFixture _postgres;
     private readonly WmsCoreApiFactory _factory = new();

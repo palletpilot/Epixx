@@ -65,7 +65,8 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         var options = new DbContextOptionsBuilder<TenantDbContext>()
             .UseNpgsql(_cs).UseSnakeCaseNamingConvention().Options;
         await using var db = new TenantDbContext(options);
-        (await db.ChangeLog.CountAsync(c => c.CommandId == cmdId)).ShouldBe(1);
+        (await db.ChangeLog.CountAsync(c => c.CommandId == cmdId)).ShouldBe(0);
+        (await db.Outbox.CountAsync(o => o.Type == "inventory.probe.applied")).ShouldBe(1);
     }
 
     [Fact]

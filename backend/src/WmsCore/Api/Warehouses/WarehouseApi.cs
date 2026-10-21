@@ -1,6 +1,7 @@
 ﻿using Lagerkraft.Shared;
 using Lagerkraft.WmsCore.Api.Data;
 using Lagerkraft.WmsCore.Api.Internal;
+using Lagerkraft.WmsCore.Api.Layout;
 using Lagerkraft.WmsCore.Api.Tenancy;
 using Lagerkraft.WmsCore.Layout.Contracts;
 using Microsoft.EntityFrameworkCore;
@@ -52,17 +53,7 @@ public static class WarehouseApi
         });
         foreach (var code in LayoutDefaults.SystemLocationCodes)
         {
-            db.Locations.Add(new Location
-            {
-                Id = Ids.New(),
-                WarehouseId = id,
-                Type = "staging",
-                Code = code,
-                Path = code,
-                Barcode = code,
-                Status = "active",
-                IsSystem = true
-            });
+            db.Locations.Add(SystemLocations.New(id, code));
         }
 
         await db.SaveChangesAsync(ct);

@@ -35,6 +35,7 @@ public sealed record HandlingUnitDto(
     HandlingUnitContentDto[] Contents);
 
 public sealed record StockBalanceDto(
+    Guid Id,
     Guid LocationId,
     Guid ArticleId,
     Guid HandlingUnitId,

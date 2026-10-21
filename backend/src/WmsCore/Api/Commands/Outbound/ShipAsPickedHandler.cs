@@ -106,7 +106,7 @@ public sealed class ShipAsPickedHandler(
                 OccurredAt = context.OccurredAt,
                 RecordedAt = now,
                 ActorUserId = context.UserId,
-                DeviceId = context.DeviceId,
+                DeviceId = context.DeviceIdOrNull,
                 CommandId = command.Id,
                 ArticleId = balance.ArticleId,
                 FromLocationId = picking.Id,
@@ -123,8 +123,8 @@ public sealed class ShipAsPickedHandler(
                 ReferenceId = order.Id
             });
             db.Db.StockBalances.Remove(balance);
-            WriteLog(db, command, context, now, "stock_balance", payload.ToteId, "delete", JsonSerializer.Serialize(
-                new StockBalanceDto(picking.Id, balance.ArticleId, payload.ToteId, "0", "0"),
+            WriteLog(db, command, context, now, "stock_balance", order.WarehouseId, StockBalanceId.For(payload.ToteId, balance.ArticleId), "delete", JsonSerializer.Serialize(
+                new StockBalanceDto(StockBalanceId.For(payload.ToteId, balance.ArticleId), picking.Id, balance.ArticleId, payload.ToteId, "0", "0"),
                 InventoryJson.Options));
         }
 
@@ -149,7 +149,7 @@ public sealed class ShipAsPickedHandler(
                 DecimalString(l.TolerancePct),
                 l.Status)).ToArray());
         var orderJson = JsonSerializer.Serialize(dto, InventoryJson.Options);
-        WriteLog(db, command, context, now, "order", order.Id, "upsert", orderJson);
+        WriteLog(db, command, context, now, "order", order.WarehouseId, order.Id, "upsert", orderJson);
         db.Db.Outbox.Add(new OutboxRow
         {
             Id = Ids.New(),
@@ -174,6 +174,7 @@ public sealed class ShipAsPickedHandler(
         CommandContext context,
         DateTimeOffset now,
         string entity,
+        Guid warehouseId,
         Guid id,
         string op,
         string payload)
@@ -186,6 +187,7 @@ public sealed class ShipAsPickedHandler(
             Payload = payload,
             CommandId = command.Id,
             Actor = context.UserId,
+            WarehouseId = warehouseId,
             OccurredAt = context.OccurredAt,
             RecordedAt = now
         });

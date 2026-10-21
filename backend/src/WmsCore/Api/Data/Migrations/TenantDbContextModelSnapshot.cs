@@ -149,8 +149,15 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("recorded_at");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
                     b.HasKey("Seq")
                         .HasName("pk_change_log");
+
+                    b.HasIndex("WarehouseId", "Seq")
+                        .HasDatabaseName("ix_change_log_warehouse_id_seq");
 
                     b.ToTable("change_log", (string)null);
                 });
@@ -181,10 +188,24 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("kind");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("open")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
                     b.HasKey("Id")
                         .HasName("pk_deviation");
 
-                    b.ToTable("deviation", (string)null);
+                    b.ToTable("deviation", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_deviation_status", "status IN ('open', 'pending_approval', 'resolved', 'dismissed')");
+                        });
                 });
 
             modelBuilder.Entity("Lagerkraft.WmsCore.Api.Data.HandlingUnit", b =>
@@ -727,7 +748,7 @@ namespace Lagerkraft.WmsCore.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("command_id");
 
-                    b.Property<Guid>("DeviceId")
+                    b.Property<Guid?>("DeviceId")
                         .HasColumnType("uuid")
                         .HasColumnName("device_id");
 

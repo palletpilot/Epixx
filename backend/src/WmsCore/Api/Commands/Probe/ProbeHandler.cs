@@ -16,8 +16,8 @@ public sealed class ProbeValidator : AbstractValidator<ProbeCommand>
     }
 }
 
-/// <summary>Pipeline probe until C3 Task commands land. Writes change_log + outbox.</summary>
-public sealed class ProbeHandler(IClock clock, IValidator<ProbeCommand> validator) : ICommandHandler
+/// <summary>Pipeline probe. Writes outbox only; non-domain commands do not write change_log.</summary>
+public sealed class ProbeHandler(IValidator<ProbeCommand> validator) : ICommandHandler
 {
     public string Type => "Probe";
     public int CurrentVersion => 1;
@@ -46,18 +46,6 @@ public sealed class ProbeHandler(IClock clock, IValidator<ProbeCommand> validato
             id = parsed.ProbeId,
             message = parsed.Message,
             status = "done"
-        });
-
-        db.Db.ChangeLog.Add(new ChangeLogRow
-        {
-            Entity = "probe",
-            Id = parsed.ProbeId,
-            Op = "upsert",
-            Payload = payload,
-            CommandId = command.Id,
-            Actor = context.UserId,
-            OccurredAt = context.OccurredAt,
-            RecordedAt = clock.UtcNow
         });
 
         db.Db.Outbox.Add(new OutboxRow

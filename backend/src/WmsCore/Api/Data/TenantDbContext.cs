@@ -48,6 +48,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
             e.Property(x => x.Entity).HasMaxLength(128);
             e.Property(x => x.Op).HasMaxLength(32);
             e.Property(x => x.Payload).HasColumnType("jsonb");
+            e.HasIndex(x => new { x.WarehouseId, x.Seq });
         });
 
         builder.Entity<OutboxRow>(e =>
@@ -75,9 +76,15 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
 
         builder.Entity<Deviation>(e =>
         {
-            e.ToTable("deviation");
+            e.ToTable("deviation", t =>
+            {
+                t.HasCheckConstraint(
+                    "ck_deviation_status",
+                    "status IN ('open', 'pending_approval', 'resolved', 'dismissed')");
+            });
             e.HasKey(x => x.Id);
             e.Property(x => x.Kind).HasMaxLength(64);
+            e.Property(x => x.Status).HasColumnType("text").HasDefaultValue("open");
             e.Property(x => x.Detail).HasColumnType("jsonb");
         });
 
