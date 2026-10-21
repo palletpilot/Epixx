@@ -272,6 +272,7 @@ file static class TaskSideEffects
             Payload = json,
             CommandId = command.Id,
             Actor = context.UserId,
+            WarehouseId = task.WarehouseId,
             OccurredAt = context.OccurredAt,
             RecordedAt = now
         });

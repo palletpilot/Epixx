@@ -256,6 +256,7 @@ public sealed class CreateLocationBatchHandler(
             Payload = json,
             CommandId = command.Id,
             Actor = context.UserId,
+            WarehouseId = row.WarehouseId,
             OccurredAt = context.OccurredAt,
             RecordedAt = now
         });

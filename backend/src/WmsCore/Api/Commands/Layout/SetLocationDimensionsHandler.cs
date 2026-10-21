@@ -128,6 +128,7 @@ public sealed class SetLocationDimensionsHandler(
             Payload = json,
             CommandId = command.Id,
             Actor = context.UserId,
+            WarehouseId = row.WarehouseId,
             OccurredAt = context.OccurredAt,
             RecordedAt = now
         });

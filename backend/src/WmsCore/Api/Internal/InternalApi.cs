@@ -6,6 +6,7 @@ using Lagerkraft.WmsCore.Layout.Contracts;
 using Lagerkraft.WmsCore.Inventory.Contracts;
 using Lagerkraft.WmsCore.Outbound.Contracts;
 using Lagerkraft.WmsCore.Api.Data;
+using Lagerkraft.WmsCore.Api.Jobs;
 using Lagerkraft.WmsCore.Api.Migrations;
 using Lagerkraft.WmsCore.Api.Relay;
 using Lagerkraft.WmsCore.Api.Tenancy;
@@ -31,6 +32,8 @@ public static class InternalApi
         ITenantMigrator migrator,
         OutboxRelay relay,
         OutboxRetentionJob retention,
+        AssignmentSweepJob assignmentSweep,
+        LocationReservationSweepJob reservationSweep,
         ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
@@ -40,6 +43,8 @@ public static class InternalApi
             await migrator.MigrateTenantAsync(id, ct);
             relay.TrackTenant(id);
             retention.TrackTenant(id);
+            assignmentSweep.TrackTenant(id);
+            reservationSweep.TrackTenant(id);
             return Results.Ok();
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("connection not found", StringComparison.OrdinalIgnoreCase))
@@ -99,8 +104,13 @@ public static class InternalApi
         await using var db = new TenantDbContext(options);
         var meta = await db.TenantMeta.SingleOrDefaultAsync(ct);
         var feedEpoch = meta?.FeedEpoch ?? Guid.Empty;
-        var oldest = await db.ChangeLog.OrderBy(c => c.Seq).Select(c => (long?)c.Seq).FirstOrDefaultAsync(ct);
-        if (since is { } s && oldest is { } o && s < o)
+        var oldest = await db.ChangeLog.MinAsync(c => (long?)c.Seq, ct);
+        if (oldest is null)
+        {
+            oldest = await SequenceFloorAsync(db, ct);
+        }
+
+        if (since is { } s && oldest is { } o && s < o - 1)
         {
             return Results.StatusCode(StatusCodes.Status410Gone);
         }
@@ -109,6 +119,10 @@ public static class InternalApi
         if (since is { } sinceSeq)
         {
             query = query.Where(c => c.Seq > sinceSeq);
+        }
+        if (warehouse is { } wh)
+        {
+            query = query.Where(c => c.WarehouseId == wh || c.WarehouseId == null);
         }
 
         var rows = await query.Take(500).ToListAsync(ct);
@@ -125,6 +139,7 @@ public static class InternalApi
                 payload = JsonDocument.Parse(r.Payload).RootElement,
                 r.CommandId,
                 r.Actor,
+                r.WarehouseId,
                 r.OccurredAt,
                 r.RecordedAt
             })
@@ -151,6 +166,7 @@ public static class InternalApi
             .Options;
         await using var db = new TenantDbContext(options);
         var meta = await db.TenantMeta.SingleOrDefaultAsync(ct);
+        var seq = await db.ChangeLog.MaxAsync(c => (long?)c.Seq, ct) ?? 0;
         var pageSize = 100;
         var pageNum = page ?? 1;
         var skip = (pageNum - 1) * pageSize;
@@ -247,12 +263,33 @@ public static class InternalApi
 
             var rows = await q.Skip(skip).Take(pageSize).ToListAsync(ct);
             items = rows.Select(b => new StockBalanceDto(
+                StockBalanceId.For(b.HandlingUnitId, b.ArticleId),
                 b.LocationId,
                 b.ArticleId,
                 b.HandlingUnitId,
                 DecimalString(b.QtyBase),
                 DecimalString(b.ReservedQtyBase))).ToList();
             kind = "StockBalance";
+        }
+        else if (kind.Equals("deviation", StringComparison.OrdinalIgnoreCase))
+        {
+            var q = db.Deviations.AsNoTracking().AsQueryable();
+            if (warehouse is { } devWh)
+            {
+                q = q.Where(d => d.WarehouseId == devWh || d.WarehouseId == null);
+            }
+
+            var rows = await q.OrderBy(d => d.CreatedAt).Skip(skip).Take(pageSize).ToListAsync(ct);
+            items = rows.Select(d => new
+            {
+                d.Id,
+                d.WarehouseId,
+                d.Kind,
+                d.CommandId,
+                detail = JsonDocument.Parse(d.Detail).RootElement,
+                d.CreatedAt
+            }).ToList();
+            kind = "Deviation";
         }
         else if (kind.Equals("Order", StringComparison.OrdinalIgnoreCase))
         {
@@ -349,9 +386,25 @@ public static class InternalApi
             warehouse,
             entity = kind,
             page = pageNum,
+            seq,
             snapshot_schema = SchemaVersions.RequiredFromAssembly(),
             items
         });
+    }
+
+    private static async Task<long> SequenceFloorAsync(TenantDbContext db, CancellationToken ct)
+    {
+        var state = await db.Database
+            .SqlQueryRaw<ChangeLogSeqState>(
+                """SELECT last_value AS "last_value", is_called AS "is_called" FROM change_log_seq""")
+            .FirstAsync(ct);
+        return state.is_called ? state.last_value + 1 : state.last_value;
+    }
+
+    private sealed class ChangeLogSeqState
+    {
+        public long last_value { get; set; }
+        public bool is_called { get; set; }
     }
 
     private static IResult GetCompat(CommandRegistry registry, IConfiguration config)

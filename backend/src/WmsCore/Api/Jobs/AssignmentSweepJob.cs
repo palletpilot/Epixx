@@ -10,6 +10,8 @@ public sealed class AssignmentSweepJob : PeriodicJob
 {
     private readonly ITenantConnectionCache _connections;
     private readonly IClock _clock;
+    private readonly List<Guid> _tenants = [];
+    private readonly object _gate = new();
 
     public AssignmentSweepJob(
         ITenantConnectionCache connections,
@@ -22,9 +24,36 @@ public sealed class AssignmentSweepJob : PeriodicJob
 
     protected override TimeSpan Interval => TimeSpan.FromSeconds(60);
 
-    protected override Task RunOnceAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public void TrackTenant(Guid tenantId)
+    {
+        lock (_gate)
+        {
+            if (!_tenants.Contains(tenantId))
+            {
+                _tenants.Add(tenantId);
+            }
+        }
+    }
 
-    public Task SweepTenantAsync(Guid tenantId, CancellationToken ct) => SweepAsync(tenantId, ct);
+    protected override async Task RunOnceAsync(CancellationToken cancellationToken)
+    {
+        Guid[] tenants;
+        lock (_gate)
+        {
+            tenants = _tenants.ToArray();
+        }
+
+        foreach (var tenantId in tenants)
+        {
+            await SweepAsync(tenantId, cancellationToken);
+        }
+    }
+
+    public Task SweepTenantAsync(Guid tenantId, CancellationToken ct)
+    {
+        TrackTenant(tenantId);
+        return SweepAsync(tenantId, ct);
+    }
 
     private async Task SweepAsync(Guid tenantId, CancellationToken ct)
     {
@@ -66,6 +95,7 @@ public sealed class AssignmentSweepJob : PeriodicJob
                 Id = task.Id,
                 Op = "upsert",
                 Payload = json,
+                WarehouseId = task.WarehouseId,
                 OccurredAt = now,
                 RecordedAt = now
             });

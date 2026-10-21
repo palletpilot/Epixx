@@ -176,6 +176,7 @@ public static class OrderApi
             Id = order.Id,
             Op = "upsert",
             Payload = JsonSerializer.Serialize(dto, Json),
+            WarehouseId = order.WarehouseId,
             OccurredAt = now,
             RecordedAt = now
         });
@@ -197,6 +198,7 @@ public static class OrderApi
                     suggested_location_id = task.SuggestedLocationId,
                     created_at = task.CreatedAt
                 }, Json),
+                WarehouseId = task.WarehouseId,
                 OccurredAt = now,
                 RecordedAt = now
             });

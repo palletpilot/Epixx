@@ -60,8 +60,12 @@ static async Task<int> RunCliAsync(string[] args)
         await migrator.MigrateTenantAsync(tenant.Value, ct);
         var relaySvc = host.Services.GetRequiredService<OutboxRelay>();
         var retentionSvc = host.Services.GetRequiredService<OutboxRetentionJob>();
+        var assignmentSweep = host.Services.GetRequiredService<AssignmentSweepJob>();
+        var reservationSweep = host.Services.GetRequiredService<LocationReservationSweepJob>();
         relaySvc.TrackTenant(tenant.Value);
         retentionSvc.TrackTenant(tenant.Value);
+        assignmentSweep.TrackTenant(tenant.Value);
+        reservationSweep.TrackTenant(tenant.Value);
     });
     root.Subcommands.Add(migrateCommand);
 
@@ -151,6 +155,8 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddSingleton<CommandDispatcher>();
     builder.Services.AddSingleton<AssignmentSweepJob>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<AssignmentSweepJob>());
+    builder.Services.AddSingleton<LocationReservationSweepJob>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<LocationReservationSweepJob>());
 
     var natsUrl = builder.Configuration.GetConnectionString("nats")
         ?? builder.Configuration["NATS_URL"];

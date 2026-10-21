@@ -181,7 +181,7 @@ public sealed class ConfirmPickHandler(
             OccurredAt = context.OccurredAt,
             RecordedAt = now,
             ActorUserId = context.UserId,
-            DeviceId = context.DeviceId,
+            DeviceId = context.DeviceId == Guid.Empty ? null : context.DeviceId,
             CommandId = command.Id,
             ArticleId = articleId,
             FromLocationId = fromId,
@@ -247,11 +247,11 @@ public sealed class ConfirmPickHandler(
                 toteContents.Select(c => new HandlingUnitContentDto(
                     c.Id, c.HandlingUnitId, c.ArticleId, DecimalString(c.QtyBase), c.PackagingLevelId)).ToArray()),
             InventoryJson.Options);
-        WriteLog(db, command, context, now, "handling_unit", tote.Id, toteJson);
-        WriteLog(db, command, context, now, "stock_balance", tote.Id, JsonSerializer.Serialize(
-            new StockBalanceDto(picking.Id, articleId, tote.Id, DecimalString(destBal.QtyBase), DecimalString(destBal.ReservedQtyBase)),
+        WriteLog(db, command, context, now, "handling_unit", task.WarehouseId, tote.Id, toteJson);
+        WriteLog(db, command, context, now, "stock_balance", task.WarehouseId, StockBalanceId.For(tote.Id, articleId), JsonSerializer.Serialize(
+            new StockBalanceDto(StockBalanceId.For(tote.Id, articleId), picking.Id, articleId, tote.Id, DecimalString(destBal.QtyBase), DecimalString(destBal.ReservedQtyBase)),
             InventoryJson.Options));
-        WriteLog(db, command, context, now, "task", task.Id, JsonSerializer.Serialize(new
+        WriteLog(db, command, context, now, "task", task.WarehouseId, task.Id, JsonSerializer.Serialize(new
         {
             id = task.Id,
             warehouse_id = task.WarehouseId,
@@ -262,7 +262,7 @@ public sealed class ConfirmPickHandler(
             suggested_location_id = task.SuggestedLocationId,
             created_at = task.CreatedAt
         }, InventoryJson.Options));
-        WriteLog(db, command, context, now, "order", orderMatch.Order.Id, JsonSerializer.Serialize(
+        WriteLog(db, command, context, now, "order", orderMatch.Order.WarehouseId, orderMatch.Order.Id, JsonSerializer.Serialize(
             new OrderDto(
                 orderMatch.Order.Id,
                 orderMatch.Order.WarehouseId,
@@ -337,6 +337,7 @@ public sealed class ConfirmPickHandler(
         CommandContext context,
         DateTimeOffset now,
         string entity,
+        Guid warehouseId,
         Guid id,
         string payload)
     {
@@ -348,6 +349,7 @@ public sealed class ConfirmPickHandler(
             Payload = payload,
             CommandId = command.Id,
             Actor = context.UserId,
+            WarehouseId = warehouseId,
             OccurredAt = context.OccurredAt,
             RecordedAt = now
         });

@@ -58,7 +58,8 @@ public sealed class ConfirmPutawayHandler(
         }
 
         var dest = await db.Db.Locations.FirstOrDefaultAsync(l => l.Id == payload.LocationId, ct);
-        if (dest is null || dest.WarehouseId != task.WarehouseId || dest.Status != "active")
+        if (dest is null || dest.WarehouseId != task.WarehouseId || dest.Status != "active"
+            || dest.Code == "UNLOCATED")
         {
             return new CommandResult(command.Id, CommandOutcome.Rejected, "unknown_location", "location not found");
         }
@@ -99,7 +100,7 @@ public sealed class ConfirmPutawayHandler(
             OccurredAt = context.OccurredAt,
             RecordedAt = now,
             ActorUserId = context.UserId,
-            DeviceId = context.DeviceId,
+            DeviceId = context.DeviceId == Guid.Empty ? null : context.DeviceId,
             CommandId = command.Id,
             ArticleId = content.ArticleId,
             FromLocationId = fromId,
@@ -142,31 +143,124 @@ public sealed class ConfirmPutawayHandler(
             destBal.QtyBase += qty;
         }
 
+        var occupantBalances = await db.Db.StockBalances
+            .Where(b => b.LocationId == dest.Id && b.HandlingUnitId != huId && b.QtyBase > 0)
+            .ToListAsync(ct);
+        Deviation? deviation = null;
+        if (occupantBalances.Count > 0)
+        {
+            var unlocated = await db.Db.Locations.FirstOrDefaultAsync(
+                l => l.WarehouseId == task.WarehouseId && l.IsSystem && l.Code == "UNLOCATED", ct);
+            if (unlocated is null)
+            {
+                return new CommandResult(command.Id, CommandOutcome.Rejected, "unknown_location", "UNLOCATED not found");
+            }
+
+            foreach (var occupant in occupantBalances)
+            {
+                var occupantContent = await db.Db.HandlingUnitContents.FirstOrDefaultAsync(
+                    c => c.HandlingUnitId == occupant.HandlingUnitId && c.ArticleId == occupant.ArticleId, ct);
+                var occupantArticle = await db.Db.Articles.AsNoTracking()
+                    .FirstAsync(a => a.Id == occupant.ArticleId, ct);
+                var occupantUom = await db.Db.UnitsOfMeasure.AsNoTracking()
+                    .FirstAsync(u => u.Id == occupantArticle.BaseUomId, ct);
+                db.Db.StockMovements.Add(new StockMovement
+                {
+                    Id = Ids.New(),
+                    OccurredAt = context.OccurredAt,
+                    RecordedAt = now,
+                    ActorUserId = context.UserId,
+                    DeviceId = context.DeviceId == Guid.Empty ? null : context.DeviceId,
+                    CommandId = command.Id,
+                    ArticleId = occupant.ArticleId,
+                    FromLocationId = dest.Id,
+                    ToLocationId = unlocated.Id,
+                    FromHandlingUnitId = occupant.HandlingUnitId,
+                    ToHandlingUnitId = occupant.HandlingUnitId,
+                    QtyBase = occupant.QtyBase,
+                    BaseUomCode = occupantUom.Code,
+                    EnteredQty = occupant.QtyBase,
+                    EnteredLevelId = occupantContent?.PackagingLevelId,
+                    EnteredUomId = occupantArticle.BaseUomId,
+                    Reason = "displaced",
+                    ReferenceType = "task",
+                    ReferenceId = task.Id
+                });
+
+                var unlocatedBal = await db.Db.StockBalances.FindAsync(
+                    [unlocated.Id, occupant.ArticleId, occupant.HandlingUnitId], ct);
+                if (unlocatedBal is null)
+                {
+                    unlocatedBal = new StockBalance
+                    {
+                        LocationId = unlocated.Id,
+                        ArticleId = occupant.ArticleId,
+                        HandlingUnitId = occupant.HandlingUnitId,
+                        QtyBase = 0,
+                        ReservedQtyBase = 0
+                    };
+                    db.Db.StockBalances.Add(unlocatedBal);
+                }
+
+                unlocatedBal.QtyBase += occupant.QtyBase;
+                db.Db.StockBalances.Remove(occupant);
+                WriteLog(
+                    db, command, context, now, "stock_balance", task.WarehouseId,
+                    StockBalanceId.For(occupant.HandlingUnitId, occupant.ArticleId),
+                    JsonSerializer.Serialize(
+                        new StockBalanceDto(
+                            StockBalanceId.For(occupant.HandlingUnitId, occupant.ArticleId),
+                            unlocated.Id,
+                            occupant.ArticleId,
+                            occupant.HandlingUnitId,
+                            DecimalString(unlocatedBal.QtyBase),
+                            DecimalString(unlocatedBal.ReservedQtyBase)),
+                        InventoryJson.Options));
+            }
+
+            var existingHuId = occupantBalances[0].HandlingUnitId;
+            deviation = new Deviation
+            {
+                Id = Ids.New(),
+                WarehouseId = task.WarehouseId,
+                Kind = "occupied_bin",
+                CommandId = command.Id,
+                Detail = JsonSerializer.Serialize(new
+                {
+                    location_id = dest.Id,
+                    existing_handling_unit_id = existingHuId,
+                    incoming_handling_unit_id = huId,
+                    lpn = hu.Lpn,
+                    command_id = command.Id
+                }, InventoryJson.Options),
+                CreatedAt = now
+            };
+            db.Db.Deviations.Add(deviation);
+        }
+        else if (task.SuggestedLocationId is { } suggested && suggested != dest.Id)
+        {
+            deviation = new Deviation
+            {
+                Id = Ids.New(),
+                WarehouseId = task.WarehouseId,
+                Kind = "wrong_location",
+                CommandId = command.Id,
+                Detail = JsonSerializer.Serialize(new
+                {
+                    suggested_location_id = suggested,
+                    location_id = dest.Id
+                }, InventoryJson.Options),
+                CreatedAt = now
+            };
+            db.Db.Deviations.Add(deviation);
+        }
+
         task.Status = "done";
         line.Status = "done";
         line.PickedQtyBase = qty;
 
         var reservations = await db.Db.LocationReservations.Where(r => r.TaskId == task.Id).ToListAsync(ct);
         db.Db.LocationReservations.RemoveRange(reservations);
-
-        if (task.SuggestedLocationId is { } suggested && suggested != dest.Id)
-        {
-            db.Db.Deviations.Add(new Deviation
-            {
-                Id = Ids.New(),
-                Kind = "policy_override",
-                CommandId = command.Id,
-                Detail = JsonSerializer.Serialize(new
-                {
-                    location_id = dest.Id,
-                    suggested_location_id = suggested,
-                    handling_unit_id = huId,
-                    article_id = content.ArticleId,
-                    qty_base = DecimalString(qty)
-                }, InventoryJson.Options),
-                CreatedAt = now
-            });
-        }
 
         var contents = await db.Db.HandlingUnitContents.Where(c => c.HandlingUnitId == hu.Id).ToListAsync(ct);
         var huJson = JsonSerializer.Serialize(
@@ -179,11 +273,18 @@ public sealed class ConfirmPutawayHandler(
                 contents.Select(c => new HandlingUnitContentDto(
                     c.Id, c.HandlingUnitId, c.ArticleId, DecimalString(c.QtyBase), c.PackagingLevelId)).ToArray()),
             InventoryJson.Options);
-        WriteLog(db, command, context, now, "handling_unit", hu.Id, huJson);
-        WriteLog(db, command, context, now, "stock_balance", hu.Id, JsonSerializer.Serialize(
-            new StockBalanceDto(dest.Id, content.ArticleId, huId, DecimalString(qty), "0"),
+        WriteLog(db, command, context, now, "handling_unit", task.WarehouseId, hu.Id, huJson);
+        var destQty = dest.Id == fromId ? source.QtyBase : qty;
+        if (dest.Id != fromId)
+        {
+            var destBalNow = await db.Db.StockBalances.FindAsync([dest.Id, content.ArticleId, huId], ct);
+            destQty = destBalNow?.QtyBase ?? qty;
+        }
+
+        WriteLog(db, command, context, now, "stock_balance", task.WarehouseId, StockBalanceId.For(huId, content.ArticleId), JsonSerializer.Serialize(
+            new StockBalanceDto(StockBalanceId.For(huId, content.ArticleId), dest.Id, content.ArticleId, huId, DecimalString(destQty), "0"),
             InventoryJson.Options));
-        WriteLog(db, command, context, now, "task", task.Id, JsonSerializer.Serialize(new
+        WriteLog(db, command, context, now, "task", task.WarehouseId, task.Id, JsonSerializer.Serialize(new
         {
             id = task.Id,
             warehouse_id = task.WarehouseId,
@@ -194,6 +295,36 @@ public sealed class ConfirmPutawayHandler(
             suggested_location_id = task.SuggestedLocationId,
             created_at = task.CreatedAt
         }, InventoryJson.Options));
+
+        if (deviation is not null)
+        {
+            var deviationPayload = JsonSerializer.Serialize(new
+            {
+                id = deviation.Id,
+                warehouse_id = deviation.WarehouseId,
+                kind = deviation.Kind,
+                command_id = deviation.CommandId,
+                detail = JsonDocument.Parse(deviation.Detail).RootElement,
+                created_at = deviation.CreatedAt
+            }, InventoryJson.Options);
+            WriteLog(db, command, context, now, "deviation", task.WarehouseId, deviation.Id, deviationPayload);
+            db.Db.Outbox.Add(new OutboxRow
+            {
+                Id = Ids.New(),
+                Type = "inventory.deviation.reported",
+                Payload = JsonSerializer.Serialize(new
+                {
+                    id = deviation.Id,
+                    warehouse_id = deviation.WarehouseId,
+                    kind = deviation.Kind,
+                    command_id = deviation.CommandId,
+                    detail = JsonDocument.Parse(deviation.Detail).RootElement,
+                    created_at = deviation.CreatedAt
+                }, InventoryJson.Options),
+                OccurredAt = context.OccurredAt
+            });
+        }
+
         db.Db.Outbox.Add(new OutboxRow
         {
             Id = Ids.New(),
@@ -211,6 +342,7 @@ public sealed class ConfirmPutawayHandler(
         CommandContext context,
         DateTimeOffset now,
         string entity,
+        Guid warehouseId,
         Guid id,
         string payload)
     {
@@ -222,6 +354,7 @@ public sealed class ConfirmPutawayHandler(
             Payload = payload,
             CommandId = command.Id,
             Actor = context.UserId,
+            WarehouseId = warehouseId,
             OccurredAt = context.OccurredAt,
             RecordedAt = now
         });
