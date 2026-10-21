@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { deviationLocationId, type DeviationRow } from "../client/syncClient";
+import { deviationDetailParts, deviationLocationId, type DeviationRow } from "../client/syncClient";
 import { useOfficeLists } from "../composables/useOfficeLists";
 import { useTableCursor } from "../composables/useTableCursor";
 
@@ -49,16 +49,7 @@ function kindLabel(kind: string): string {
 }
 
 function formatDetail(row: DeviationRow): string {
-  return [
-    row.detail.location_id,
-    row.detail.suggested_location_id,
-    row.detail.actual_location_id,
-    row.detail.existing_handling_unit_id,
-    row.detail.incoming_handling_unit_id,
-    row.detail.lpn,
-  ]
-    .filter((part): part is string => Boolean(part))
-    .join(" · ");
+  return deviationDetailParts(row).join(" · ");
 }
 
 function formatDate(value: string): string {

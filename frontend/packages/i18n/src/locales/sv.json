@@ -121,6 +121,7 @@
   "stock": {
     "title": "Saldo",
     "location": "Plats",
+    "noLocation": "Ingen plats",
     "huSku": "HU / SKU",
     "quantity": "Antal",
     "reserved": "Reserverat",

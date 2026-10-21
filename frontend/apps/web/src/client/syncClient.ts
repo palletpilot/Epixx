@@ -1,5 +1,5 @@
 export type StockRow = {
-  location_id: string;
+  location_id: string | null;
   article_id: string;
   handling_unit_id: string;
   qty_base: string;
@@ -12,6 +12,8 @@ export type DeviationDetail = {
   suggested_location_id?: string;
   existing_handling_unit_id?: string;
   incoming_handling_unit_id?: string;
+  existing_movement_id?: string;
+  incoming_movement_id?: string;
   lpn?: string;
 };
 
@@ -90,6 +92,19 @@ export function formatDecimalSvSe(value: string): string {
   const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, "\u00A0");
   const body = fraction === undefined ? grouped : `${grouped},${fraction}`;
   return negative ? `\u2212${body}` : body;
+}
+
+export function compareStockLocations(a: string | null, b: string | null): number {
+  if (!a && !b) {
+    return 0;
+  }
+  if (!a) {
+    return 1;
+  }
+  if (!b) {
+    return -1;
+  }
+  return a.localeCompare(b);
 }
 
 export function compareDecimalStrings(a: string, b: string): number {
@@ -199,6 +214,17 @@ export function deviationLocationId(row: DeviationRow): string {
   return row.detail.location_id ?? "";
 }
 
+export function deviationDetailParts(row: DeviationRow): string[] {
+  return [
+    row.detail.location_id,
+    row.detail.suggested_location_id,
+    row.detail.actual_location_id,
+    row.detail.existing_handling_unit_id,
+    row.detail.incoming_handling_unit_id,
+    row.detail.lpn,
+  ].filter((part): part is string => Boolean(part));
+}
+
 function applyDeviationRow(deviations: Map<string, DeviationRow>, entry: ChangeRow): void {
   if (entry.op === "delete") {
     deviations.delete(entry.id);
@@ -255,7 +281,7 @@ function asStock(value: unknown, fallbackHuId: string): StockRow | null {
     return null;
   }
   return {
-    location_id: String(raw.location_id ?? ""),
+    location_id: asStockLocationId(raw.location_id),
     article_id: String(raw.article_id ?? ""),
     handling_unit_id: handlingUnitId,
     qty_base: qty,
@@ -285,6 +311,8 @@ function asDeviation(value: unknown, fallbackId: string): DeviationRow | null {
       suggested_location_id: optionalString(detail.suggested_location_id),
       existing_handling_unit_id: optionalString(detail.existing_handling_unit_id),
       incoming_handling_unit_id: optionalString(detail.incoming_handling_unit_id),
+      existing_movement_id: optionalString(detail.existing_movement_id),
+      incoming_movement_id: optionalString(detail.incoming_movement_id),
       lpn: optionalString(detail.lpn),
     },
     created_at: String(raw.created_at ?? ""),
@@ -293,6 +321,10 @@ function asDeviation(value: unknown, fallbackId: string): DeviationRow | null {
 
 function optionalString(value: unknown): string | undefined {
   return value == null ? undefined : String(value);
+}
+
+function asStockLocationId(value: unknown): string | null {
+  return typeof value === "string" && value !== "" ? value : null;
 }
 
 function toStockMap(rows: StockRow[]): Map<string, StockRow> {

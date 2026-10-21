@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { compareDecimalStrings, formatDecimalSvSe } from "../client/syncClient";
+import { compareDecimalStrings, compareStockLocations, formatDecimalSvSe } from "../client/syncClient";
 import { useOfficeLists } from "../composables/useOfficeLists";
 import { useTableCursor } from "../composables/useTableCursor";
 
@@ -15,13 +15,13 @@ const rows = computed(() => {
   const next = query
     ? stockRows.value.filter(
         (row) =>
-          row.location_id.toLowerCase().includes(query) ||
+          locationLabel(row.location_id).toLowerCase().includes(query) ||
           row.handling_unit_id.toLowerCase().includes(query) ||
           row.article_id.toLowerCase().includes(query),
       )
     : [...stockRows.value];
   return next.sort((a, b) => {
-    const location = a.location_id.localeCompare(b.location_id);
+    const location = compareStockLocations(a.location_id, b.location_id);
     if (location !== 0) {
       return location;
     }
@@ -34,6 +34,10 @@ const rows = computed(() => {
 });
 
 const { cursor, selected, onKeydown } = useTableCursor(computed(() => rows.value.length));
+
+function locationLabel(locationId: string | null): string {
+  return locationId ?? t("stock.noLocation");
+}
 
 function reservedHint(value: string): string {
   if (value === "0" || value === "0.0" || /^0(\.0+)?$/.test(value)) {
@@ -106,7 +110,7 @@ onUnmounted(() => {
                 'font-medium': selected === index,
               }"
             >
-              <td class="sticky left-0 z-10 bg-background px-2 py-1">{{ row.location_id }}</td>
+              <td class="sticky left-0 z-10 bg-background px-2 py-1">{{ locationLabel(row.location_id) }}</td>
               <td class="sticky left-28 z-10 bg-background px-2 py-1">
                 {{ row.handling_unit_id }} / {{ row.article_id }}
               </td>

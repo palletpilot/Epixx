@@ -121,6 +121,7 @@
   "stock": {
     "title": "Stock",
     "location": "Location",
+    "noLocation": "No location",
     "huSku": "HU / SKU",
     "quantity": "Quantity",
     "reserved": "Reserved",

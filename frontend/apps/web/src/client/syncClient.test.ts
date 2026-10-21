@@ -3,8 +3,10 @@ import {
   applyChanges,
   asDecimalString,
   changeMatchesSelectedWarehouse,
-  deviationLocationId,
   compareDecimalStrings,
+  compareStockLocations,
+  deviationDetailParts,
+  deviationLocationId,
   emptyLists,
   formatDecimalSvSe,
   listsFromStockSnapshot,
@@ -144,31 +146,83 @@ describe("applyChanges", () => {
     expect(next.deviations.size).toBe(0);
   });
 
-  it("applies occupied-bin as stock_balance upsert plus deviation upsert under one command_id", () => {
-    const start = listsFromStockSnapshot({
-      items: [stockSnapshotItem({ location_id: "loc-old", qty_base: "4", reserved_qty_base: "0" })],
-    });
+  it("applies occupied-bin as two HU upserts, two stock_balance upserts, deviation upsert, and task upsert under one command_id", () => {
+    const incomingHu = huId;
+    const existingHu = "hu-old";
+    const binId = "loc-bin";
+    const existingQty = "4.250000";
+    const incomingQty = "2.000000";
     const commandId = "cmd-occ-1";
+    const start = listsFromStockSnapshot({
+      items: [
+        stockSnapshotItem({
+          location_id: "loc-from",
+          handling_unit_id: incomingHu,
+          qty_base: incomingQty,
+          reserved_qty_base: "0",
+        }),
+        stockSnapshotItem({
+          location_id: binId,
+          handling_unit_id: existingHu,
+          article_id: "art-old",
+          qty_base: existingQty,
+          reserved_qty_base: "0",
+        }),
+      ],
+    });
     const next = applyChanges(
       start,
       [
         change({
           seq: 10,
+          entity: "handling_unit",
+          id: incomingHu,
+          op: "upsert",
+          command_id: commandId,
+          warehouse_id: warehouseId,
+          payload: { id: incomingHu, warehouse_id: warehouseId, lpn: "LPN-in" },
+        }),
+        change({
+          seq: 11,
+          entity: "handling_unit",
+          id: existingHu,
+          op: "upsert",
+          command_id: commandId,
+          warehouse_id: warehouseId,
+          payload: { id: existingHu, warehouse_id: warehouseId, lpn: "LPN-old" },
+        }),
+        change({
+          seq: 12,
           entity: "stock_balance",
-          id: huId,
+          id: incomingHu,
           op: "upsert",
           command_id: commandId,
           warehouse_id: warehouseId,
           payload: {
-            location_id: "loc-new",
+            location_id: binId,
             article_id: "art-1",
-            handling_unit_id: huId,
-            qty_base: "4",
+            handling_unit_id: incomingHu,
+            qty_base: incomingQty,
             reserved_qty_base: "0",
           },
         }),
         change({
-          seq: 11,
+          seq: 13,
+          entity: "stock_balance",
+          id: existingHu,
+          op: "upsert",
+          command_id: commandId,
+          warehouse_id: warehouseId,
+          payload: {
+            location_id: null,
+            article_id: "art-old",
+            handling_unit_id: existingHu,
+            qty_base: existingQty,
+            reserved_qty_base: "0",
+          },
+        }),
+        change({
+          seq: 14,
           entity: "deviation",
           id: "d-new",
           op: "upsert",
@@ -179,27 +233,19 @@ describe("applyChanges", () => {
             id: "d-new",
             kind: "occupied_bin",
             command_id: commandId,
-            movement_id: "skip-me",
             detail: {
-              location_id: "loc-new",
-              existing_handling_unit_id: "hu-old",
-              incoming_handling_unit_id: huId,
-              lpn: "LPN-9",
+              location_id: binId,
+              existing_handling_unit_id: existingHu,
+              incoming_handling_unit_id: incomingHu,
+              existing_movement_id: "mov-old",
+              incoming_movement_id: "mov-in",
+              lpn: "LPN-in",
             },
             created_at: "2026-09-19T08:00:01.000Z",
           },
         }),
         change({
-          seq: 12,
-          entity: "handling_unit",
-          id: huId,
-          op: "upsert",
-          command_id: commandId,
-          warehouse_id: warehouseId,
-          payload: { id: huId, warehouse_id: warehouseId, lpn: "LPN-9" },
-        }),
-        change({
-          seq: 13,
+          seq: 15,
           entity: "task",
           id: "task-1",
           op: "upsert",
@@ -211,25 +257,49 @@ describe("applyChanges", () => {
       warehouseId,
     );
 
-    expect(next.stock.size).toBe(1);
-    expect(next.stock.get(huId)).toMatchObject({
-      location_id: "loc-new",
-      handling_unit_id: huId,
-      qty_base: "4",
+    const inBin = [...next.stock.values()].filter((row) => row.location_id === binId);
+    expect(inBin.map((row) => row.handling_unit_id)).toEqual([incomingHu]);
+    expect(next.stock.get(incomingHu)).toMatchObject({
+      location_id: binId,
+      handling_unit_id: incomingHu,
+      qty_base: incomingQty,
     });
+    expect(next.stock.has(existingHu)).toBe(true);
+    expect(next.stock.get(existingHu)).toMatchObject({
+      location_id: null,
+      handling_unit_id: existingHu,
+      qty_base: existingQty,
+    });
+    expect(next.stock.get(existingHu)?.qty_base).toBe(existingQty);
+    expect(compareStockLocations(binId, next.stock.get(existingHu)?.location_id ?? null)).toBeLessThan(0);
+
+    const deviation = next.deviations.get("d-new");
     expect(next.deviations.size).toBe(1);
-    expect(next.deviations.get("d-new")).toMatchObject({
+    expect(deviation).toMatchObject({
       kind: "occupied_bin",
       command_id: commandId,
       warehouse_id: warehouseId,
       detail: {
-        location_id: "loc-new",
-        existing_handling_unit_id: "hu-old",
-        incoming_handling_unit_id: huId,
-        lpn: "LPN-9",
+        location_id: binId,
+        existing_handling_unit_id: existingHu,
+        incoming_handling_unit_id: incomingHu,
+        existing_movement_id: "mov-old",
+        incoming_movement_id: "mov-in",
+        lpn: "LPN-in",
       },
     });
-    expect(next.deviations.get("d-new")).not.toHaveProperty("movement_id");
+    expect(deviation).not.toHaveProperty("movement_id");
+    const visible = deviationDetailParts(deviation!);
+    expect(visible).toEqual(expect.arrayContaining([existingHu, incomingHu]));
+    expect(visible.join(" ")).not.toContain("mov-old");
+    expect(visible.join(" ")).not.toContain("mov-in");
+  });
+
+  it("sorts a missing stock location after real locations", () => {
+    expect(compareStockLocations("loc-z", null)).toBeLessThan(0);
+    expect(compareStockLocations(null, "loc-a")).toBeGreaterThan(0);
+    expect(compareStockLocations(null, "")).toBe(0);
+    expect(compareStockLocations("loc-a", "loc-b")).toBeLessThan(0);
   });
 
   it("applies a wrong_location deviation with suggested and actual location ids", () => {
