@@ -17,6 +17,8 @@ import {
   mapDeviationSnapshot,
   mapLocationSnapshot,
   mapStockSnapshot,
+  SnapshotContractError,
+  SNAPSHOT_PAGE_SIZE,
   SyncLoadError,
   type ChangeRow,
   type LocationRow,
@@ -39,6 +41,14 @@ function stockSnapshotItem(overrides: Partial<StockRow> = {}): StockRow {
   };
 }
 
+function pageOf(url: string): number {
+  return Number(new URL(url).searchParams.get("page") ?? "1");
+}
+
+function sinceOf(url: string): number {
+  return Number(new URL(url).searchParams.get("since"));
+}
+
 function change(partial: Omit<ChangeRow, "occurred_at"> & { occurred_at?: string }): ChangeRow {
   return {
     occurred_at: "2026-09-19T08:00:01.000Z",
@@ -49,6 +59,23 @@ function change(partial: Omit<ChangeRow, "occurred_at"> & { occurred_at?: string
 }
 
 describe("snapshot mapping", () => {
+  it("treats an id-less StockBalance snapshot item as a contract error, not a skip", () => {
+    expect(() =>
+      mapStockSnapshot({
+        seq: 4,
+        items: [
+          {
+            location_id: "loc-a",
+            article_id: "art-1",
+            handling_unit_id: huId,
+            qty_base: "4",
+            reserved_qty_base: "0",
+          },
+        ],
+      }),
+    ).toThrow(SnapshotContractError);
+  });
+
   it("maps StockBalance items and keeps qty_base as a decimal string", () => {
     const rows = mapStockSnapshot({
       snapshot_schema: "ignore-me",
@@ -83,7 +110,7 @@ describe("snapshot mapping", () => {
           kind: "wrong_location",
           status: "pending_approval",
           command_id: "c2",
-          detail: { actual_location_id: "loc-b" },
+          detail: { location_id: "loc-b" },
           created_at: "2026-09-19T08:00:01.000Z",
         },
         {
@@ -372,8 +399,6 @@ describe("applyChanges", () => {
               location_id: binId,
               existing_handling_unit_id: existingHu,
               incoming_handling_unit_id: incomingHu,
-              movement_id: "mov-in",
-              displaced_movement_id: "mov-old",
               lpn: "LPN-in",
             },
             created_at: "2026-09-19T08:00:01.000Z",
@@ -422,15 +447,11 @@ describe("applyChanges", () => {
         location_id: binId,
         existing_handling_unit_id: existingHu,
         incoming_handling_unit_id: incomingHu,
-        movement_id: "mov-in",
-        displaced_movement_id: "mov-old",
         lpn: "LPN-in",
       },
     });
     const visible = deviationDetailParts(deviation!);
     expect(visible).toEqual(expect.arrayContaining([existingHu, incomingHu]));
-    expect(visible.join(" ")).not.toContain("mov-in");
-    expect(visible.join(" ")).not.toContain("mov-old");
   });
 
   it("applies location upserts from the change feed and joins UNLOCATED on location_id", () => {
@@ -545,8 +566,8 @@ describe("applyChanges", () => {
             kind: "wrong_location",
             command_id: "cmd-wrong",
             detail: {
+              location_id: "loc-actual",
               suggested_location_id: "loc-suggested",
-              actual_location_id: "loc-actual",
             },
             created_at: "2026-09-19T08:00:00.000Z",
           },
@@ -556,8 +577,8 @@ describe("applyChanges", () => {
     );
     const row = next.deviations.get("d-wrong");
     expect(row?.kind).toBe("wrong_location");
+    expect(row?.detail.location_id).toBe("loc-actual");
     expect(row?.detail.suggested_location_id).toBe("loc-suggested");
-    expect(row?.detail.actual_location_id).toBe("loc-actual");
     expect(deviationLocationId(row!)).toBe("loc-actual");
   });
 });
@@ -569,7 +590,11 @@ describe("loadOfficeLists", () => {
       async (url) => {
         called.push(url);
         if (url.includes("/sync/snapshot") && url.includes("entity=Deviation")) {
+          if (pageOf(url) > 1) {
+            return { seq: 3, items: [] };
+          }
           return {
+            seq: 3,
             snapshot_schema: "do-not-use",
             items: [
               {
@@ -594,16 +619,16 @@ describe("loadOfficeLists", () => {
           };
         }
         if (url.includes("/sync/snapshot")) {
-          return { snapshot_schema: "do-not-use", items: [] };
+          return { seq: 3, snapshot_schema: "do-not-use", items: [] };
         }
-        const since = Number(new URL(url).searchParams.get("since"));
-        if (since > 0) {
+        const since = sinceOf(url);
+        if (since > 3) {
           return { entries: [] };
         }
         return {
           entries: [
             {
-              seq: 1,
+              seq: 4,
               entity: "stock_balance",
               id: "bal-tenant",
               op: "upsert",
@@ -628,10 +653,155 @@ describe("loadOfficeLists", () => {
     expect(called.some((url) => url.includes("/sync/snapshot") && url.includes("entity=StockBalance"))).toBe(true);
     expect(called.some((url) => url.includes("/sync/snapshot") && url.includes("entity=Location"))).toBe(true);
     expect(called.some((url) => url.includes("/sync/snapshot") && url.includes("entity=Deviation"))).toBe(true);
-    expect(called.some((url) => url.includes("/sync/changes") && url.includes(`warehouse=${warehouseId}`))).toBe(true);
+    expect(called.some((url) => url.includes("/sync/changes") && url.includes("since=3"))).toBe(true);
     expect(lists.stock.get("bal-tenant")?.qty_base).toBe("1");
     expect(lists.deviations.has("d-open")).toBe(true);
     expect(lists.deviations.has("d-resolved")).toBe(false);
+  });
+
+  it("pages changes from page-1 seq even when a later snapshot page returns a higher seq", async () => {
+    const sinceCalls: number[] = [];
+    const stockPage1 = Array.from({ length: SNAPSHOT_PAGE_SIZE }, (_, i) =>
+      stockSnapshotItem({ id: `bal-${i + 1}`, handling_unit_id: `hu-${i + 1}` }),
+    );
+    const lists = await loadOfficeLists(
+      async (url) => {
+        if (url.includes("/sync/snapshot")) {
+          const entity = new URL(url).searchParams.get("entity");
+          const page = pageOf(url);
+          if (entity === "StockBalance") {
+            if (page === 1) {
+              return { seq: 10, items: stockPage1 };
+            }
+            if (page === 2) {
+              return {
+                seq: 99,
+                items: [stockSnapshotItem({ id: "bal-101", handling_unit_id: "hu-101" })],
+              };
+            }
+            return { seq: 99, items: [] };
+          }
+          return { seq: 10, items: [] };
+        }
+        sinceCalls.push(sinceOf(url));
+        return { entries: [] };
+      },
+      "http://sync.test",
+      warehouseId,
+    );
+    expect(sinceCalls[0]).toBe(10);
+    expect(lists.stock.has("bal-101")).toBe(true);
+    expect(lists.stock.size).toBe(101);
+  });
+
+  it("pages changes from the smallest page-1 snapshot seq across entities", async () => {
+    const sinceCalls: number[] = [];
+    await loadOfficeLists(
+      async (url) => {
+        if (url.includes("/sync/snapshot")) {
+          const entity = new URL(url).searchParams.get("entity");
+          if (entity === "StockBalance") {
+            return { seq: 40, items: [] };
+          }
+          if (entity === "Location") {
+            return { seq: 7, items: [] };
+          }
+          return { seq: 25, items: [] };
+        }
+        sinceCalls.push(sinceOf(url));
+        return { entries: [] };
+      },
+      "http://sync.test",
+      warehouseId,
+    );
+    expect(sinceCalls[0]).toBe(7);
+  });
+
+  it("detects UNLOCATED on snapshot page 2 and keeps item 101", async () => {
+    const locPage1 = Array.from({ length: SNAPSHOT_PAGE_SIZE }, (_, i) => ({
+      id: `loc-${i + 1}`,
+      warehouse_id: warehouseId,
+      code: `A-${i + 1}`,
+      is_system: false,
+    }));
+    const lists = await loadOfficeLists(
+      async (url) => {
+        if (url.includes("/sync/snapshot")) {
+          const entity = new URL(url).searchParams.get("entity");
+          const page = pageOf(url);
+          if (entity === "Location") {
+            if (page === 1) {
+              return { seq: 5, items: locPage1 };
+            }
+            if (page === 2) {
+              return {
+                seq: 80,
+                items: [{ id: "loc-unlocated", warehouse_id: warehouseId, code: "UNLOCATED", is_system: true }],
+              };
+            }
+            return { seq: 80, items: [] };
+          }
+          if (entity === "StockBalance") {
+            return {
+              seq: 5,
+              items: [
+                stockSnapshotItem({ id: "bal-u", location_id: "loc-unlocated" }),
+              ],
+            };
+          }
+          return { seq: 5, items: [] };
+        }
+        return { entries: [] };
+      },
+      "http://sync.test",
+      warehouseId,
+    );
+    expect(isUnlocatedSystemLocation(lists.locations.get("loc-unlocated"))).toBe(true);
+    expect(lists.locations.size).toBe(101);
+  });
+
+  it("treats a missing snapshot seq as a load error", async () => {
+    await expect(
+      loadOfficeLists(
+        async (url) => {
+          if (url.includes("/sync/snapshot")) {
+            return { items: [] };
+          }
+          return { entries: [] };
+        },
+        "http://sync.test",
+        warehouseId,
+      ),
+    ).rejects.toBeInstanceOf(SnapshotContractError);
+  });
+
+  it("treats RC id-less StockBalance snapshot items as a load error", async () => {
+    await expect(
+      loadOfficeLists(
+        async (url) => {
+          if (url.includes("/sync/snapshot") && url.includes("entity=StockBalance")) {
+            return {
+              seq: 4,
+              items: [
+                {
+                  location_id: "loc-a",
+                  article_id: "art-1",
+                  handling_unit_id: huId,
+                  qty_base: "4",
+                  reserved_qty_base: "0",
+                },
+              ],
+            };
+          }
+          if (url.includes("/sync/snapshot")) {
+            return { seq: 4, items: [] };
+          }
+          return { entries: [] };
+        },
+        "http://sync.test",
+        warehouseId,
+      ),
+    ).rejects.toBeInstanceOf(SnapshotContractError);
   });
 
   it("pages changes so an upsert on page 1 deleted on page 2 is absent", async () => {
@@ -639,11 +809,10 @@ describe("loadOfficeLists", () => {
     const lists = await loadOfficeLists(
       async (url) => {
         if (url.includes("/sync/snapshot")) {
-          return { items: [] };
+          return { seq: 0, items: [] };
         }
-        const since = Number(new URL(url).searchParams.get("since"));
-        sinceCalls.push(since);
-        if (since === 0) {
+        sinceCalls.push(sinceOf(url));
+        if (sinceOf(url) === 0) {
           return {
             entries: [
               change({
@@ -663,7 +832,7 @@ describe("loadOfficeLists", () => {
             ],
           };
         }
-        if (since === 1) {
+        if (sinceOf(url) === 1) {
           return {
             entries: [
               change({
@@ -701,7 +870,7 @@ describe("loadOfficeLists", () => {
       loadOfficeLists(
         async (url) => {
           if (url.includes("/sync/snapshot")) {
-            return { items: [stockSnapshotItem()] };
+            return { seq: 1, items: [stockSnapshotItem()] };
           }
           throw new SyncLoadError(410);
         },

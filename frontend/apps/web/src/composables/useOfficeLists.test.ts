@@ -32,6 +32,10 @@ function ok(body: unknown) {
   return { ok: true, status: 200, json: async () => body };
 }
 
+function snapshotOk(items: unknown[] = [], seq = 1) {
+  return ok({ seq, items });
+}
+
 function fail(status: number) {
   return { ok: false, status, json: async () => ({ items: [], entries: [] }) };
 }
@@ -61,7 +65,10 @@ describe("useOfficeLists HTTP errors", () => {
   it("sets loadError on a 410 from changes and a 500 from snapshot, and clears prior lists", async () => {
     stubFetch((url) => {
       if (url.includes("/sync/snapshot") && url.includes("entity=StockBalance")) {
-        return ok({ items: [stockItem("hu-prev")] });
+        return snapshotOk([stockItem("hu-prev")]);
+      }
+      if (url.includes("/sync/snapshot")) {
+        return snapshotOk();
       }
       if (url.includes("/sync/changes")) {
         return ok({
@@ -94,7 +101,10 @@ describe("useOfficeLists HTTP errors", () => {
       if (url.includes("/sync/changes")) {
         return fail(410);
       }
-      return ok({ items: [stockItem("hu-new")] });
+      if (url.includes("/sync/snapshot") && url.includes("entity=StockBalance")) {
+        return snapshotOk([stockItem("hu-new")]);
+      }
+      return snapshotOk();
     });
     await office.refresh();
     expect(office.loadError.value).toBe(true);
@@ -111,5 +121,43 @@ describe("useOfficeLists HTTP errors", () => {
     });
     await office.refresh();
     expect(office.loadError.value).toBe(true);
+  });
+
+  it("sets loadError for RC id-less StockBalance snapshot items and clears lists", async () => {
+    stubFetch((url) => {
+      if (url.includes("/sync/snapshot") && url.includes("entity=StockBalance")) {
+        return snapshotOk([
+          {
+            location_id: "loc-a",
+            article_id: "art-1",
+            handling_unit_id: "hu-1",
+            qty_base: "4",
+            reserved_qty_base: "0",
+          },
+        ]);
+      }
+      if (url.includes("/sync/snapshot")) {
+        return snapshotOk();
+      }
+      return ok({ entries: [] });
+    });
+    const office = useOfficeLists();
+    await office.refresh();
+    expect(office.loadError.value).toBe(true);
+    expect(office.lists.value.stock.size).toBe(0);
+    expect(office.lists.value.deviations.size).toBe(0);
+  });
+
+  it("sets loadError when snapshot seq is missing", async () => {
+    stubFetch((url) => {
+      if (url.includes("/sync/snapshot")) {
+        return ok({ items: [] });
+      }
+      return ok({ entries: [] });
+    });
+    const office = useOfficeLists();
+    await office.refresh();
+    expect(office.loadError.value).toBe(true);
+    expect(office.lists.value.stock.size).toBe(0);
   });
 });

@@ -8,15 +8,11 @@ export type StockRow = {
   reserved_qty_base: string;
 };
 
-/** Provisional: occupied_bin movement ids until Sync/WmsCore lock the payload. */
 export type DeviationDetail = {
   location_id?: string;
-  actual_location_id?: string;
   suggested_location_id?: string;
   existing_handling_unit_id?: string;
   incoming_handling_unit_id?: string;
-  movement_id?: string;
-  displaced_movement_id?: string;
   lpn?: string;
 };
 
@@ -75,6 +71,16 @@ export class SyncLoadError extends Error {
   }
 }
 
+export class SnapshotContractError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SnapshotContractError";
+  }
+}
+
+/** RC snapshot pages are 100 items. Loop until a page comes back shorter. */
+export const SNAPSHOT_PAGE_SIZE = 100;
+
 export function emptyLists(): OfficeLists {
   return { stock: new Map(), deviations: new Map(), locations: new Map() };
 }
@@ -83,9 +89,23 @@ export function snapshotUrl(
   baseUrl: string,
   warehouse: string,
   entity: "StockBalance" | "Location" | "Deviation",
+  page = 1,
 ): string {
-  const query = new URLSearchParams({ warehouse, entity });
+  const query = new URLSearchParams({ warehouse, entity, page: String(page) });
   return `${baseUrl}/sync/snapshot?${query.toString()}`;
+}
+
+/**
+ * Provisional: each snapshot page body includes `seq` = current max(change_log.seq),
+ * computed before items. Keep PAGE 1's seq only; ignore later pages. WmsCore will
+ * add this field and relax 410 to since < oldest - 1.
+ */
+export function snapshotSeq(body: unknown): number | null {
+  if (typeof body !== "object" || body === null) {
+    return null;
+  }
+  const seq = (body as { seq?: unknown }).seq;
+  return typeof seq === "number" && Number.isFinite(seq) ? seq : null;
 }
 
 export function changesUrl(baseUrl: string, warehouse: string, since: number): string {
@@ -148,7 +168,14 @@ export function mapStockSnapshot(body: unknown): StockRow[] {
   const items = snapshotItems(body);
   const rows: StockRow[] = [];
   for (const item of items) {
-    const row = asStock(item, "");
+    if (typeof item !== "object" || item === null) {
+      continue;
+    }
+    const raw = item as Record<string, unknown>;
+    if (typeof raw.id !== "string" || raw.id === "") {
+      throw new SnapshotContractError("snapshot_missing_id");
+    }
+    const row = asStock(item, raw.id);
     if (row) {
       rows.push(row);
     }
@@ -241,11 +268,19 @@ export async function loadOfficeLists(
   baseUrl: string,
   warehouseId: string,
 ): Promise<OfficeLists> {
-  const stockBody = await getJson(snapshotUrl(baseUrl, warehouseId, "StockBalance"));
-  const locationBody = await getJson(snapshotUrl(baseUrl, warehouseId, "Location"));
-  const deviationBody = await getJson(snapshotUrl(baseUrl, warehouseId, "Deviation"));
-  let lists = listsFromSnapshots(stockBody, locationBody, deviationBody);
-  let since = 0;
+  const stock = await loadPagedSnapshot(getJson, baseUrl, warehouseId, "StockBalance");
+  const location = await loadPagedSnapshot(getJson, baseUrl, warehouseId, "Location");
+  const deviation = await loadPagedSnapshot(getJson, baseUrl, warehouseId, "Deviation");
+  let lists = listsFromSnapshots(
+    { items: stock.items },
+    { items: location.items },
+    { items: deviation.items },
+  );
+  // Keep each entity's PAGE 1 seq (max(change_log.seq) read before that page's
+  // items). Ignore seq on later pages. Start /sync/changes at the minimum of
+  // those page-1 seqs; since is exclusive (seq > since). Overlap with later
+  // snapshot pages is harmless: changes apply as upserts or deletes by entity+id.
+  let since = Math.min(stock.page1Seq, location.page1Seq, deviation.page1Seq);
   for (;;) {
     const page = mapChangeRows(await getJson(changesUrl(baseUrl, warehouseId, since)));
     if (page.length === 0) {
@@ -261,6 +296,31 @@ export async function loadOfficeLists(
   return lists;
 }
 
+async function loadPagedSnapshot(
+  getJson: SyncGetJson,
+  baseUrl: string,
+  warehouseId: string,
+  entity: "StockBalance" | "Location" | "Deviation",
+): Promise<{ items: unknown[]; page1Seq: number }> {
+  const items: unknown[] = [];
+  let page1Seq: number | null = null;
+  for (let page = 1; ; page++) {
+    const body = await getJson(snapshotUrl(baseUrl, warehouseId, entity, page));
+    if (page === 1) {
+      page1Seq = snapshotSeq(body);
+      if (page1Seq == null) {
+        throw new SnapshotContractError("snapshot_missing_seq");
+      }
+    }
+    const pageItems = snapshotItems(body);
+    items.push(...pageItems);
+    if (pageItems.length < SNAPSHOT_PAGE_SIZE) {
+      break;
+    }
+  }
+  return { items, page1Seq: page1Seq! };
+}
+
 function applyStockRow(stock: Map<string, StockRow>, entry: ChangeRow): void {
   if (entry.op === "delete") {
     stock.delete(entry.id);
@@ -273,9 +333,6 @@ function applyStockRow(stock: Map<string, StockRow>, entry: ChangeRow): void {
 }
 
 export function deviationLocationId(row: DeviationRow): string {
-  if (row.kind === "wrong_location") {
-    return row.detail.actual_location_id ?? row.detail.location_id ?? "";
-  }
   return row.detail.location_id ?? "";
 }
 
@@ -283,7 +340,6 @@ export function deviationDetailParts(row: DeviationRow): string[] {
   return [
     row.detail.location_id,
     row.detail.suggested_location_id,
-    row.detail.actual_location_id,
     row.detail.existing_handling_unit_id,
     row.detail.incoming_handling_unit_id,
     row.detail.lpn,
@@ -381,12 +437,9 @@ function asDeviation(value: unknown, fallbackId: string): DeviationRow | null {
     command_id: String(raw.command_id ?? ""),
     detail: {
       location_id: optionalString(detail.location_id),
-      actual_location_id: optionalString(detail.actual_location_id),
       suggested_location_id: optionalString(detail.suggested_location_id),
       existing_handling_unit_id: optionalString(detail.existing_handling_unit_id),
       incoming_handling_unit_id: optionalString(detail.incoming_handling_unit_id),
-      movement_id: optionalString(detail.movement_id) ?? optionalString(raw.movement_id),
-      displaced_movement_id: optionalString(detail.displaced_movement_id) ?? optionalString(raw.displaced_movement_id),
       lpn: optionalString(detail.lpn),
     },
     created_at: String(raw.created_at ?? ""),

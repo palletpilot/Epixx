@@ -31,7 +31,6 @@ function matches(row: DeviationRow, query: string): boolean {
     row.kind.toLowerCase().includes(query) ||
     (row.detail.location_id ?? "").toLowerCase().includes(query) ||
     (row.detail.suggested_location_id ?? "").toLowerCase().includes(query) ||
-    (row.detail.actual_location_id ?? "").toLowerCase().includes(query) ||
     (row.detail.lpn ?? "").toLowerCase().includes(query) ||
     (row.detail.existing_handling_unit_id ?? "").toLowerCase().includes(query) ||
     (row.detail.incoming_handling_unit_id ?? "").toLowerCase().includes(query)
