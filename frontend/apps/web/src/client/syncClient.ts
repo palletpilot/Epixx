@@ -1,5 +1,5 @@
 export type StockRow = {
-  /** Opaque stock_balance identity from the snapshot item or change id. Never handling_unit_id. Provisional on snapshot until StockBalanceDto includes id. */
+  /** Opaque stock_balance identity from the snapshot item or change id. Never handling_unit_id. WmsCore sends StockBalanceDto.id as a literal; the client does not compute UUIDv5. */
   id: string;
   location_id: string;
   article_id: string;
@@ -96,9 +96,9 @@ export function snapshotUrl(
 }
 
 /**
- * Provisional: each snapshot page body includes `seq` = current max(change_log.seq),
- * computed before items. Keep PAGE 1's seq only; ignore later pages. WmsCore will
- * add this field and relax 410 to since < oldest - 1.
+ * Each snapshot page body includes `seq` = current max(change_log.seq), computed
+ * before items (WmsCore M1a). Keep PAGE 1's seq only; ignore later pages.
+ * 410 is since < oldest - 1 once that check lands.
  */
 export function snapshotSeq(body: unknown): number | null {
   if (typeof body !== "object" || body === null) {
@@ -171,11 +171,8 @@ export function mapStockSnapshot(body: unknown): StockRow[] {
     if (typeof item !== "object" || item === null) {
       continue;
     }
-    const raw = item as Record<string, unknown>;
-    if (typeof raw.id !== "string" || raw.id === "") {
-      throw new SnapshotContractError("snapshot_missing_id");
-    }
-    const row = asStock(item, raw.id);
+    const id = requireSnapshotId(item as Record<string, unknown>);
+    const row = asStock(item, id);
     if (row) {
       rows.push(row);
     }
@@ -202,11 +199,8 @@ export function mapDeviationSnapshot(body: unknown): DeviationRow[] {
     if (typeof item !== "object" || item === null) {
       continue;
     }
-    const raw = item as Record<string, unknown>;
-    if (typeof raw.id !== "string" || raw.id === "") {
-      throw new SnapshotContractError("snapshot_missing_id");
-    }
-    const row = asDeviation(item, raw.id);
+    const id = requireSnapshotId(item as Record<string, unknown>);
+    const row = asDeviation(item, id);
     if (row && row.kind !== "" && isListedDeviation(row)) {
       rows.push(row);
     }
@@ -379,6 +373,13 @@ function snapshotItems(body: unknown): unknown[] {
   }
   const items = (body as { items?: unknown }).items;
   return Array.isArray(items) ? items : [];
+}
+
+function requireSnapshotId(item: Record<string, unknown>): string {
+  if (typeof item.id !== "string" || item.id === "") {
+    throw new SnapshotContractError("snapshot_missing_id");
+  }
+  return item.id;
 }
 
 function asChangeRow(value: unknown): ChangeRow | null {

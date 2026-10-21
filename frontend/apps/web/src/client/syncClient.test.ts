@@ -24,6 +24,22 @@ import {
   type LocationRow,
   type StockRow,
 } from "./syncClient";
+import {
+  PR8_ARTICLE_ID,
+  PR8_DEVIATION_ID,
+  PR8_HANDLING_UNIT_ID,
+  PR8_LOCATION_ID,
+  PR8_SNAPSHOT_SEQ,
+  PR8_STOCK_BALANCE_ID,
+  PR8_UNLOCATED_ID,
+  PR8_WAREHOUSE_ID,
+  pr8DeviationSnapshot,
+  pr8EmptyChanges,
+  pr8LocationSnapshot,
+  pr8StockBalanceDeleteChanges,
+  pr8StockBalanceSnapshot,
+  pr8StockBalanceUpsertChanges,
+} from "./pr8WmsCore.fixture";
 
 const warehouseId = "wh-1";
 const otherWarehouse = "wh-2";
@@ -969,5 +985,70 @@ describe("loadOfficeLists", () => {
         warehouseId,
       ),
     ).rejects.toMatchObject({ status: 410 });
+  });
+});
+
+describe("PR 8 WmsCore contract fixture", () => {
+  it("loads the pinned stock_balance id, pages changes from seq, then upserts and deletes that id", async () => {
+    expect(PR8_STOCK_BALANCE_ID).toBe("f4faf703-c1f7-5805-9e1f-aed95cc6831f");
+    expect(PR8_HANDLING_UNIT_ID).toBe("01900000-0000-7000-8000-000000000001");
+    expect(PR8_ARTICLE_ID).toBe("01900000-0000-7000-8000-000000000002");
+
+    const fromSnapshot = listsFromSnapshots(
+      pr8StockBalanceSnapshot,
+      pr8LocationSnapshot,
+      pr8DeviationSnapshot,
+    );
+    expect(fromSnapshot.stock.get("f4faf703-c1f7-5805-9e1f-aed95cc6831f")).toMatchObject({
+      id: "f4faf703-c1f7-5805-9e1f-aed95cc6831f",
+      handling_unit_id: "01900000-0000-7000-8000-000000000001",
+      article_id: "01900000-0000-7000-8000-000000000002",
+      location_id: PR8_LOCATION_ID,
+      qty_base: "4",
+      reserved_qty_base: "0",
+    });
+    expect(fromSnapshot.deviations.get(PR8_DEVIATION_ID)?.kind).toBe("occupied_bin");
+    expect(fromSnapshot.deviations.get(PR8_DEVIATION_ID)?.status).toBeUndefined();
+    expect(isUnlocatedSystemLocation(fromSnapshot.locations.get(PR8_UNLOCATED_ID))).toBe(true);
+
+    const upserted = applyChanges(
+      fromSnapshot,
+      mapChangeRows(pr8StockBalanceUpsertChanges),
+      PR8_WAREHOUSE_ID,
+    );
+    expect(upserted.stock.get("f4faf703-c1f7-5805-9e1f-aed95cc6831f")?.qty_base).toBe("9");
+    expect(upserted.stock.size).toBe(1);
+
+    const deleted = applyChanges(
+      upserted,
+      mapChangeRows(pr8StockBalanceDeleteChanges),
+      PR8_WAREHOUSE_ID,
+    );
+    expect(deleted.stock.has("f4faf703-c1f7-5805-9e1f-aed95cc6831f")).toBe(false);
+
+    const sinceCalls: number[] = [];
+    const loaded = await loadOfficeLists(
+      async (url) => {
+        if (url.includes("/sync/snapshot")) {
+          const entity = new URL(url).searchParams.get("entity");
+          if (entity === "StockBalance") {
+            return pr8StockBalanceSnapshot;
+          }
+          if (entity === "Location") {
+            return pr8LocationSnapshot;
+          }
+          return pr8DeviationSnapshot;
+        }
+        sinceCalls.push(sinceOf(url));
+        return pr8EmptyChanges;
+      },
+      "http://sync.test",
+      PR8_WAREHOUSE_ID,
+    );
+    expect(sinceCalls[0]).toBe(PR8_SNAPSHOT_SEQ);
+    expect(sinceCalls[0]).toBe(pr8StockBalanceSnapshot.seq);
+    expect(loaded.stock.get("f4faf703-c1f7-5805-9e1f-aed95cc6831f")?.handling_unit_id).toBe(
+      "01900000-0000-7000-8000-000000000001",
+    );
   });
 });
