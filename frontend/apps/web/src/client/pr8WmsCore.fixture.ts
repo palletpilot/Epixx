@@ -1,5 +1,5 @@
 /**
- * Office-list contract fixture copied from WmsCore M1a (PR 8, 500117c)
+ * Office-list contract fixture copied from WmsCore M1a (PR 8, 41e608b)
  * snapshot and change JSON. Snake_case names match Program.cs
  * JsonNamingPolicy.SnakeCaseLower. The pinned stock_balance id is a literal;
  * this file must not compute UUIDv5.
@@ -80,10 +80,9 @@ export const pr8LocationSnapshot = snapshotEnvelope("Location", [
 ]);
 
 /**
- * GetSnapshot entity=Deviation — anonymous item from InternalApi at 500117c.
+ * GetSnapshot entity=Deviation — anonymous item from InternalApi at 41e608b.
  * Status is required (default open). Snapshot returns only open and
- * pending_approval. occupied_bin detail does not yet include
- * existing_reserved_qty_base.
+ * pending_approval. occupied_bin detail includes existing_reserved_qty_base.
  */
 export const pr8DeviationSnapshot = snapshotEnvelope("Deviation", [
   {
@@ -95,6 +94,7 @@ export const pr8DeviationSnapshot = snapshotEnvelope("Deviation", [
     detail: {
       location_id: PR8_LOCATION_ID,
       existing_handling_unit_id: "01900000-0000-7000-8000-000000000003",
+      existing_reserved_qty_base: "0",
       incoming_handling_unit_id: PR8_HANDLING_UNIT_ID,
       lpn: "LPN-in",
       command_id: PR8_COMMAND_ID,

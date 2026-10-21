@@ -24,7 +24,7 @@ function deviationItem(id: string, status = "open") {
     kind: "occupied_bin",
     status,
     command_id: "cmd-1",
-    detail: { location_id: "loc-a" },
+    detail: { location_id: "loc-a", existing_reserved_qty_base: "0" },
     created_at: "2026-09-19T08:00:00.000Z",
   };
 }
@@ -216,6 +216,33 @@ describe("useOfficeLists HTTP errors", () => {
           },
         ],
       });
+    });
+    const office = useOfficeLists();
+    await office.refresh();
+    expect(office.loadError.value).toBe(true);
+    expect(office.lists.value.deviations.size).toBe(0);
+    expect(office.lists.value.stock.size).toBe(0);
+  });
+
+  it("sets loadError when an occupied_bin snapshot item has no existing_reserved_qty_base", async () => {
+    stubFetch((url) => {
+      if (url.includes("/sync/snapshot") && url.includes("entity=Deviation")) {
+        return snapshotOk([
+          {
+            id: "d-1",
+            warehouse_id: warehouseId,
+            kind: "occupied_bin",
+            status: "open",
+            command_id: "c1",
+            detail: { location_id: "loc-a" },
+            created_at: "2026-09-19T08:00:00.000Z",
+          },
+        ]);
+      }
+      if (url.includes("/sync/snapshot")) {
+        return snapshotOk();
+      }
+      return ok({ entries: [] });
     });
     const office = useOfficeLists();
     await office.refresh();

@@ -14,11 +14,7 @@ export type DeviationDetail = {
   existing_handling_unit_id?: string;
   incoming_handling_unit_id?: string;
   lpn?: string;
-  /**
-   * Provisional occupied_bin reserved qty. Decimal string; "0" when nothing is
-   * reserved. Not sent by WmsCore PR 8 at 500117c; optional until the next SHA lands.
-   * There is no boolean companion field.
-   */
+  /** Required on occupied_bin. Decimal string; "0" when nothing is reserved. */
   existing_reserved_qty_base?: string;
 };
 
@@ -466,12 +462,17 @@ function asDeviation(value: unknown, fallbackId: string): DeviationRow | null {
     return null;
   }
   const status = requireDeviationStatus(raw);
+  const kind = String(raw.kind ?? "");
   const detail =
     typeof raw.detail === "object" && raw.detail !== null ? (raw.detail as Record<string, unknown>) : {};
+  const existingReservedQty = asDecimalString(detail.existing_reserved_qty_base);
+  if (kind === "occupied_bin" && existingReservedQty === null) {
+    throw new SnapshotContractError("snapshot_missing_existing_reserved_qty_base");
+  }
   return {
     warehouse_id: String(raw.warehouse_id ?? ""),
     id,
-    kind: String(raw.kind ?? ""),
+    kind,
     status,
     command_id: String(raw.command_id ?? ""),
     detail: {
@@ -480,7 +481,7 @@ function asDeviation(value: unknown, fallbackId: string): DeviationRow | null {
       existing_handling_unit_id: optionalString(detail.existing_handling_unit_id),
       incoming_handling_unit_id: optionalString(detail.incoming_handling_unit_id),
       lpn: optionalString(detail.lpn),
-      existing_reserved_qty_base: asDecimalString(detail.existing_reserved_qty_base) ?? undefined,
+      existing_reserved_qty_base: existingReservedQty ?? undefined,
     },
     created_at: String(raw.created_at ?? ""),
   };
