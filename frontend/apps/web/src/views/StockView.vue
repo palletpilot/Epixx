@@ -113,7 +113,7 @@ onUnmounted(() => {
           <tbody>
             <tr
               v-for="(row, index) in rows"
-              :key="row.handling_unit_id"
+              :key="row.id"
               class="border-b border-border"
               :class="{
                 'outline outline-2 outline-offset-[-2px] outline-ring': cursor === index,

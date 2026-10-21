@@ -8,6 +8,7 @@ const warehouseId = "22222222-2222-7222-8222-222222222222";
 
 function stockItem(hu: string) {
   return {
+    id: `bal-${hu}`,
     location_id: "loc-a",
     article_id: "art-1",
     handling_unit_id: hu,
@@ -86,7 +87,7 @@ describe("useOfficeLists HTTP errors", () => {
     const office = useOfficeLists();
     await office.refresh();
     expect(office.loadError.value).toBe(false);
-    expect(office.lists.value.stock.has("hu-prev")).toBe(true);
+    expect(office.lists.value.stock.has("bal-hu-prev")).toBe(true);
     expect(office.deviationCount.value).toBe(1);
 
     stubFetch((url) => {

@@ -28,6 +28,7 @@ const huId = "hu-1";
 
 function stockSnapshotItem(overrides: Partial<StockRow> = {}): StockRow {
   return {
+    id: "bal-1",
     location_id: "loc-a",
     article_id: "art-1",
     handling_unit_id: huId,
@@ -103,7 +104,7 @@ describe("change mapping", () => {
         {
           seq: 3,
           entity: "stock_balance",
-          id: "hu-2",
+          id: "bal-2",
           op: "upsert",
           payload: {
             location_id: "loc-b",
@@ -122,8 +123,9 @@ describe("change mapping", () => {
     });
     expect(rows).toHaveLength(1);
     const applied = applyChanges(emptyLists(), rows, warehouseId);
-    expect(applied.stock.get("hu-2")?.qty_base).toBe("2.000000");
-    expect(applied.stock.get("hu-2")?.reserved_qty_base).toBe("0");
+    expect(applied.stock.get("bal-2")?.qty_base).toBe("2.000000");
+    expect(applied.stock.get("bal-2")?.reserved_qty_base).toBe("0");
+    expect(applied.stock.get("bal-2")?.handling_unit_id).toBe("hu-2");
   });
 });
 
@@ -160,7 +162,7 @@ describe("applyChanges", () => {
       ],
       warehouseId,
     );
-    expect(next.stock.get(huId)?.location_id).toBe("loc-a");
+    expect(next.stock.get("bal-1")?.location_id).toBe("loc-a");
     expect(next.stock.has("hu-other")).toBe(false);
   });
 
@@ -173,6 +175,8 @@ describe("applyChanges", () => {
   it("applies occupied-bin as five upserts under one command_id", () => {
     const incomingHu = huId;
     const existingHu = "hu-old";
+    const incomingBalanceId = "sb-in";
+    const existingBalanceId = "sb-ex";
     const binId = "loc-bin";
     const unlocatedId = "loc-unlocated";
     const existingQty = "4.250000";
@@ -187,12 +191,14 @@ describe("applyChanges", () => {
       {
         items: [
           stockSnapshotItem({
+            id: incomingBalanceId,
             location_id: "loc-from",
             handling_unit_id: incomingHu,
             qty_base: incomingQty,
             reserved_qty_base: "0",
           }),
           stockSnapshotItem({
+            id: existingBalanceId,
             location_id: binId,
             handling_unit_id: existingHu,
             article_id: "art-old",
@@ -218,7 +224,7 @@ describe("applyChanges", () => {
         change({
           seq: 11,
           entity: "stock_balance",
-          id: incomingHu,
+          id: incomingBalanceId,
           op: "upsert",
           command_id: commandId,
           warehouse_id: warehouseId,
@@ -233,7 +239,7 @@ describe("applyChanges", () => {
         change({
           seq: 12,
           entity: "stock_balance",
-          id: existingHu,
+          id: existingBalanceId,
           op: "upsert",
           command_id: commandId,
           warehouse_id: warehouseId,
@@ -283,17 +289,21 @@ describe("applyChanges", () => {
 
     const inBin = [...next.stock.values()].filter((row) => row.location_id === binId);
     expect(inBin.map((row) => row.handling_unit_id)).toEqual([incomingHu]);
-    expect(next.stock.get(incomingHu)).toMatchObject({
+    expect(next.stock.get(incomingBalanceId)).toMatchObject({
+      id: incomingBalanceId,
       location_id: binId,
       handling_unit_id: incomingHu,
       qty_base: incomingQty,
     });
-    expect(next.stock.get(existingHu)).toMatchObject({
+    expect(next.stock.get(existingBalanceId)).toMatchObject({
+      id: existingBalanceId,
       location_id: unlocatedId,
       handling_unit_id: existingHu,
       qty_base: existingQty,
     });
-    expect(next.stock.get(existingHu)?.qty_base).toBe(existingQty);
+    expect(next.stock.get(existingBalanceId)?.qty_base).toBe(existingQty);
+    expect(next.stock.has(incomingHu)).toBe(false);
+    expect(next.stock.has(existingHu)).toBe(false);
     expect(isUnlocatedSystemLocation(next.locations.get(unlocatedId))).toBe(true);
     expect(compareStockLocationOrder(binId, unlocatedId, next.locations)).toBeLessThan(0);
 
@@ -316,6 +326,91 @@ describe("applyChanges", () => {
     expect(visible).toEqual(expect.arrayContaining([existingHu, incomingHu]));
     expect(visible.join(" ")).not.toContain("mov-in");
     expect(visible.join(" ")).not.toContain("mov-old");
+  });
+
+  it("applies location upserts from the change feed and joins UNLOCATED on location_id", () => {
+    const start = listsFromStockSnapshot({
+      items: [stockSnapshotItem({ id: "bal-1", location_id: "loc-u" })],
+    });
+    const next = applyChanges(
+      start,
+      [
+        change({
+          seq: 1,
+          entity: "location",
+          id: "loc-u",
+          op: "upsert",
+          warehouse_id: warehouseId,
+          payload: {
+            id: "loc-u",
+            warehouse_id: warehouseId,
+            code: "UNLOCATED",
+            is_system: true,
+            name: "No location",
+          },
+        }),
+      ],
+      warehouseId,
+    );
+    expect(next.stock.get("bal-1")?.location_id).toBe("loc-u");
+    expect(isUnlocatedSystemLocation(next.locations.get("loc-u"))).toBe(true);
+  });
+
+  it("keeps two stock_balance rows for the same HU when ids differ, and an upsert to one does not overwrite the other", () => {
+    const start = listsFromStockSnapshot({
+      items: [
+        stockSnapshotItem({
+          id: "bal-a",
+          handling_unit_id: huId,
+          article_id: "art-1",
+          qty_base: "1.000000",
+          reserved_qty_base: "0",
+        }),
+        stockSnapshotItem({
+          id: "bal-b",
+          handling_unit_id: huId,
+          article_id: "art-2",
+          qty_base: "2.000000",
+          reserved_qty_base: "0",
+        }),
+      ],
+    });
+    expect(start.stock.size).toBe(2);
+    expect(start.stock.get("bal-a")?.article_id).toBe("art-1");
+    expect(start.stock.get("bal-b")?.article_id).toBe("art-2");
+    const next = applyChanges(
+      start,
+      [
+        change({
+          seq: 1,
+          entity: "stock_balance",
+          id: "bal-a",
+          op: "upsert",
+          warehouse_id: warehouseId,
+          payload: {
+            location_id: "loc-a",
+            article_id: "art-1",
+            handling_unit_id: huId,
+            qty_base: "9.000000",
+            reserved_qty_base: "0",
+          },
+        }),
+      ],
+      warehouseId,
+    );
+    expect(next.stock.size).toBe(2);
+    expect(next.stock.get("bal-a")).toMatchObject({
+      id: "bal-a",
+      handling_unit_id: huId,
+      article_id: "art-1",
+      qty_base: "9.000000",
+    });
+    expect(next.stock.get("bal-b")).toMatchObject({
+      id: "bal-b",
+      handling_unit_id: huId,
+      article_id: "art-2",
+      qty_base: "2.000000",
+    });
   });
 
   it("sorts UNLOCATED system locations after real bins", () => {
@@ -424,7 +519,7 @@ describe("loadOfficeLists", () => {
               change({
                 seq: 1,
                 entity: "stock_balance",
-                id: "hu-page",
+                id: "bal-page",
                 op: "upsert",
                 warehouse_id: warehouseId,
                 payload: {
@@ -444,7 +539,7 @@ describe("loadOfficeLists", () => {
               change({
                 seq: 2,
                 entity: "stock_balance",
-                id: "hu-page",
+                id: "bal-page",
                 op: "delete",
                 warehouse_id: warehouseId,
                 payload: { handling_unit_id: "hu-page" },
@@ -458,7 +553,7 @@ describe("loadOfficeLists", () => {
       warehouseId,
     );
     expect(sinceCalls).toEqual([0, 1, 2]);
-    expect(lists.stock.has("hu-page")).toBe(false);
+    expect(lists.stock.has("bal-page")).toBe(false);
   });
 
   it("treats a 500 and a 410 from changes as an error, not an empty list", async () => {

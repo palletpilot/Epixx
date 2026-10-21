@@ -1,4 +1,6 @@
 export type StockRow = {
+  /** Opaque stock_balance identity from the snapshot item or change id. Never handling_unit_id. Provisional on snapshot until StockBalanceDto includes id. */
+  id: string;
   location_id: string;
   article_id: string;
   handling_unit_id: string;
@@ -244,7 +246,7 @@ function applyStockRow(stock: Map<string, StockRow>, entry: ChangeRow): void {
   }
   const row = asStock(entry.payload, entry.id);
   if (row) {
-    stock.set(row.handling_unit_id, row);
+    stock.set(row.id, row);
   }
 }
 
@@ -307,21 +309,20 @@ function asChangeRow(value: unknown): ChangeRow | null {
   };
 }
 
-function asStock(value: unknown, fallbackHuId: string): StockRow | null {
+function asStock(value: unknown, fallbackId: string): StockRow | null {
   if (typeof value !== "object" || value === null) {
     return null;
   }
   const raw = value as Record<string, unknown>;
-  const handlingUnitId =
-    typeof raw.handling_unit_id === "string" && raw.handling_unit_id !== ""
-      ? raw.handling_unit_id
-      : fallbackHuId;
+  const id = typeof raw.id === "string" && raw.id !== "" ? raw.id : fallbackId;
+  const handlingUnitId = typeof raw.handling_unit_id === "string" ? raw.handling_unit_id : "";
   const qty = asDecimalString(raw.qty_base);
   const reserved = asDecimalString(raw.reserved_qty_base);
-  if (!handlingUnitId || qty === null || reserved === null) {
+  if (!id || !handlingUnitId || qty === null || reserved === null) {
     return null;
   }
   return {
+    id,
     location_id: typeof raw.location_id === "string" ? raw.location_id : String(raw.location_id ?? ""),
     article_id: String(raw.article_id ?? ""),
     handling_unit_id: handlingUnitId,
@@ -393,7 +394,7 @@ function asLocation(value: unknown, fallbackId: string): LocationRow | null {
 }
 
 function toStockMap(rows: StockRow[]): Map<string, StockRow> {
-  return new Map(rows.map((row) => [row.handling_unit_id, row]));
+  return new Map(rows.map((row) => [row.id, row]));
 }
 
 function toLocationMap(rows: LocationRow[]): Map<string, LocationRow> {
