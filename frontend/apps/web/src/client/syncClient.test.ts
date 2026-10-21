@@ -14,6 +14,7 @@ import {
   listsFromStockSnapshot,
   loadOfficeLists,
   mapChangeRows,
+  mapDeviationSnapshot,
   mapLocationSnapshot,
   mapStockSnapshot,
   SyncLoadError,
@@ -61,6 +62,62 @@ describe("snapshot mapping", () => {
     expect(lists.stock.size).toBe(0);
     expect(lists.deviations.size).toBe(0);
     expect(lists.locations.size).toBe(0);
+  });
+
+  it("maps open and pending_approval deviation snapshot rows and skips resolved", () => {
+    const rows = mapDeviationSnapshot({
+      snapshot_schema: "ignore-me",
+      items: [
+        {
+          id: "d-open",
+          warehouse_id: warehouseId,
+          kind: "occupied_bin",
+          status: "open",
+          command_id: "c1",
+          detail: { location_id: "loc-a" },
+          created_at: "2026-09-19T08:00:00.000Z",
+        },
+        {
+          id: "d-pending",
+          warehouse_id: warehouseId,
+          kind: "wrong_location",
+          status: "pending_approval",
+          command_id: "c2",
+          detail: { actual_location_id: "loc-b" },
+          created_at: "2026-09-19T08:00:01.000Z",
+        },
+        {
+          id: "d-resolved",
+          warehouse_id: warehouseId,
+          kind: "occupied_bin",
+          status: "resolved",
+          command_id: "c3",
+          detail: { location_id: "loc-c" },
+          created_at: "2026-09-19T08:00:02.000Z",
+        },
+        {
+          id: "task-shaped",
+          warehouse_id: warehouseId,
+          type: "putaway",
+          status: "open",
+        },
+      ],
+    });
+    expect(rows.map((row) => row.id).sort()).toEqual(["d-open", "d-pending"]);
+    const lists = listsFromSnapshots({ items: [] }, { items: [] }, {
+      items: [
+        {
+          id: "d-open",
+          warehouse_id: warehouseId,
+          kind: "occupied_bin",
+          status: "open",
+          command_id: "c1",
+          detail: {},
+          created_at: "2026-09-19T08:00:00.000Z",
+        },
+      ],
+    });
+    expect(lists.deviations.get("d-open")?.kind).toBe("occupied_bin");
   });
 
   it("maps Location snapshot is_system and code without using a display name", () => {
@@ -130,40 +187,88 @@ describe("change mapping", () => {
 });
 
 describe("applyChanges", () => {
-  it("leaves a change without warehouse_id off, even when the payload has one", () => {
-    const start = listsFromStockSnapshot({ items: [stockSnapshotItem()] });
-    expect(changeMatchesSelectedWarehouse(change({ seq: 1, entity: "stock_balance", id: huId, op: "delete", payload: {} }), warehouseId)).toBe(
-      false,
-    );
-    const next = applyChanges(
+  it("applies a change whose warehouse_id is null as tenant-wide", () => {
+    const entry = change({
+      seq: 1,
+      entity: "stock_balance",
+      id: "bal-tenant",
+      op: "upsert",
+      warehouse_id: null,
+      payload: {
+        location_id: "loc-t",
+        article_id: "art-t",
+        handling_unit_id: "hu-t",
+        qty_base: "3",
+        reserved_qty_base: "0",
+      },
+    });
+    expect(changeMatchesSelectedWarehouse(entry, warehouseId)).toBe(true);
+    const next = applyChanges(emptyLists(), [entry], warehouseId);
+    expect(next.stock.get("bal-tenant")?.qty_base).toBe("3");
+  });
+
+  it("drops a change whose warehouse_id is a different warehouse", () => {
+    const entry = change({
+      seq: 1,
+      entity: "stock_balance",
+      id: "bal-other",
+      op: "upsert",
+      warehouse_id: otherWarehouse,
+      payload: {
+        location_id: "loc-z",
+        article_id: "art-z",
+        handling_unit_id: "hu-other",
+        qty_base: "9",
+        reserved_qty_base: "0",
+      },
+    });
+    expect(changeMatchesSelectedWarehouse(entry, warehouseId)).toBe(false);
+    const next = applyChanges(emptyLists(), [entry], warehouseId);
+    expect(next.stock.has("bal-other")).toBe(false);
+  });
+
+  it("replaces and then removes a snapshot stock row when later changes use the same opaque id", () => {
+    const start = listsFromStockSnapshot({
+      items: [stockSnapshotItem({ id: "bal-1", qty_base: "4", location_id: "loc-a" })],
+    });
+    expect(start.stock.get("bal-1")?.qty_base).toBe("4");
+    const upserted = applyChanges(
       start,
       [
         change({
           seq: 1,
           entity: "stock_balance",
-          id: huId,
-          op: "delete",
-          payload: { warehouse_id: warehouseId, handling_unit_id: huId },
-        }),
-        change({
-          seq: 2,
-          entity: "stock_balance",
-          id: "hu-other",
+          id: "bal-1",
           op: "upsert",
-          warehouse_id: otherWarehouse,
+          warehouse_id: warehouseId,
           payload: {
-            location_id: "loc-z",
-            article_id: "art-z",
-            handling_unit_id: "hu-other",
-            qty_base: "9",
+            location_id: "loc-b",
+            article_id: "art-1",
+            handling_unit_id: huId,
+            qty_base: "7",
             reserved_qty_base: "0",
           },
         }),
       ],
       warehouseId,
     );
-    expect(next.stock.get("bal-1")?.location_id).toBe("loc-a");
-    expect(next.stock.has("hu-other")).toBe(false);
+    expect(upserted.stock.size).toBe(1);
+    expect(upserted.stock.get("bal-1")).toMatchObject({ id: "bal-1", location_id: "loc-b", qty_base: "7" });
+    const deleted = applyChanges(
+      upserted,
+      [
+        change({
+          seq: 2,
+          entity: "stock_balance",
+          id: "bal-1",
+          op: "delete",
+          warehouse_id: warehouseId,
+          payload: {},
+        }),
+      ],
+      warehouseId,
+    );
+    expect(deleted.stock.has("bal-1")).toBe(false);
   });
 
   it("keeps an empty warehouse empty when there are no matching changes", () => {
@@ -458,11 +563,36 @@ describe("applyChanges", () => {
 });
 
 describe("loadOfficeLists", () => {
-  it("renders an empty warehouse from snapshot and leaves changes without warehouse_id off", async () => {
+  it("loads StockBalance, Location, and Deviation snapshots and applies a tenant-wide change", async () => {
     const called: string[] = [];
     const lists = await loadOfficeLists(
       async (url) => {
         called.push(url);
+        if (url.includes("/sync/snapshot") && url.includes("entity=Deviation")) {
+          return {
+            snapshot_schema: "do-not-use",
+            items: [
+              {
+                id: "d-open",
+                warehouse_id: warehouseId,
+                kind: "occupied_bin",
+                status: "open",
+                command_id: "c1",
+                detail: { location_id: "loc-a" },
+                created_at: "2026-09-19T08:00:00.000Z",
+              },
+              {
+                id: "d-resolved",
+                warehouse_id: warehouseId,
+                kind: "occupied_bin",
+                status: "resolved",
+                command_id: "c2",
+                detail: {},
+                created_at: "2026-09-19T08:00:01.000Z",
+              },
+            ],
+          };
+        }
         if (url.includes("/sync/snapshot")) {
           return { snapshot_schema: "do-not-use", items: [] };
         }
@@ -475,7 +605,7 @@ describe("loadOfficeLists", () => {
             {
               seq: 1,
               entity: "stock_balance",
-              id: "hu-guess",
+              id: "bal-tenant",
               op: "upsert",
               payload: {
                 location_id: "loc-a",
@@ -483,7 +613,6 @@ describe("loadOfficeLists", () => {
                 handling_unit_id: "hu-guess",
                 qty_base: "1",
                 reserved_qty_base: "0",
-                warehouse_id: warehouseId,
               },
               command_id: "cmd-x",
               actor: null,
@@ -498,10 +627,11 @@ describe("loadOfficeLists", () => {
     );
     expect(called.some((url) => url.includes("/sync/snapshot") && url.includes("entity=StockBalance"))).toBe(true);
     expect(called.some((url) => url.includes("/sync/snapshot") && url.includes("entity=Location"))).toBe(true);
-    expect(called.every((url) => !url.includes("entity=Deviation") && !url.includes("entity=deviation"))).toBe(true);
+    expect(called.some((url) => url.includes("/sync/snapshot") && url.includes("entity=Deviation"))).toBe(true);
     expect(called.some((url) => url.includes("/sync/changes") && url.includes(`warehouse=${warehouseId}`))).toBe(true);
-    expect(lists.stock.size).toBe(0);
-    expect(lists.deviations.size).toBe(0);
+    expect(lists.stock.get("bal-tenant")?.qty_base).toBe("1");
+    expect(lists.deviations.has("d-open")).toBe(true);
+    expect(lists.deviations.has("d-resolved")).toBe(false);
   });
 
   it("pages changes so an upsert on page 1 deleted on page 2 is absent", async () => {

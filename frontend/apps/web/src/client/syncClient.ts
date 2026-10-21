@@ -38,6 +38,7 @@ export type DeviationRow = {
   warehouse_id: string;
   id: string;
   kind: string;
+  status?: string;
   command_id: string;
   detail: DeviationDetail;
   created_at: string;
@@ -78,7 +79,11 @@ export function emptyLists(): OfficeLists {
   return { stock: new Map(), deviations: new Map(), locations: new Map() };
 }
 
-export function snapshotUrl(baseUrl: string, warehouse: string, entity: "StockBalance" | "Location"): string {
+export function snapshotUrl(
+  baseUrl: string,
+  warehouse: string,
+  entity: "StockBalance" | "Location" | "Deviation",
+): string {
   const query = new URLSearchParams({ warehouse, entity });
   return `${baseUrl}/sync/snapshot?${query.toString()}`;
 }
@@ -88,10 +93,10 @@ export function changesUrl(baseUrl: string, warehouse: string, since: number): s
   return `${baseUrl}/sync/changes?${query.toString()}`;
 }
 
-/** Drop a change with no warehouse_id until the spec patch lands. Do not flip yet. */
+/** Null/absent warehouse_id is tenant-wide and is kept. A different non-null warehouse_id is dropped. */
 export function changeMatchesSelectedWarehouse(entry: ChangeRow, warehouseId: string): boolean {
-  if (!entry.warehouse_id) {
-    return false;
+  if (entry.warehouse_id == null || entry.warehouse_id === "") {
+    return true;
   }
   return entry.warehouse_id === warehouseId;
 }
@@ -163,16 +168,32 @@ export function mapLocationSnapshot(body: unknown): LocationRow[] {
   return rows;
 }
 
-export function listsFromSnapshots(stockBody: unknown, locationBody: unknown): OfficeLists {
+export function mapDeviationSnapshot(body: unknown): DeviationRow[] {
+  const items = snapshotItems(body);
+  const rows: DeviationRow[] = [];
+  for (const item of items) {
+    const row = asDeviation(item, "");
+    if (row && row.kind !== "" && isListedDeviation(row)) {
+      rows.push(row);
+    }
+  }
+  return rows;
+}
+
+export function listsFromSnapshots(
+  stockBody: unknown,
+  locationBody: unknown,
+  deviationBody: unknown = { items: [] },
+): OfficeLists {
   return {
     stock: toStockMap(mapStockSnapshot(stockBody)),
-    deviations: new Map(),
+    deviations: toDeviationMap(mapDeviationSnapshot(deviationBody)),
     locations: toLocationMap(mapLocationSnapshot(locationBody)),
   };
 }
 
 export function listsFromStockSnapshot(stockBody: unknown): OfficeLists {
-  return listsFromSnapshots(stockBody, { items: [] });
+  return listsFromSnapshots(stockBody, { items: [] }, { items: [] });
 }
 
 export function mapChangeRows(body: unknown): ChangeRow[] {
@@ -222,7 +243,8 @@ export async function loadOfficeLists(
 ): Promise<OfficeLists> {
   const stockBody = await getJson(snapshotUrl(baseUrl, warehouseId, "StockBalance"));
   const locationBody = await getJson(snapshotUrl(baseUrl, warehouseId, "Location"));
-  let lists = listsFromSnapshots(stockBody, locationBody);
+  const deviationBody = await getJson(snapshotUrl(baseUrl, warehouseId, "Deviation"));
+  let lists = listsFromSnapshots(stockBody, locationBody, deviationBody);
   let since = 0;
   for (;;) {
     const page = mapChangeRows(await getJson(changesUrl(baseUrl, warehouseId, since)));
@@ -268,15 +290,24 @@ export function deviationDetailParts(row: DeviationRow): string[] {
   ].filter((part): part is string => Boolean(part));
 }
 
+function isListedDeviation(row: DeviationRow): boolean {
+  if (row.status == null || row.status === "") {
+    return true;
+  }
+  return row.status === "open" || row.status === "pending_approval";
+}
+
 function applyDeviationRow(deviations: Map<string, DeviationRow>, entry: ChangeRow): void {
   if (entry.op === "delete") {
     deviations.delete(entry.id);
     return;
   }
   const row = asDeviation(entry.payload, entry.id);
-  if (row) {
-    deviations.set(row.id, row);
+  if (!row || !isListedDeviation(row)) {
+    deviations.delete(entry.id);
+    return;
   }
+  deviations.set(row.id, row);
 }
 
 function snapshotItems(body: unknown): unknown[] {
@@ -346,6 +377,7 @@ function asDeviation(value: unknown, fallbackId: string): DeviationRow | null {
     warehouse_id: String(raw.warehouse_id ?? ""),
     id,
     kind: String(raw.kind ?? ""),
+    status: typeof raw.status === "string" && raw.status !== "" ? raw.status : undefined,
     command_id: String(raw.command_id ?? ""),
     detail: {
       location_id: optionalString(detail.location_id),
@@ -398,6 +430,10 @@ function toStockMap(rows: StockRow[]): Map<string, StockRow> {
 }
 
 function toLocationMap(rows: LocationRow[]): Map<string, LocationRow> {
+  return new Map(rows.map((row) => [row.id, row]));
+}
+
+function toDeviationMap(rows: DeviationRow[]): Map<string, DeviationRow> {
   return new Map(rows.map((row) => [row.id, row]));
 }
 
