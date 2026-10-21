@@ -11,6 +11,8 @@
     "articles": "Artiklar",
     "orders": "Ordrar",
     "tasks": "Uppgifter",
+    "stock": "Saldo",
+    "deviations": "Avvikelser",
     "devices": "Enheter",
     "users": "Användare",
     "sso": "SSO",
@@ -115,6 +117,30 @@
     "empty": "Inga uppgifter.",
     "lastActivity": "Senaste aktivitet: {actor}, {time}",
     "lastActivityNone": "Ingen aktivitet ännu."
+  },
+  "stock": {
+    "title": "Saldo",
+    "location": "Plats",
+    "huSku": "HU / SKU",
+    "quantity": "Antal",
+    "reserved": "Reserverat",
+    "search": "Sök",
+    "caption": "Lagerposter",
+    "warehouse": "Lagerställe",
+    "sections": "Lagersektioner",
+    "loadError": "Kunde inte hämta lagerlistan."
+  },
+  "deviations": {
+    "title": "Avvikelser",
+    "location": "Plats",
+    "kind": "Typ",
+    "detail": "Detalj",
+    "createdAt": "Skapad",
+    "search": "Sök",
+    "occupiedBin": "Upptagen plats",
+    "caption": "Avvikelser",
+    "count": "{count} avvikelser",
+    "loadError": "Kunde inte hämta avvikelselistan."
   },
   "devices": {
     "title": "Enheter",

@@ -41,6 +41,8 @@ async function logout() {
         <RouterLink :class="navClass" to="/app/articles">{{ t("nav.articles") }}</RouterLink>
         <RouterLink :class="navClass" to="/app/orders">{{ t("nav.orders") }}</RouterLink>
         <RouterLink :class="navClass" to="/app/tasks">{{ t("nav.tasks") }}</RouterLink>
+        <RouterLink :class="navClass" to="/app/stock">{{ t("nav.stock") }}</RouterLink>
+        <RouterLink :class="navClass" to="/app/deviations">{{ t("nav.deviations") }}</RouterLink>
         <RouterLink :class="[navClass, 'text-white/50']" to="/app/devices">{{ t("nav.devices") }}</RouterLink>
         <RouterLink :class="[navClass, 'text-white/50']" to="/app/users">{{ t("nav.users") }}</RouterLink>
         <RouterLink :class="[navClass, 'text-white/50']" to="/app/sso">{{ t("nav.sso") }}</RouterLink>

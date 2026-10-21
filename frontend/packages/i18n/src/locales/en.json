@@ -11,6 +11,8 @@
     "articles": "Articles",
     "orders": "Orders",
     "tasks": "Tasks",
+    "stock": "Stock",
+    "deviations": "Deviations",
     "devices": "Devices",
     "users": "Users",
     "sso": "SSO",
@@ -115,6 +117,30 @@
     "empty": "No tasks.",
     "lastActivity": "Last activity: {actor}, {time}",
     "lastActivityNone": "No activity yet."
+  },
+  "stock": {
+    "title": "Stock",
+    "location": "Location",
+    "huSku": "HU / SKU",
+    "quantity": "Quantity",
+    "reserved": "Reserved",
+    "search": "Search",
+    "caption": "Stock rows",
+    "warehouse": "Warehouse",
+    "sections": "Stock sections",
+    "loadError": "Could not load the stock list."
+  },
+  "deviations": {
+    "title": "Deviations",
+    "location": "Location",
+    "kind": "Kind",
+    "detail": "Detail",
+    "createdAt": "Created",
+    "search": "Search",
+    "occupiedBin": "Occupied bin",
+    "caption": "Deviations",
+    "count": "{count} deviations",
+    "loadError": "Could not load the deviations list."
   },
   "devices": {
     "title": "Devices",
