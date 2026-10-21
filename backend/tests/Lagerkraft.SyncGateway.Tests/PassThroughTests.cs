@@ -1,5 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Lagerkraft.SyncGateway.Clients;
 
@@ -10,6 +12,13 @@ public sealed class PassThroughTests : IAsyncLifetime
 {
     // RC change_log writes one op. Occupied-bin deviation uses the same vocabulary.
     private const string DeviationChangeOp = "upsert";
+
+    // Provisional: spec PR 5 @ 1f9a021 says stock_balance change_log.id is UUIDv5 of
+    // handling_unit_id + article_id under a wms-core namespace constant. It does not
+    // publish the namespace UUID or the name bytes. This test-only namespace and
+    // "D|D" UTF-8 name stand in until wms-core owns the constant.
+    private static readonly Guid StockBalanceChangeIdNamespace =
+        Guid.Parse("019a0000-5b01-5000-8000-73746f636b62");
 
     private readonly SyncGatewayApiFactory _factory = new();
     private Guid _tenantId;
@@ -200,32 +209,15 @@ public sealed class PassThroughTests : IAsyncLifetime
     [Fact]
     public async Task Changes_QtyBaseDecimalString_Unchanged()
     {
+        var huId = Guid.CreateVersion7();
+        var articleId = Guid.CreateVersion7();
         var expectedBody = JsonSerializer.SerializeToElement(new
         {
             feed_epoch = _factory.Wms.FeedEpoch,
             warehouse = _warehouseId,
             entries = new[]
             {
-                new
-                {
-                    seq = 200L,
-                    entity = "stock_balance",
-                    id = Guid.CreateVersion7(),
-                    op = "upsert",
-                    payload = JsonSerializer.SerializeToElement(new
-                    {
-                        location_id = Guid.CreateVersion7(),
-                        article_id = Guid.CreateVersion7(),
-                        handling_unit_id = Guid.CreateVersion7(),
-                        qty_base = "12.5",
-                        reserved_qty_base = "1"
-                    }),
-                    command_id = Guid.CreateVersion7(),
-                    actor = _userId,
-                    warehouse_id = _warehouseId,
-                    occurred_at = DateTimeOffset.UtcNow,
-                    recorded_at = DateTimeOffset.UtcNow
-                }
+                StockBalanceRow(200, Guid.CreateVersion7(), huId, Guid.CreateVersion7(), articleId, "12.5", DateTimeOffset.UtcNow, reservedQtyBase: "1")
             }
         });
 
@@ -235,9 +227,11 @@ public sealed class PassThroughTests : IAsyncLifetime
         var response = await client.GetAsync($"/sync/changes?warehouse={_warehouseId}&since=199");
         response.EnsureSuccessStatusCode();
 
-        var payload = (await response.Content.ReadFromJsonAsync<JsonElement>())
-            .GetProperty("entries")[0]
-            .GetProperty("payload");
+        var entry = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("entries")[0];
+        entry.GetProperty("id").GetGuid().ShouldBe(StockBalanceChangeId(huId, articleId));
+        var payload = entry.GetProperty("payload");
+        payload.GetProperty("handling_unit_id").GetGuid().ShouldBe(huId);
+        payload.GetProperty("article_id").GetGuid().ShouldBe(articleId);
         AssertDecimalString(payload.GetProperty("qty_base"), "12.5");
         AssertDecimalString(payload.GetProperty("reserved_qty_base"), "1");
     }
@@ -391,14 +385,14 @@ public sealed class PassThroughTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Changes_NullArticleIdOmitted_PassesThroughAsIs()
+    public async Task Changes_OmittedField_PassesThroughAsIs()
     {
-        var payloadWithoutArticleId = JsonDocument.Parse("""
+        var payloadWithoutOptional = JsonDocument.Parse("""
             {
-                "location_id": "01234567-89ab-cdef-0123-456789abcdef",
-                "handling_unit_id": "01234567-89ab-cdef-0123-456789abcdef",
-                "qty_base": "1",
-                "reserved_qty_base": "0"
+                "id": "01234567-89ab-cdef-0123-456789abcdef",
+                "warehouse_id": "01234567-89ab-cdef-0123-456789abcdef",
+                "type": "putaway",
+                "status": "done"
             }
             """).RootElement;
 
@@ -411,10 +405,10 @@ public sealed class PassThroughTests : IAsyncLifetime
                 new
                 {
                     seq = 300L,
-                    entity = "stock_balance",
-                    id = Guid.CreateVersion7(),
+                    entity = "task",
+                    id = Guid.Parse("01234567-89ab-cdef-0123-456789abcdef"),
                     op = "upsert",
-                    payload = payloadWithoutArticleId,
+                    payload = payloadWithoutOptional,
                     command_id = (Guid?)null,
                     actor = (Guid?)null,
                     warehouse_id = _warehouseId,
@@ -434,7 +428,61 @@ public sealed class PassThroughTests : IAsyncLifetime
             .GetProperty("entries")[0]
             .GetProperty("payload");
         payload.TryGetProperty("article_id", out _).ShouldBeFalse();
-        AssertDecimalString(payload.GetProperty("qty_base"), "1");
+        payload.TryGetProperty("suggested_location_id", out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task MixedPalletChanges_TwoStockBalancesDistinctIds()
+    {
+        var commandId = Guid.CreateVersion7();
+        var huId = Guid.CreateVersion7();
+        var articleA = Guid.CreateVersion7();
+        var articleB = Guid.CreateVersion7();
+        var locationId = Guid.CreateVersion7();
+        var now = DateTimeOffset.UtcNow;
+        var idA = StockBalanceChangeId(huId, articleA);
+        var idB = StockBalanceChangeId(huId, articleB);
+        idA.ShouldNotBe(idB);
+
+        var expectedBody = JsonSerializer.SerializeToElement(new
+        {
+            feed_epoch = _factory.Wms.FeedEpoch,
+            warehouse = _warehouseId,
+            entries = new object[]
+            {
+                StockBalanceRow(400, commandId, huId, locationId, articleA, "12.5", now),
+                StockBalanceRow(401, commandId, huId, locationId, articleB, "1", now)
+            }
+        });
+
+        _factory.Wms.OnGetChanges = () => expectedBody;
+
+        using var client = Authed();
+        var response = await client.GetAsync($"/sync/changes?warehouse={_warehouseId}&since=399");
+        response.EnsureSuccessStatusCode();
+
+        var actualBody = await response.Content.ReadFromJsonAsync<JsonElement>();
+        AssertJsonEqual(expectedBody, actualBody);
+
+        var entries = actualBody.GetProperty("entries").EnumerateArray().ToArray();
+        entries.Length.ShouldBe(2);
+        entries[0].GetProperty("id").GetGuid().ShouldBe(idA);
+        entries[1].GetProperty("id").GetGuid().ShouldBe(idB);
+        entries[0].GetProperty("id").GetGuid().ShouldNotBe(entries[1].GetProperty("id").GetGuid());
+
+        foreach (var entry in entries)
+        {
+            var payload = entry.GetProperty("payload");
+            payload.GetProperty("handling_unit_id").GetGuid().ShouldBe(huId);
+            payload.TryGetProperty("article_id", out var article).ShouldBeTrue();
+            article.ValueKind.ShouldBe(JsonValueKind.String);
+            entry.GetProperty("warehouse_id").GetGuid().ShouldBe(_warehouseId);
+        }
+
+        entries[0].GetProperty("payload").GetProperty("article_id").GetGuid().ShouldBe(articleA);
+        entries[1].GetProperty("payload").GetProperty("article_id").GetGuid().ShouldBe(articleB);
+        AssertDecimalString(entries[0].GetProperty("payload").GetProperty("qty_base"), "12.5");
+        AssertDecimalString(entries[1].GetProperty("payload").GetProperty("qty_base"), "1");
     }
 
     [Fact]
@@ -630,12 +678,13 @@ public sealed class PassThroughTests : IAsyncLifetime
         Guid locationId,
         Guid articleId,
         string qtyBase,
-        DateTimeOffset now) =>
+        DateTimeOffset now,
+        string reservedQtyBase = "0") =>
         new
         {
             seq,
             entity = "stock_balance",
-            id = huId,
+            id = StockBalanceChangeId(huId, articleId),
             op = "upsert",
             payload = JsonSerializer.SerializeToElement(new
             {
@@ -643,7 +692,7 @@ public sealed class PassThroughTests : IAsyncLifetime
                 article_id = articleId,
                 handling_unit_id = huId,
                 qty_base = qtyBase,
-                reserved_qty_base = "0"
+                reserved_qty_base = reservedQtyBase
             }),
             command_id = commandId,
             actor = _userId,
@@ -651,6 +700,33 @@ public sealed class PassThroughTests : IAsyncLifetime
             occurred_at = now,
             recorded_at = now
         };
+
+    private static Guid StockBalanceChangeId(Guid handlingUnitId, Guid articleId)
+    {
+        var name = $"{handlingUnitId:D}|{articleId:D}";
+        return UuidV5(StockBalanceChangeIdNamespace, Encoding.UTF8.GetBytes(name));
+    }
+
+    // RFC 4122 name-based UUIDv5. .NET 10 on this SDK has no Guid.CreateVersion5.
+    private static Guid UuidV5(Guid namespaceId, byte[] name)
+    {
+        var ns = namespaceId.ToByteArray();
+        SwapGuidEndianness(ns);
+        var hash = SHA1.HashData(ns.Concat(name).ToArray());
+        var bytes = hash.AsSpan(0, 16).ToArray();
+        bytes[6] = (byte)((bytes[6] & 0x0F) | 0x50);
+        bytes[8] = (byte)((bytes[8] & 0x3F) | 0x80);
+        SwapGuidEndianness(bytes);
+        return new Guid(bytes);
+    }
+
+    private static void SwapGuidEndianness(byte[] guid)
+    {
+        (guid[0], guid[3]) = (guid[3], guid[0]);
+        (guid[1], guid[2]) = (guid[2], guid[1]);
+        (guid[4], guid[5]) = (guid[5], guid[4]);
+        (guid[6], guid[7]) = (guid[7], guid[6]);
+    }
 
     // Provisional occupied_bin detail (wms-core / spec PR 5). Incoming putaway
     // movement_id; existing pallet leaves via displaced_movement_id to UNLOCATED.
@@ -689,15 +765,25 @@ public sealed class PassThroughTests : IAsyncLifetime
 
         var balances = actual.Where(e => e.GetProperty("entity").GetString() == "stock_balance").ToArray();
         balances.Length.ShouldBe(2);
-        var incomingBal = balances.Single(e => e.GetProperty("id").GetGuid() == incomingHuId);
-        var existingBal = balances.Single(e => e.GetProperty("id").GetGuid() != incomingHuId);
-        var existingHuId = existingBal.GetProperty("id").GetGuid();
+        var incomingBal = balances.Single(e =>
+            e.GetProperty("payload").GetProperty("handling_unit_id").GetGuid() == incomingHuId);
+        var existingBal = balances.Single(e =>
+            e.GetProperty("payload").GetProperty("handling_unit_id").GetGuid() != incomingHuId);
+        var existingHuId = existingBal.GetProperty("payload").GetProperty("handling_unit_id").GetGuid();
+        var incomingArticleId = incomingBal.GetProperty("payload").GetProperty("article_id").GetGuid();
+        var existingArticleId = existingBal.GetProperty("payload").GetProperty("article_id").GetGuid();
+        incomingBal.GetProperty("id").GetGuid().ShouldBe(StockBalanceChangeId(incomingHuId, incomingArticleId));
+        existingBal.GetProperty("id").GetGuid().ShouldBe(StockBalanceChangeId(existingHuId, existingArticleId));
+        incomingBal.GetProperty("id").GetGuid().ShouldNotBe(existingBal.GetProperty("id").GetGuid());
 
         incomingBal.GetProperty("payload").GetProperty("location_id").ValueKind.ShouldBe(JsonValueKind.String);
         incomingBal.GetProperty("payload").GetProperty("location_id").GetGuid().ShouldNotBe(_unlocatedLocationId);
         existingBal.GetProperty("payload").GetProperty("location_id").ValueKind.ShouldBe(JsonValueKind.String);
         existingBal.GetProperty("payload").GetProperty("location_id").GetGuid().ShouldBe(_unlocatedLocationId);
+        incomingBal.GetProperty("payload").GetProperty("handling_unit_id").GetGuid().ShouldBe(incomingHuId);
         existingBal.GetProperty("payload").GetProperty("handling_unit_id").GetGuid().ShouldBe(existingHuId);
+        incomingBal.GetProperty("payload").GetProperty("article_id").GetGuid().ShouldBe(incomingArticleId);
+        existingBal.GetProperty("payload").GetProperty("article_id").GetGuid().ShouldBe(existingArticleId);
         AssertDecimalString(existingBal.GetProperty("payload").GetProperty("qty_base"), "1");
         AssertDecimalString(incomingBal.GetProperty("payload").GetProperty("qty_base"), "12.5");
 
